@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block header %}
+Studies
+{% endblock %}
+
+{% block content %}
+<div class="mb-8 p-6 bg-white rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">Create New Study</h2>
+    <form action="{{ url_for('add_study') }}" method="POST" class="space-y-4">
+        {% set form = g.study_form %} {# Use a globally available form for creation #}
+        {{ form.hidden_tag() }}
+        <div>
+            <label for="{{ form.name.id }}" class="block text-sm font-medium text-gray-700">{{ form.name.label }}</label>
+            {{ form.name(class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+        </div>
+        <div>
+            <label for="{{ form.description.id }}" class="block text-sm font-medium text-gray-700">{{ form.description.label }}</label>
+            {{ form.description(rows=3, class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm") }}
+        </div>
+        <div>
+            <input type="submit" value="Create Study" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 cursor-pointer">
+        </div>
+    </form>
+</div>
+
+<h2 class="text-xl font-semibold mb-4 text-gray-800">Existing Studies</h2>
+<div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <ul class="divide-y divide-gray-200">
+        {% for study in studies %}
+        <li class="px-4 py-4 sm:px-6 hover:bg-gray-50">
+            <div class="flex items-center justify-between">
+                <a href="{{ url_for('study_detail', study_id=study.id) }}" class="flex-grow">
+                    <p class="text-sm font-medium text-indigo-600 truncate">{{ study.name }}</p>
+                    <div class="mt-2 flex items-center text-sm text-gray-500">
+                      <p>{{ study.description or "No description provided."}}</p>
+                    </div>
+                </a>
+                <div class="ml-4 flex-shrink-0 flex items-center gap-4">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        {{ study.animals.count() }} animals
+                    </span>
+                    <a href="{{ url_for('study_detail', study_id=study.id) }}" class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        View & Edit
+                    </a>
+                </div>
+            </div>
+        </li>
+        {% else %}
+        <li class="px-4 py-4 text-center text-sm text-gray-500">No studies have been created yet.</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block header %}
+Application Settings
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+    <!-- Species Section -->
+    <div class="p-6 bg-white rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Species</h2>
+        <form action="{{ url_for('add_setting', item_type='species') }}" method="POST" class="flex gap-2 mb-4">
+            {{ g.simple_add_form.hidden_tag() }}
+            {{ g.simple_add_form.name(class="flex-grow shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md", placeholder="New Species Name") }}
+            {{ g.simple_add_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700", value="Add") }}
+        </form>
+        <ul class="divide-y divide-gray-200">
+            {% for item in species %}
+            <li class="py-2 flex justify-between items-center">
+                <span>{{ item.name }}</span>
+                <form action="{{ url_for('delete_setting', item_type='species', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure?');">
+                    <button type="submit" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Sources Section -->
+    <div class="p-6 bg-white rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Sources</h2>
+        <form action="{{ url_for('add_setting', item_type='source') }}" method="POST" class="flex gap-2 mb-4">
+            {{ g.simple_add_form.hidden_tag() }}
+            {{ g.simple_add_form.name(class="flex-grow shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md", placeholder="New Source Name") }}
+            {{ g.simple_add_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700", value="Add") }}
+        </form>
+        <ul class="divide-y divide-gray-200">
+            {% for item in sources %}
+            <li class="py-2 flex justify-between items-center">
+                <span>{{ item.name }}</span>
+                <form action="{{ url_for('delete_setting', item_type='source', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure?');">
+                    <button type="submit" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Procedures Section -->
+    <div class="p-6 bg-white rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Procedures</h2>
+        <form action="{{ url_for('add_setting', item_type='procedure') }}" method="POST" class="flex gap-2 mb-4">
+            {{ g.simple_add_form.hidden_tag() }}
+            {{ g.simple_add_form.name(class="flex-grow shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md", placeholder="New Procedure Name") }}
+            {{ g.simple_add_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700", value="Add") }}
+        </form>
+        <ul class="divide-y divide-gray-200">
+            {% for item in procedures %}
+            <li class="py-2 flex justify-between items-center">
+                <span>{{ item.name }}</span>
+                <form action="{{ url_for('delete_setting', item_type='procedure', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure?');">
+                    <button type="submit" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <!-- Termination Reasons Section -->
+    <div class="p-6 bg-white rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Termination Reasons</h2>
+        <form action="{{ url_for('add_setting', item_type='termination_reason') }}" method="POST" class="flex gap-2 mb-4">
+            {{ g.simple_add_form.hidden_tag() }}
+            {{ g.simple_add_form.name(class="flex-grow shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md", placeholder="New Reason") }}
+            {{ g.simple_add_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700", value="Add") }}
+        </form>
+        <ul class="divide-y divide-gray-200">
+            {% for item in termination_reasons %}
+             <li class="py-2 flex justify-between items-center">
+                <span>{{ item.reason }}</span>
+                <form action="{{ url_for('delete_setting', item_type='termination_reason', item_id=item.id) }}" method="POST" onsubmit="return confirm('Are you sure?');">
+                    <button type="submit" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<div class="mt-8">
+    <h2 class="text-2xl font-semibold mb-4 text-gray-800">Histology Settings</h2>
+    <div class="p-6 bg-white rounded-lg shadow">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800">Immunolabeling Panels</h3>
+        <div class="lg:w-1/2 mb-6">
+            <form action="{{ url_for('add_panel') }}" method="POST" class="flex gap-2">
+                {{ g.panel_form.hidden_tag() }}
+                {{ g.panel_form.name(class="flex-grow shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md", placeholder="New Panel Name") }}
+                {{ g.panel_form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700", value="Create") }}
+            </form>
+        </div>
+        <ul class="divide-y divide-gray-200">
+            {% for panel in panels %}
+            <li class="py-3">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-2 gap-2">
+                    <form action="{{ url_for('rename_panel', panel_id=panel.id) }}" method="POST" class="flex items-center gap-2">
+                        {{ g.rename_panel_form.hidden_tag() }}
+                        {{ g.rename_panel_form.name(class="text-lg font-medium border-gray-300 rounded-md shadow-sm", value=panel.name) }}
+                        {{ g.rename_panel_form.submit(class="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200", value="Rename") }}
+                    </form>
+                    <form action="{{ url_for('delete_panel', panel_id=panel.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this panel?');">
+                        <button type="submit" class="text-sm text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i> Delete Panel</button>
+                    </form>
+                </div>
+                <div class="pl-4 mt-2">
+                    <h4 class="text-md font-medium text-gray-700">Reagents in Panel</h4>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1 mt-2">
+                        {% for reagent in panel.reagents %}
+                            <li>{{ reagent.name }} ({{ reagent.dilution }})</li>
+                        {% else %}
+                            <li>No reagents in this panel yet.</li>
+                        {% endfor %}
+                    </ul>
+                    <form action="{{ url_for('add_reagent', panel_id=panel.id) }}" method="POST" class="mt-3 flex flex-col md:flex-row gap-2 items-start md:items-center">
+                        {{ g.reagent_form.hidden_tag() }}
+                        <div class="flex-grow w-full md:w-auto">
+                           {{ g.reagent_form.name(class="w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block sm:text-sm border-gray-300 rounded-md", placeholder="Reagent Name") }}
+                        </div>
+                        <div class="flex-grow w-full md:w-auto">
+                            {{ g.reagent_form.dilution(class="w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block sm:text-sm border-gray-300 rounded-md", placeholder="Dilution (e.g., 1:500)") }}
+                        </div>
+                        {{ g.reagent_form.submit(class="inline-flex justify-center py-2 px-3 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700", value="Add Reagent") }}
+                    </form>
+                </div>
+            </li>
+            {% else %}
+            <li class="py-3 text-center text-gray-500">No immunolabeling panels created yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

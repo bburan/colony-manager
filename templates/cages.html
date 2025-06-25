@@ -1,0 +1,111 @@
+
+{% extends "base.html" %}
+
+{% block header %}
+Cage Management
+{% endblock %}
+
+{% block content %}
+<!-- Add Cage Form Section -->
+<div class="mb-8 p-6 bg-white rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">Add New Cage</h2>
+    <form action="{{ url_for('add_cage') }}" method="POST" class="space-y-4">
+        {{ form.hidden_tag() }}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+                <label for="{{ form.species.id }}" class="block text-sm font-medium text-gray-700">{{ form.species.label }}</label>
+                {{ form.species(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+            <div>
+                <label for="{{ form.source.id }}" class="block text-sm font-medium text-gray-700">{{ form.source.label }} (if not from breeding)</label>
+                {{ form.source(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+             <div>
+                <label for="{{ form.sex.id }}" class="block text-sm font-medium text-gray-700">{{ form.sex.label }}</label>
+                {{ form.sex(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+            <div>
+                <label for="{{ form.date_of_birth.id }}" class="block text-sm font-medium text-gray-700">{{ form.date_of_birth.label }}</label>
+                {{ form.date_of_birth(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+             <div>
+                <label for="{{ form.number_of_animals.id }}" class="block text-sm font-medium text-gray-700">{{ form.number_of_animals.label }}</label>
+                {{ form.number_of_animals(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+        </div>
+        <div class="pt-2">
+            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer") }}
+        </div>
+    </form>
+</div>
+
+<!-- Filter and Sort Controls -->
+<div class="mb-4 p-4 bg-gray-50 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-gray-700">Filter by:</span>
+        <div class="flex items-center rounded-md shadow-sm">
+            <a href="{{ url_for('view_cages', sort_by=sort_by, filter='active') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if filter_by == 'active' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Active</a>
+            <a href="{{ url_for('view_cages', sort_by=sort_by, filter='inactive') }}" class="px-3 py-1 text-sm font-medium border-t border-b border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if filter_by == 'inactive' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Inactive</a>
+            <a href="{{ url_for('view_cages', sort_by=sort_by, filter='all') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if filter_by == 'all' else 'bg-white text-gray-700 hover:bg-gray-50' }}">All</a>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <span class="text-sm font-medium text-gray-700">Sort by:</span>
+        <div class="flex items-center rounded-md shadow-sm">
+            <a href="{{ url_for('view_cages', filter=filter_by, sort_by='id') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if sort_by == 'id' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Cage ID</a>
+            <a href="{{ url_for('view_cages', filter=filter_by, sort_by='age') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if sort_by == 'age' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Age</a>
+        </div>
+    </div>
+</div>
+
+
+<!-- Cages Table -->
+<div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cage ID</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Species</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sex</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date of Birth</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age (Days)</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active Animals</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for cage in cages %}
+             <tr class="{{ 'bg-gray-50 text-gray-500' if not cage.is_active else '' }}">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <a href="{{ url_for('cage_detail', cage_id=cage.id) }}" class="text-blue-600 hover:text-blue-800">#{{ cage.id }}</a>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.species.name }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.sex }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.date_of_birth.strftime('%Y-%m-%d') }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.age_in_days }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    {% if cage.breeding_pair %}
+                        <a href="{{ url_for('breeding_pair_detail', pair_id=cage.breeding_pair.id) }}" class="text-blue-600 hover:text-blue-800">{{ cage.source_display }}</a>
+                    {% else %}
+                        {{ cage.source_display }}
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.animals.filter_by(is_terminated=False).count() }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    {% if cage.is_active %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                    {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-800">Inactive</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No cages match the current filters.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

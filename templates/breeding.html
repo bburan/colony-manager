@@ -1,0 +1,101 @@
+
+{% extends "base.html" %}
+
+{% block header %}
+Breeding Management
+{% endblock %}
+
+{% block content %}
+<!-- Add Breeding Pair Form Section -->
+<div class="mb-8 p-6 bg-white rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">Create New Breeding Pair</h2>
+    <form action="{{ url_for('add_breeding_pair') }}" method="POST" class="space-y-4">
+        {{ form.hidden_tag() }}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="{{ form.male_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.male_animal.label }}</label>
+                {{ form.male_animal(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+            <div>
+                <label for="{{ form.female_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.female_animal.label }}</label>
+                {{ form.female_animal(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+             <div>
+                <label for="{{ form.start_date.id }}" class="block text-sm font-medium text-gray-700">{{ form.start_date.label }}</label>
+                {{ form.start_date(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+            </div>
+        </div>
+        <div class="pt-2">
+            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 cursor-pointer") }}
+        </div>
+    </form>
+</div>
+
+<!-- Breeding Pairs Table -->
+<h2 class="text-xl font-semibold mb-4 text-gray-800">All Breeding Pairs</h2>
+<div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pair ID</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Male</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Female</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Litters</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for pair in pairs %}
+            <tr class="{{ 'bg-gray-100' if not pair.is_active else '' }}">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}" class="text-blue-600 hover:text-blue-800">#{{ pair.id }}</a>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.male.full_id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.female.full_id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.start_date.strftime('%Y-%m-%d') }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    {% if pair.is_active %}
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                    {% else %}
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-normal text-sm text-gray-500">
+                    {% for litter in pair.litters %}
+                    <div>
+                        Litter of {{ litter.pup_count }} on {{ litter.birth_date.strftime('%Y-%m-%d') }}
+                        {% if not litter.is_weaned and pair.is_active %}
+                        - <a href="{{ url_for('wean_litter', litter_id=litter.id) }}" class="font-medium text-blue-600 hover:text-blue-800">Wean</a>
+                        {% elif litter.is_weaned %}
+                        <span class="text-xs text-gray-400">(Weaned)</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    No litters recorded.
+                    {% endfor %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {% if pair.is_active %}
+                    <button onclick="toggleModal('litter-modal-{{ pair.id }}')" class="text-indigo-600 hover:text-indigo-900">Record Litter</button>
+                    <form action="{{ url_for('deactivate_pair', pair_id=pair.id) }}" method="POST" class="inline-block ml-4">
+                        <button type="submit" class="text-red-600 hover:text-red-900">Deactivate</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('reactivate_pair', pair_id=pair.id) }}" method="POST" class="inline-block">
+                        <button type="submit" class="text-green-600 hover:text-green-900">Re-activate</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if pair.is_active %}
+                {% include 'partials/_litter_modal.html' %}
+            {% endif %}
+            {% else %}
+            <tr><td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">No breeding pairs found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+
+{% extends "base.html" %}
+
+{% block header %}
+Cage #{{ cage.id }} Details
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2">
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+            <div class="px-4 py-5 sm:px-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Cage Information</h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                    Overview of cage properties and source.
+                </p>
+            </div>
+            <div class="border-t border-gray-200">
+                <dl class="divide-y divide-gray-200">
+                    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Species</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ cage.species.name }}</dd>
+                    </div>
+                    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Sex</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ cage.sex }}</dd>
+                    </div>
+                    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Date of Birth</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ cage.date_of_birth.strftime('%Y-%m-%d') }} ({{ cage.age_in_days }} days old)</dd>
+                    </div>
+                    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Source</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                            {% if cage.breeding_pair %}
+                                <a href="{{ url_for('breeding_pair_detail', pair_id=cage.breeding_pair.id) }}" class="text-blue-600 hover:text-blue-800">{{ cage.source_display }}</a>
+                            {% else %}
+                                {{ cage.source_display }}
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                        <dt class="text-sm font-medium text-gray-500">Status</dt>
+                        <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                            {% if cage.is_active %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                            {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Animals in this Cage</h3>
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Animal ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ears Extracted</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Events Logged</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">General Notes</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for animal in cage.animals.order_by('animal_number').all() %}
+                    <tr class="{{ 'bg-red-50 text-gray-500' if animal.is_terminated else '' }}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {{ 'text-gray-900' if not animal.is_terminated else '' }}">{{ animal.full_id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            {% if animal.is_terminated %}
+                                Terminated on {{ animal.termination_date.strftime('%Y-%m-%d') if animal.termination_date }}
+                            {% else %}
+                                Active
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.ears_extracted }}</td>
+                        <td class="px-6 py-4 text-sm">
+                            <ul class="list-disc list-inside">
+                            {% for event in animal.events %}
+                                <li>{{ event.procedure.name }} on {{ event.event_date.strftime('%b %d, %Y') }}</li>
+                            {% else %}
+                                <li>None</li>
+                            {% endfor %}
+                            </ul>
+                        </td>
+                        <td class="px-6 py-4 whitespace-normal text-sm">{{ animal.general_notes or 'N/A' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No animals found in this cage.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Cage Notes</h3>
+        <div class="bg-white shadow rounded-lg p-6">
+            <form method="POST" action="{{ url_for('cage_detail', cage_id=cage.id) }}">
+                {{ form.hidden_tag() }}
+                <label for="{{ form.notes.id }}" class="sr-only">{{ form.notes.label }}</label>
+                {{ form.notes(class="w-full border-gray-300 rounded-md shadow-sm", rows=8, placeholder="Add notes for this cage...") }}
+                <div class="mt-4">
+                    {{ form.submit(class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="mt-6">
+    <a href="{{ url_for('view_cages') }}" class="text-blue-600 hover:text-blue-800">&larr; Back to Cages</a>
+</div>
+{% endblock %}

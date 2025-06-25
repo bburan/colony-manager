@@ -1,0 +1,130 @@
+
+{% extends "base.html" %}
+
+{% block header %}
+Dashboard
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <!-- Active Cages Card -->
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-box fa-2x text-blue-500"></i>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Active Cages
+                        </dt>
+                        <dd>
+                            <div class="text-lg font-medium text-gray-900">
+                                {{ active_cages }}
+                            </div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm">
+                <a href="{{ url_for('view_cages') }}" class="font-medium text-blue-700 hover:text-blue-900">
+                    View all
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Animals Card -->
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-paw fa-2x text-green-500"></i>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Active Animals
+                        </dt>
+                        <dd>
+                            <div class="text-lg font-medium text-gray-900">
+                                {{ active_animals }}
+                            </div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm">
+                <a href="{{ url_for('view_animals') }}" class="font-medium text-green-700 hover:text-green-900">
+                    View all
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Breeding Pairs Card -->
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-heart fa-2x text-pink-500"></i>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Active Breeding Pairs
+                        </dt>
+                        <dd>
+                            <div class="text-lg font-medium text-gray-900">
+                                {{ active_pairs }}
+                            </div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm">
+                <a href="{{ url_for('view_breeding_pairs') }}" class="font-medium text-pink-700 hover:text-pink-900">
+                    View all
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ears to Process Card -->
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-vial-circle-check fa-2x text-purple-500"></i>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Ears for Processing
+                        </dt>
+                        <dd>
+                            <div class="text-lg font-medium text-gray-900">
+                                {{ ears_to_process }}
+                            </div>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-50 px-5 py-3">
+            <div class="text-sm">
+                <a href="{{ url_for('view_histology') }}" class="font-medium text-purple-700 hover:text-purple-900">
+                    View all
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

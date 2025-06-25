@@ -1,0 +1,43 @@
+
+{% extends "base.html" %}
+
+{% block header %}
+Wean Litter from Pair #{{ litter.breeding_pair.id }}
+{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow">
+    <!-- Info section ... -->
+    <form action="{{ url_for('wean_litter', litter_id=litter.id) }}" method="POST">
+        <p class="... mb-4">
+            Specify the number of male and female pups to be weaned. You can create up to four new cages from this litter.
+        </p>
+        <div id="wean-cages-container" class="space-y-4">
+            {% for i in range(4) %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-md">
+                <h4 class="md:col-span-2 text-md font-semibold text-gray-700">New Cage {{ i + 1 }} {% if i > 0 %}(Optional){% endif %}</h4>
+                <div>
+                    <label for="sexes_{{ i }}" class="block text-sm font-medium text-gray-700">Sex</label>
+                    <select name="sexes" id="sexes_{{ i }}" class="mt-1 block w-full ... rounded-md">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="counts_{{ i }}" class="block text-sm font-medium text-gray-700">Number of Pups</label>
+                    <input type="number" name="counts" id="counts_{{ i }}" value="0" min="0" class="mt-1 ... rounded-md">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-6">
+            <button type="submit" class="... bg-blue-600 hover:bg-blue-700">
+                Wean and Create Cages
+            </button>
+            <a href="{{ url_for('view_breeding_pairs') }}" class="ml-4 ...">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

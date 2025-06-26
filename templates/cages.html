@@ -7,34 +7,43 @@ Cage Management
 
 {% block content %}
 <!-- Add Cage Form Section -->
+
 <div class="mb-8 p-6 bg-white rounded-lg shadow">
     <h2 class="text-xl font-semibold mb-4 text-gray-800">Add New Cage</h2>
-    <form action="{{ url_for('add_cage') }}" method="POST" class="space-y-4">
+    <form action="{{ url_for('add_cage') }}" method="POST" class="space-y-6">
         {{ form.hidden_tag() }}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+                <label for="{{ form.custom_id.id }}" class="block text-sm font-medium text-gray-700">{{ form.custom_id.label }}</label>
+                {{ form.custom_id(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500", placeholder="e.g., B001") }}
+            </div>
             <div>
                 <label for="{{ form.species.id }}" class="block text-sm font-medium text-gray-700">{{ form.species.label }}</label>
-                {{ form.species(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                {{ form.species(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
             </div>
             <div>
-                <label for="{{ form.source.id }}" class="block text-sm font-medium text-gray-700">{{ form.source.label }} (if not from breeding)</label>
-                {{ form.source(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                <label for="{{ form.source.id }}" class="block text-sm font-medium text-gray-700">{{ form.source.label }}</label>
+                {{ form.source(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
             </div>
-             <div>
+            <div>
                 <label for="{{ form.sex.id }}" class="block text-sm font-medium text-gray-700">{{ form.sex.label }}</label>
-                {{ form.sex(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                {{ form.sex(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
             </div>
             <div>
                 <label for="{{ form.date_of_birth.id }}" class="block text-sm font-medium text-gray-700">{{ form.date_of_birth.label }}</label>
-                {{ form.date_of_birth(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                {{ form.date_of_birth(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
             </div>
-             <div>
+            <div>
                 <label for="{{ form.number_of_animals.id }}" class="block text-sm font-medium text-gray-700">{{ form.number_of_animals.label }}</label>
-                {{ form.number_of_animals(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                {{ form.number_of_animals(class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
+            </div>
+            <div class="md:col-span-2 lg:col-span-3">
+                <label for="{{ form.notes.id }}" class="block text-sm font-medium text-gray-700">{{ form.notes.label }}</label>
+                {{ form.notes(rows=2, class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500") }}
             </div>
         </div>
         <div class="pt-2">
-            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer") }}
+            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500") }}
         </div>
     </form>
 </div>
@@ -78,7 +87,7 @@ Cage Management
             {% for cage in cages %}
              <tr class="{{ 'bg-gray-50 text-gray-500' if not cage.is_active else '' }}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <a href="{{ url_for('cage_detail', cage_id=cage.id) }}" class="text-blue-600 hover:text-blue-800">#{{ cage.id }}</a>
+                    <a href="{{ url_for('cage_detail', cage_id=cage.id) }}" class="text-blue-600 hover:text-blue-800">{{ cage.custom_id }}</a>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.species.name }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">{{ cage.sex }}</td>

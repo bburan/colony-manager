@@ -13,7 +13,7 @@ Animal Overview
             <span class="text-sm font-medium text-gray-700 mr-2">Status:</span>
             <div class="inline-flex rounded-md shadow-sm">
                 <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='active') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'active' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Active</a>
-                <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='euthanized') }}" class="px-3 py-1 text-sm font-medium border-t border-b border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'euthanized' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Euthanized</a>
+                <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='terminated') }}" class="px-3 py-1 text-sm font-medium border-t border-b border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'terminated' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Terminated</a>
                 <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='all') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'all' else 'bg-white text-gray-700 hover:bg-gray-50' }}">All</a>
             </div>
         </div>
@@ -36,61 +36,7 @@ Animal Overview
     </div>
 </div>
 
-<div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-            <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Animal ID</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Species</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sex</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age (Days)</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logged Events</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-            {% for animal in animals %}
-            <tr class="{{ 'bg-red-50 text-gray-500' if animal.is_euthanized else '' }}">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                     <form action="{{ url_for('update_animal_id', animal_id=animal.id) }}" method="POST" class="flex items-center">
-                        <span class="{{ 'text-gray-900' if not animal.is_euthanized else '' }}">{{ animal.cage_id }}-</span>
-                        <input type="text" name="new_number" value="{{ animal.animal_number }}" class="w-12 border rounded-md p-1 text-sm bg-white">
-                        <button type="submit" class="ml-2 text-blue-500 hover:text-blue-700" title="Save Animal Number"><i class="fas fa-save"></i></button>
-                    </form>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.species.name }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.sex }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.age_in_days }}</td>
-                <td class="px-6 py-4 whitespace-normal text-sm">
-                    <ul class="list-disc list-inside">
-                    {% for event in animal.events %}
-                        <li title="{{ event.notes or 'No notes' }}">{{ event.procedure.name }} on {{ event.event_date.strftime('%b %d, %Y') }}</li>
-                    {% else %}
-                        <li>No events logged.</li>
-                    {% endfor %}
-                    </ul>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div class="flex items-center gap-3">
-                        <button onclick="toggleModal('note-modal-{{ animal.id }}')" class="text-yellow-600 hover:text-yellow-900" title="Edit General Notes"><i class="fas fa-sticky-note"></i></button>
-                        {% if not animal.is_euthanized %}
-                        <button onclick="toggleModal('event-modal-{{ animal.id }}')" class="text-indigo-600 hover:text-indigo-900" title="Log Event">Log Event</button>
-                        <button onclick="toggleModal('term-modal-{{ animal.id }}')" class="text-red-600 hover:text-red-900" title="Terminate">Terminate</button>
-                        {% endif %}
-                    </div>
-                </td>
-            </tr>
-            <!-- Modals for each animal -->
-            {% if not animal.is_euthanized %}
-                 {% include 'partials/_animal_modals.html' %}
-            {% endif %}
-            {% else %}
-            <tr>
-                <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No animals match the current filters.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+{% set show_cage_column = True %}
+{% include 'partials/_animal_table.html' %}
 
 {% endblock %}

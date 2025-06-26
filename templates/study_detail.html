@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block header %}
@@ -24,7 +23,7 @@ Study: {{ study.name }}
                     <tbody class="bg-white divide-y divide-gray-200">
                         {% for animal in study.animals.all() %}
                         <tr class="{{ 'bg-red-50 text-gray-500' if animal.is_terminated else '' }}">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {{ 'text-gray-900' if not animal.is_terminated else '' }}">{{ animal.custom_id }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {{ 'text-gray-900' if not animal.is_terminated else '' }}">{{ animal.full_id }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.sex }}</td>
                             <td class="px-6 py-4 whitespace-normal text-sm">
                                 {% if animal.events.count() > 0 %}

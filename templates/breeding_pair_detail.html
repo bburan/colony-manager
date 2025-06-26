@@ -13,11 +13,11 @@ Breeding Pair #{{ pair.id }} Details
         <dl class="divide-y divide-gray-200">
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Male</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.male.custom_id }} ({{ pair.male.cage.species.name }})</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.male.full_id }} ({{ pair.male.cage.species.name }})</dd>
             </div>
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Female</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.female.custom_id }} ({{ pair.female.cage.species.name }})</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.female.full_id }} ({{ pair.female.cage.species.name }})</dd>
             </div>
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Pair Start Date</dt>
@@ -52,7 +52,7 @@ Breeding Pair #{{ pair.id }} Details
         <tbody class="bg-white divide-y divide-gray-200">
             {% for animal in animals %}
             <tr class="{{ 'bg-red-50 text-gray-500' if animal.is_terminated else '' }}">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ animal.custom_id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ animal.full_id }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}" class="text-blue-600 hover:text-blue-800">#{{ animal.cage.id }}</a>
                 </td>

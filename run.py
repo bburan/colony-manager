@@ -5,7 +5,7 @@ from sqlalchemy import MetaData, desc
 from flask_migrate import Migrate
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, DateField, SelectField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError
+from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length
 from wtforms.widgets import ListWidget, CheckboxInput
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 from datetime import date, datetime
@@ -57,8 +57,10 @@ class TerminationReason(db.Model):
     animals = db.relationship('Animal', backref='termination_reason', lazy=True)
 
 class Cage(db.Model):
+    # Cage ID is now an Integer primary key for performance and stability
     id = db.Column(db.Integer, primary_key=True)
-    custom_id = db.Column(db.String(100), unique=True, nullable=False)
+    # The user-facing ID is a separate, unique string
+    custom_id = db.Column(db.String(50), unique=True, nullable=False)
     date_of_birth = db.Column(db.Date, nullable=False)
     sex = db.Column(db.String(10), nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -86,7 +88,8 @@ class Cage(db.Model):
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=False)
-    animal_number = db.Column(db.Integer, nullable=False) # Internal for ordering
+    animal_number = db.Column(db.Integer, nullable=False)
+    # Foreign key now points to the integer Cage.id
     cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
     general_notes = db.Column(db.Text, nullable=True)
     is_terminated = db.Column(db.Boolean, default=False, nullable=False)
@@ -116,6 +119,7 @@ class BreedingPair(db.Model):
     litters = db.relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
     cages_sourced = db.relationship('Cage', backref='breeding_pair', lazy=True)
 
+# ... (Other models are unchanged) ...
 class Litter(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=False)
@@ -156,7 +160,7 @@ class Study(db.Model):
     description = db.Column(db.Text, nullable=True)
     animals = db.relationship('Animal', secondary=study_animals, lazy='dynamic',
                               backref=db.backref('studies', lazy='dynamic'))
-
+                              
 # --- Forms ---
 def species_factory(): return Species.query.order_by('name')
 def source_factory(): return Source.query.order_by('name')
@@ -173,7 +177,8 @@ class SimpleAddForm(FlaskForm):
     submit = SubmitField('Add')
 
 class CageForm(FlaskForm):
-    id = IntegerField('Cage ID (Optional, overrides auto-numbering)', validators=[Optional(), NumberRange(min=1)])
+    # Form now collects the custom_id, not the integer primary key
+    custom_id = StringField('Cage ID (e.g., B001)', validators=[DataRequired(), Length(min=1, max=50)])
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name', allow_blank=False, validators=[DataRequired()])
     source = QuerySelectField('Source', query_factory=source_factory, get_label='name', allow_blank=True)
     sex = SelectField('Sex', choices=[('Male', 'Male'), ('Female', 'Female')], validators=[DataRequired()])
@@ -182,14 +187,15 @@ class CageForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Create Cage')
 
-    def validate_id(self, field):
-        if field.data and Cage.query.get(field.data):
-            raise ValidationError(f'Cage ID {field.data} already exists.')
+    def validate_custom_id(self, field):
+        if Cage.query.filter_by(custom_id=field.data).first():
+            raise ValidationError(f'Cage ID "{field.data}" already exists.')
 
 class CageNoteForm(FlaskForm):
     notes = TextAreaField('Cage Notes', validators=[Optional()])
     submit = SubmitField('Save Notes')
 
+# ... (Other forms are unchanged) ...
 class BreedingPairForm(FlaskForm):
     male_animal = QuerySelectField('Male', query_factory=male_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
     female_animal = QuerySelectField('Female', query_factory=female_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
@@ -272,11 +278,11 @@ def index():
 def view_cages():
     sort_by = request.args.get('sort_by', 'id')
     filter_by = request.args.get('filter', 'active')
-    query = Cage.query
     if sort_by == 'age':
-        query = query.order_by(Cage.date_of_birth.asc())
-    else:
-        query = query.order_by(Cage.id.desc())
+        query = Cage.query.order_by(Cage.date_of_birth.asc())
+    else: # sort by custom_id
+        query = Cage.query.order_by(Cage.custom_id.asc())
+    
     all_cages = query.all()
     if filter_by == 'active':
         cages = [c for c in all_cages if c.is_active]
@@ -285,10 +291,10 @@ def view_cages():
     else:
         cages = all_cages
     
-    next_id = (db.session.query(db.func.max(Cage.id)).scalar() or 0) + 1
-    form = CageForm(id=next_id)
+    form = CageForm()
     return render_template('cages.html', cages=cages, form=form, sort_by=sort_by, filter_by=filter_by)
 
+# Route now uses integer id for lookup
 @app.route('/cage/<int:cage_id>', methods=['GET', 'POST'])
 def cage_detail(cage_id):
     cage = Cage.query.get_or_404(cage_id)
@@ -298,14 +304,20 @@ def cage_detail(cage_id):
         db.session.commit()
         flash('Cage notes updated successfully.', 'success')
         return redirect(url_for('cage_detail', cage_id=cage.id))
-    return render_template('cage_detail.html', cage=cage, form=form)
+    return render_template('cage_detail.html', 
+                           cage=cage, 
+                           form=form, 
+                           note_form=AnimalNoteForm(),
+                           event_form=AnimalEventForm(),
+                           quick_add_form=QuickAddToStudyForm(),
+                           termination_form=TerminationForm())
 
 @app.route('/cages/new', methods=['POST'])
 def add_cage():
     form = CageForm()
     if form.validate_on_submit():
         new_cage = Cage(
-            id=form.id.data,
+            custom_id=form.custom_id.data,
             species=form.species.data,
             source=form.source.data,
             sex=form.sex.data,
@@ -313,24 +325,25 @@ def add_cage():
             notes=form.notes.data
         )
         db.session.add(new_cage)
-        db.session.commit() # Commit to get the final ID
+        db.session.commit() # Commit to get the auto-generated integer id
 
         for i in range(form.number_of_animals.data):
             animal = Animal(
                 cage_id=new_cage.id, 
                 animal_number=i + 1,
-                custom_id=f"{new_cage.id}-{i+1}"
+                custom_id=f"{new_cage.custom_id}-{i+1}"
             )
             db.session.add(animal)
         
         db.session.commit()
-        flash(f'Cage #{new_cage.id} with {form.number_of_animals.data} animals created.', 'success')
+        flash(f'Cage {new_cage.custom_id} with {form.number_of_animals.data} animals created.', 'success')
     else:
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
     return redirect(url_for('view_cages'))
 
+# ... (All other routes are correct from the previous version) ...
 # --- Animal Routes ---
 @app.route('/animals')
 def view_animals():
@@ -402,6 +415,20 @@ def update_animal_id(animal_id):
         animal.custom_id = new_id
         db.session.commit()
         flash('Animal ID updated successfully.', 'success')
+    return redirect(request.referrer or url_for('view_animals'))
+
+@app.route('/animal/unterminate/<int:animal_id>', methods=['POST'])
+def unterminate_animal(animal_id):
+    animal = Animal.query.get_or_404(animal_id)
+    animal.is_terminated = False
+    animal.termination_date = None
+    animal.termination_reason_id = None
+    
+    # Delete any associated ear records
+    Ear.query.filter_by(animal_id=animal.id).delete()
+    
+    db.session.commit()
+    flash(f'Termination for animal {animal.custom_id} has been reversed.', 'success')
     return redirect(request.referrer or url_for('view_animals'))
 
 @app.route('/animals/terminate/<int:animal_id>', methods=['POST'])
@@ -505,12 +532,19 @@ def wean_litter(litter_id):
             if count_str and int(count_str) > 0:
                 count = int(count_str)
                 sex = sexes[i]
-                next_id = (db.session.query(db.func.max(Cage.id)).scalar() or 0) + 1
-                new_cage = Cage(id=next_id, species_id=species.id, breeding_pair_id=litter.breeding_pair_id, date_of_birth=litter.birth_date, sex=sex)
+                
+                new_cage_id_base = f"L{litter.id}C{i+1}"
+                new_cage_custom_id = new_cage_id_base
+                suffix = 1
+                while Cage.query.filter_by(custom_id=new_cage_custom_id).first():
+                    new_cage_custom_id = f"{new_cage_id_base}-{suffix}"
+                    suffix += 1
+
+                new_cage = Cage(custom_id=new_cage_custom_id, species_id=species.id, breeding_pair_id=litter.breeding_pair_id, date_of_birth=litter.birth_date, sex=sex)
                 db.session.add(new_cage)
-                db.session.commit() # Commit to get final ID
+                db.session.commit()
                 for j in range(count):
-                    animal = Animal(cage_id=new_cage.id, animal_number=j + 1, custom_id=f"{new_cage.id}-{j+1}")
+                    animal = Animal(cage_id=new_cage.id, animal_number=j + 1, custom_id=f"{new_cage.custom_id}-{j+1}")
                     db.session.add(animal)
                 cages_created += 1
         if cages_created > 0:
@@ -680,7 +714,6 @@ def delete_setting(item_type, item_id):
     item = Model.query.get_or_404(item_id)
     field_name = 'reason' if item_type == 'termination_reason' else 'name'
     
-    # Basic checks to prevent deletion if in use.
     if (item_type == 'species' and item.cages) or \
        (item_type == 'source' and item.cages) or \
        (item_type == 'procedure' and item.events) or \

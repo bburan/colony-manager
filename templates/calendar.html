@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block header %}
+Event Calendar
+{% endblock %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow">
+    <div class="flex items-center space-x-4 mb-4">
+        <div class="flex items-center">
+            <span class="w-4 h-4 rounded-full bg-blue-500 mr-2"></span>
+            <span class="text-sm text-gray-700">Scheduled</span>
+        </div>
+        <div class="flex items-center">
+            <span class="w-4 h-4 rounded-full bg-green-500 mr-2"></span>
+            <span class="text-sm text-gray-700">Completed</span>
+        </div>
+    </div>
+    <div id="calendar"></div>
+</div>
+
+<!-- FullCalendar JS and initialization script -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css"/>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const calendarEl = document.getElementById('calendar');
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: {{ calendar_events|tojson }},
+            eventClick: function(info) {
+                // Prevent default browser navigation
+                info.jsEvent.preventDefault();
+                // Go to the URL if it exists
+                if (info.event.url) {
+                    window.location.href = info.event.url;
+                }
+            }
+        });
+        calendar.render();
+    });
+</script>
+{% endblock %}

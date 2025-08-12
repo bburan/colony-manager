@@ -45,6 +45,7 @@ class Source(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     cages = db.relationship('Cage', backref='source', lazy=True)
+    animals = db.relationship('Animal', backref='source', lazy=True)
 
 class Procedure(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -76,7 +77,7 @@ class Cage(db.Model):
         if self.source:
             return self.source.name
         if self.breeding_pair:
-            return f"Breeding Pair #{self.breeding_pair.id}"
+            return f"Breeding Pair {self.breeding_pair.custom_id}"
         return "Unknown"
 
     @property
@@ -86,8 +87,8 @@ class Cage(db.Model):
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=False)
-    animal_number = db.Column(db.Integer, nullable=False)
-    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
+    animal_number = db.Column(db.Integer, nullable=True)
+    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=True)
     general_notes = db.Column(db.Text, nullable=True)
     is_terminated = db.Column(db.Boolean, default=False, nullable=False)
     termination_date = db.Column(db.Date, nullable=True)
@@ -97,6 +98,11 @@ class Animal(db.Model):
     ears = db.relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     breeding_pair_male = db.relationship('BreedingPair', foreign_keys='BreedingPair.male_animal_id', backref='male', lazy=True)
     breeding_pair_female = db.relationship('BreedingPair', foreign_keys='BreedingPair.female_animal_id', backref='female', lazy=True)
+    sex = db.Column(db.String(10), nullable=False)
+    date_of_birth = db.Column(db.Date, nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
+    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), nullable=True)
+    species = db.relationship('Species')
 
     @property
     def has_events(self):
@@ -107,8 +113,13 @@ class Animal(db.Model):
         last_event = self.events.filter_by(status='completed').order_by(AnimalEvent.completion_date.desc()).first()
         return last_event.completion_date if last_event else date.min
 
+    @property
+    def age_in_days(self):
+        return (date.today() - self.date_of_birth).days
+
 class BreedingPair(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    custom_id = db.Column(db.String(50), unique=True, nullable=False)
     male_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     female_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     start_date = db.Column(db.Date, nullable=False)
@@ -129,7 +140,7 @@ class AnimalEvent(db.Model):
     procedure_id = db.Column(db.Integer, db.ForeignKey('procedure.id'), nullable=False)
     scheduled_date = db.Column(db.Date, nullable=False)
     completion_date = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(20), nullable=False, default='scheduled') # scheduled, completed
+    status = db.Column(db.String(20), nullable=False, default='scheduled')
     notes = db.Column(db.Text, nullable=True)
 
 class ImmunolabelingPanel(db.Model):
@@ -166,8 +177,8 @@ def study_factory(): return Study.query.order_by('name')
 def procedure_factory(): return Procedure.query.order_by('name')
 def panel_factory(): return ImmunolabelingPanel.query.order_by('name')
 def termination_reason_factory(): return TerminationReason.query.order_by('reason')
-def male_animal_factory(): return Animal.query.join(Cage).filter(Animal.is_terminated==False, Cage.sex=='Male').order_by(Animal.id)
-def female_animal_factory(): return Animal.query.join(Cage).filter(Animal.is_terminated==False, Cage.sex=='Female').order_by(Animal.id)
+def male_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Male').order_by(Animal.id)
+def female_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Female').order_by(Animal.id)
 def active_animal_factory(): return Animal.query.filter_by(is_terminated=False)
 
 class SimpleAddForm(FlaskForm):
@@ -188,9 +199,21 @@ class CageForm(FlaskForm):
         if Cage.query.filter_by(custom_id=field.data).first():
             raise ValidationError(f'Cage ID "{field.data}" already exists.')
 
+class NewAnimalForm(FlaskForm):
+    custom_id = StringField('Animal ID', validators=[DataRequired()])
+    sex = StringField('Sex', validators=[DataRequired()])
+    species = QuerySelectField('Species', query_factory=species_factory, get_label='id', allow_blank=False, validators=[DataRequired()])
+    source = QuerySelectField('Source', query_factory=source_factory, get_label='id', allow_blank=True)
+    date_of_birth = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
+    submit = SubmitField('Add Animal')
+
+    def validate_custom_id(self, field):
+        if Animal.query.filter_by(custom_id=field.data).first():
+            raise ValidationError(f'Animal ID "{field.data}" already exists.')
+
 class ScheduleEventForm(FlaskForm):
     procedure = QuerySelectField('Procedure', query_factory=procedure_factory, get_label='name', allow_blank=False)
-    event_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
+    scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Schedule Event')
 
@@ -204,15 +227,20 @@ class CageNoteForm(FlaskForm):
     submit = SubmitField('Save Notes')
 
 class BreedingPairForm(FlaskForm):
+    custom_id = StringField('Pair ID', validators=[DataRequired(), Length(min=1, max=50)])
     male_animal = QuerySelectField('Male', query_factory=male_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
     female_animal = QuerySelectField('Female', query_factory=female_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
     start_date = DateField('Pairing Start Date', default=date.today, validators=[DataRequired()])
     submit = SubmitField('Create Breeding Pair')
 
+    def validate_custom_id(self, field):
+        if BreedingPair.query.filter_by(custom_id=field.data).first():
+            raise ValidationError(f'Pair ID "{field.data}" already exists.')
+
 class LitterForm(FlaskForm):
     birth_date = DateField('Litter Birth Date', default=date.today, validators=[DataRequired()])
     pup_count = IntegerField('Number of Pups', validators=[InputRequired(), NumberRange(min=1)])
-    submit = SubmitField('Record Litter')
+    submit = SubmitField('Save Litter')
 
 class TerminationForm(FlaskForm):
     termination_date = DateField('Date of Termination', default=date.today, validators=[DataRequired()])
@@ -261,6 +289,8 @@ def before_request_func():
     g.panel_form = PanelForm()
     g.schedule_event_form = ScheduleEventForm()
     g.complete_event_form = CompleteEventForm()
+    g.new_animal_form = NewAnimalForm()
+    g.litter_form = LitterForm()
 
 # --- Routes ---
 @app.route('/')
@@ -284,11 +314,10 @@ def calendar():
         calendar_events.append({
             'title': f"{event.animal.custom_id}: {event.procedure.name}",
             'start': event.scheduled_date.isoformat(),
-            'url': url_for('view_animals'),
-            'color': '#3B82F6' if event.status == 'scheduled' else '#10B981' # blue-500 for scheduled, green-500 for completed
+            'url': url_for('animals'),
+            'color': '#3B82F6' if event.status == 'scheduled' else '#10B981'
         })
     return render_template('calendar.html', calendar_events=calendar_events)
-
 
 # --- Cage Routes ---
 @app.route('/cages')
@@ -345,7 +374,10 @@ def add_cage():
             animal = Animal(
                 cage_id=new_cage.id, 
                 animal_number=i + 1,
-                custom_id=f"{new_cage.custom_id}-{i+1}"
+                custom_id=f"{new_cage.custom_id}-{i+1}",
+                sex=new_cage.sex,
+                date_of_birth=new_cage.date_of_birth,
+                species_id=new_cage.species_id
             )
             db.session.add(animal)
         
@@ -366,7 +398,7 @@ def view_animals():
     procedure_filter = request.args.get('procedure_filter', 'all')
     study_filter = request.args.get('study_filter', 'all')
     
-    query = Animal.query.join(Cage)
+    query = Animal.query
 
     if status_filter == 'active':
         query = query.filter(Animal.is_terminated==False)
@@ -382,7 +414,7 @@ def view_animals():
     animals = query.all()
     
     if sort_by == 'age':
-        animals.sort(key=lambda a: a.cage.age_in_days)
+        animals.sort(key=lambda a: a.age_in_days)
     elif sort_by == 'event_date':
         animals.sort(key=lambda a: a.last_event_date, reverse=True)
     else:
@@ -398,7 +430,7 @@ def view_animals():
                            quick_add_form=QuickAddToStudyForm(),
                            sort_by=sort_by, event_filter=event_filter, status_filter=status_filter,
                            procedure_filter=procedure_filter, study_filter=study_filter,
-                           procedures=Procedure.query.all(), studies=Study.query.all(), schedule_event_form=ScheduleEventForm())
+                           procedures=Procedure.query.all(), studies=Study.query.all())
 
 @app.route('/animal/delete/<int:animal_id>', methods=['POST'])
 def delete_animal(animal_id):
@@ -470,7 +502,7 @@ def schedule_event(animal_id):
         event = AnimalEvent(
             animal_id=animal_id,
             procedure_id=form.procedure.data.id,
-            scheduled_date=form.event_date.data,
+            scheduled_date=form.scheduled_date.data,
             notes=form.notes.data,
             status='scheduled'
         )
@@ -514,33 +546,62 @@ def view_breeding_pairs():
     litter_form = LitterForm()
     return render_template('breeding.html', pairs=pairs, form=form, litter_form=litter_form)
     
+@app.route('/api/breeding/new_animal', methods=['POST'])
+def api_add_new_animal():
+    form = NewAnimalForm(data=request.json)
+    if form.validate():
+        new_animal = Animal(
+            custom_id=form.custom_id.data,
+            sex=form.sex.data,
+            species_id=form.species.data.id,
+            source_id=form.source.data.id if form.source.data else None,
+            date_of_birth=form.date_of_birth.data
+        )
+        db.session.add(new_animal)
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'animal': {
+                'id': new_animal.id,
+                'custom_id': new_animal.custom_id,
+                'sex': new_animal.sex
+            }
+        }), 201
+    else:
+        errors = {field: error[0] for field, error in form.errors.items()}
+        return jsonify({'success': False, 'errors': errors}), 400
+
 @app.route('/breeding/<int:pair_id>')
 def breeding_pair_detail(pair_id):
     pair = BreedingPair.query.get_or_404(pair_id)
-    cages = Cage.query.filter_by(breeding_pair_id=pair.id).all()
-    animal_ids = [animal.id for cage in cages for animal in cage.animals]
-    animals = Animal.query.filter(Animal.id.in_(animal_ids)).join(Cage).order_by(Cage.date_of_birth, Animal.id).all()
-    return render_template('breeding_pair_detail.html', pair=pair, animals=animals)
+    return render_template('breeding_pair_detail.html', pair=pair)
 
 @app.route('/breeding/new', methods=['POST'])
 def add_breeding_pair():
     form = BreedingPairForm()
     if form.validate_on_submit():
-        if form.male_animal.data.cage.sex != 'Male' or form.female_animal.data.cage.sex != 'Female':
-            flash('Selected animals must be from designated Male and Female cages.', 'danger')
+        if form.male_animal.data.sex != 'Male' or form.female_animal.data.sex != 'Female':
+            flash('Selected animals must be of the correct sex.', 'danger')
             return redirect(url_for('view_breeding_pairs'))
-        if form.male_animal.data.cage.species != form.female_animal.data.cage.species:
+        if form.male_animal.data.species != form.female_animal.data.species:
             flash('Male and female must be of the same species.', 'danger')
             return redirect(url_for('view_breeding_pairs'))
-        pair = BreedingPair(male_animal_id=form.male_animal.data.id, female_animal_id=form.female_animal.data.id, start_date=form.start_date.data)
+        pair = BreedingPair(
+            custom_id=form.custom_id.data,
+            male_animal_id=form.male_animal.data.id, 
+            female_animal_id=form.female_animal.data.id, 
+            start_date=form.start_date.data
+        )
         db.session.add(pair)
         db.session.commit()
         flash('New breeding pair created successfully.', 'success')
     else:
-        flash('Error creating breeding pair.', 'danger')
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
     return redirect(url_for('view_breeding_pairs'))
 
-@app.route('/breeding/litter/<int:pair_id>', methods=['POST'])
+@app.route('/breeding/litter/new/<int:pair_id>', methods=['POST'])
 def add_litter(pair_id):
     pair = BreedingPair.query.get_or_404(pair_id)
     form = LitterForm()
@@ -548,10 +609,32 @@ def add_litter(pair_id):
         litter = Litter(breeding_pair_id=pair.id, birth_date=form.birth_date.data, pup_count=form.pup_count.data)
         db.session.add(litter)
         db.session.commit()
-        flash(f'Litter recorded for breeding pair #{pair.id}.', 'success')
+        flash(f'Litter recorded for breeding pair {pair.custom_id}.', 'success')
     else:
         flash('Error recording litter.', 'danger')
-    return redirect(url_for('view_breeding_pairs'))
+    return redirect(url_for('breeding_pair_detail', pair_id=pair.id))
+
+@app.route('/breeding/litter/edit/<int:litter_id>', methods=['POST'])
+def edit_litter(litter_id):
+    litter = Litter.query.get_or_404(litter_id)
+    form = LitterForm()
+    if form.validate_on_submit():
+        litter.birth_date = form.birth_date.data
+        litter.pup_count = form.pup_count.data
+        db.session.commit()
+        flash('Litter updated successfully.', 'success')
+    else:
+        flash('Error updating litter.', 'danger')
+    return redirect(url_for('breeding_pair_detail', pair_id=litter.breeding_pair_id))
+
+@app.route('/breeding/litter/delete/<int:litter_id>', methods=['POST'])
+def delete_litter(litter_id):
+    litter = Litter.query.get_or_404(litter_id)
+    pair_id = litter.breeding_pair_id
+    db.session.delete(litter)
+    db.session.commit()
+    flash('Litter has been culled (deleted).', 'success')
+    return redirect(url_for('breeding_pair_detail', pair_id=pair_id))
 
 @app.route('/breeding/wean/<int:litter_id>', methods=['GET', 'POST'])
 def wean_litter(litter_id):
@@ -559,7 +642,7 @@ def wean_litter(litter_id):
     if request.method == 'POST':
         counts = request.form.getlist('counts')
         sexes = request.form.getlist('sexes')
-        species = litter.breeding_pair.male.cage.species
+        species = litter.breeding_pair.male.species
         cages_created = 0
         for i, count_str in enumerate(counts):
             if count_str and int(count_str) > 0:
@@ -577,7 +660,7 @@ def wean_litter(litter_id):
                 db.session.add(new_cage)
                 db.session.commit()
                 for j in range(count):
-                    animal = Animal(cage_id=new_cage.id, animal_number=j + 1, custom_id=f"{new_cage.custom_id}-{j+1}")
+                    animal = Animal(cage_id=new_cage.id, animal_number=j + 1, custom_id=f"{new_cage.custom_id}-{j+1}", sex=sex, date_of_birth=litter.birth_date, species_id=species.id)
                     db.session.add(animal)
                 cages_created += 1
         if cages_created > 0:
@@ -586,7 +669,7 @@ def wean_litter(litter_id):
             flash(f'Litter weaned into {cages_created} new cages.', 'success')
         else:
             flash('No pups were weaned as no counts were provided.', 'warning')
-        return redirect(url_for('view_breeding_pairs'))
+        return redirect(url_for('breeding_pair_detail', pair_id=litter.breeding_pair_id))
     return render_template('wean_litter.html', litter=litter)
 
 @app.route('/breeding/deactivate/<int:pair_id>', methods=['POST'])
@@ -594,7 +677,7 @@ def deactivate_pair(pair_id):
     pair = BreedingPair.query.get_or_404(pair_id)
     pair.is_active = False
     db.session.commit()
-    flash(f'Breeding pair #{pair.id} deactivated.', 'info')
+    flash(f'Breeding pair {pair.custom_id} deactivated.', 'info')
     return redirect(url_for('view_breeding_pairs'))
 
 @app.route('/breeding/reactivate/<int:pair_id>', methods=['POST'])
@@ -602,7 +685,7 @@ def reactivate_pair(pair_id):
     pair = BreedingPair.query.get_or_404(pair_id)
     pair.is_active = True
     db.session.commit()
-    flash(f'Breeding pair #{pair.id} reactivated.', 'success')
+    flash(f'Breeding pair {pair.custom_id} reactivated.', 'success')
     return redirect(url_for('view_breeding_pairs'))
 
 # --- Histology Routes ---
@@ -623,7 +706,7 @@ def view_histology():
     elif labeled_filter == 'not_labeled':
         query = query.filter(Ear.panel_id == None)
     
-    ears = query.join(Animal).join(Cage).order_by(Ear.id.desc()).all()
+    ears = query.join(Animal).order_by(Ear.id.desc()).all()
     panels = ImmunolabelingPanel.query.all()
     return render_template('histology.html', ears=ears, panels=panels, 
                            dissected_filter=dissected_filter, labeled_filter=labeled_filter)

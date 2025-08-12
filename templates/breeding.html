@@ -1,37 +1,47 @@
-
 {% extends "base.html" %}
+{% from 'partials/_form_macros.html' import render_field, render_field_full %}
 
 {% block header %}
 Breeding Management
 {% endblock %}
 
 {% block content %}
+{% set select_classes = "mt-1 block w-full border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" %}
+
 <!-- Add Breeding Pair Form Section -->
 <div class="mb-8 p-6 bg-white rounded-lg shadow">
     <h2 class="text-xl font-semibold mb-4 text-gray-800">Create New Breeding Pair</h2>
     <form action="{{ url_for('add_breeding_pair') }}" method="POST" class="space-y-4">
         {{ form.hidden_tag() }}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                {{ render_field_full(form.custom_id, placeholder='e.g., Pair-01') }}
+            </div>
             <div>
                 <label for="{{ form.male_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.male_animal.label }}</label>
-                {{ form.male_animal(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                <div class="flex items-center gap-2">
+                    {{ form.male_animal(class=select_classes) }}
+                    <button type="button" onclick="openNewAnimalModal('Male')" class="mt-1 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600" title="Add New Male Animal">+</button>
+                </div>
             </div>
             <div>
                 <label for="{{ form.female_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.female_animal.label }}</label>
-                {{ form.female_animal(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                 <div class="flex items-center gap-2">
+                    {{ form.female_animal(class=select_classes) }}
+                    <button type="button" onclick="openNewAnimalModal('Female')" class="mt-1 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600" title="Add New Female Animal">+</button>
+                </div>
             </div>
              <div>
-                <label for="{{ form.start_date.id }}" class="block text-sm font-medium text-gray-700">{{ form.start_date.label }}</label>
-                {{ form.start_date(class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md") }}
+                {{ render_field_full(form.start_date) }}
             </div>
         </div>
         <div class="pt-2">
-            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 cursor-pointer") }}
+            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700 cursor-pointer") }}
         </div>
     </form>
 </div>
 
-<!-- Breeding Pairs Table -->
+<!-- All Breeding Pairs Table -->
 <h2 class="text-xl font-semibold mb-4 text-gray-800">All Breeding Pairs</h2>
 <div class="bg-white shadow overflow-hidden sm:rounded-lg">
     <table class="min-w-full divide-y divide-gray-200">
@@ -50,10 +60,10 @@ Breeding Management
             {% for pair in pairs %}
             <tr class="{{ 'bg-gray-100' if not pair.is_active else '' }}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}" class="text-blue-600 hover:text-blue-800">#{{ pair.id }}</a>
+                    <a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}" class="text-blue-600 hover:text-blue-800">{{ pair.custom_id }}</a>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.male.full_id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.female.full_id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.male.custom_id }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.female.custom_id }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.start_date.strftime('%Y-%m-%d') }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                     {% if pair.is_active %}
@@ -98,4 +108,114 @@ Breeding Management
         </tbody>
     </table>
 </div>
+
+<!-- Add New Animal Modal -->
+<div id="new-animal-modal" class="modal hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4">
+        <h3 class="text-lg font-medium text-gray-900">Add New Uncaged Animal</h3>
+        <p class="text-sm text-gray-500">This animal will be added to the database but not assigned to a specific cage.</p>
+        <form id="new-animal-form" class="mt-4 space-y-4">
+            {{ g.new_animal_form.hidden_tag() }}
+            <input type="hidden" name="sex" id="new_animal_sex_value">
+            
+            {{ render_field(g.new_animal_form.custom_id, id="new_animal_custom_id") }}
+            
+            <div class="flex items-center justify-between">
+                <label class="block text-sm font-medium text-gray-700">Sex</label>
+                <input type="text" id="new_animal_sex_display" readonly class="mt-1 block w-2/3 bg-gray-100 border-gray-300 rounded-md shadow-sm py-2 px-3">
+            </div>
+            
+            {{ render_field(g.new_animal_form.species) }}
+            {{ render_field(g.new_animal_form.source) }}
+            {{ render_field(g.new_animal_form.date_of_birth) }}
+
+            <div class="flex justify-end gap-3 mt-4 pt-4 border-t">
+                <button type="button" onclick="toggleModal('new-animal-modal')" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
+                <button type="button" onclick="submitNewAnimalForm()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer">Add Animal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleModal(modalID) {
+        const modal = document.getElementById(modalID);
+        if (modal) {
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('is-active');
+        }
+    }
+
+    function openNewAnimalModal(sex) {
+        const modal = document.getElementById('new-animal-modal');
+        const sexValueField = document.getElementById('new_animal_sex_value');
+        const sexDisplayField = document.getElementById('new_animal_sex_display');
+        const animalIdField = document.getElementById('new_animal_custom_id');
+        const pairIdField = document.getElementById('custom_id');
+
+        if (modal && sexValueField && sexDisplayField && animalIdField && pairIdField) {
+            sexValueField.value = sex;
+            sexDisplayField.value = sex;
+
+            const pairId = pairIdField.value;
+            const sexSuffix = (sex === 'Male') ? '-M' : '-F';
+            if (pairId) {
+                animalIdField.value = pairId + sexSuffix;
+            } else {
+                animalIdField.value = '';
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('is-active');
+        }
+    }
+
+    async function submitNewAnimalForm() {
+        const form = document.getElementById('new-animal-form');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        // WTForms-SQLAlchemy expects the ID, not the value, for QuerySelectFields
+        data.species = form.querySelector('[name="species"]').value;
+        data.source = form.querySelector('[name="source"]').value;
+        
+        const response = await fetch("{{ url_for('api_add_new_animal') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const animal = result.animal;
+            const newOption = new Option(animal.custom_id, animal.id, true, true);
+            
+            let targetSelect;
+            if (animal.sex === 'Male') {
+                targetSelect = document.getElementById('male_animal');
+            } else {
+                targetSelect = document.getElementById('female_animal');
+            }
+
+            if (targetSelect) {
+                targetSelect.add(newOption);
+                targetSelect.value = animal.id;
+            }
+            
+            toggleModal('new-animal-modal');
+            // Optionally, show a success message without a page reload
+        } else {
+            // Handle errors - for now, we'll just alert them
+            let errorString = 'Please correct the following errors:\n';
+            for (const field in result.errors) {
+                errorString += `- ${field}: ${result.errors[field]}\n`;
+            }
+            alert(errorString);
+        }
+    }
+</script>
+
 {% endblock %}

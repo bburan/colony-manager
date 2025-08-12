@@ -26,12 +26,16 @@
                     </td>
                     {% if show_cage_column %}
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}" class="text-blue-600 hover:text-blue-800">{{ animal.cage.custom_id }}</a>
+                        {% if animal.cage %}
+                            <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}" class="text-blue-600 hover:text-blue-800">{{ animal.cage.custom_id }}</a>
+                        {% else %}
+                            <span class="text-gray-400">Uncaged</span>
+                        {% endif %}
                     </td>
                     {% endif %}
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.species.name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.sex }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.cage.age_in_days }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.species.name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.sex }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ animal.age_in_days }}</td>
                     <td class="px-6 py-4 whitespace-normal text-sm">
                         <div>
                             <span class="font-semibold">Scheduled:</span>
@@ -89,7 +93,7 @@
                     </td>
                 </tr>
                 {% if not animal.is_terminated %}
-                     {% include 'partials/_animal_modals.html' %}
+                     {% include 'partials/_animal_modals.html' with animal=animal, schedule_event_form=g.schedule_event_form, note_form=note_form, termination_form=termination_form %}
                 {% endif %}
                 {% else %}
                 <tr>

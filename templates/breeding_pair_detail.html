@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block header %}
-Breeding Pair #{{ pair.id }} Details
+Breeding Pair {{ pair.custom_id }} Details
 {% endblock %}
 
 {% block content %}
@@ -13,11 +13,11 @@ Breeding Pair #{{ pair.id }} Details
         <dl class="divide-y divide-gray-200">
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Male</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.male.full_id }} ({{ pair.male.cage.species.name }})</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.male.custom_id }} ({{ pair.male.species.name }})</dd>
             </div>
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Female</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.female.full_id }} ({{ pair.female.cage.species.name }})</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.female.custom_id }} ({{ pair.female.species.name }})</dd>
             </div>
             <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Pair Start Date</dt>

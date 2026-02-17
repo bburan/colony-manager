@@ -37,48 +37,40 @@ study_animals = db.Table('study_animals',
 
 # --- Models ---
 class Species(db.Model):
+    # Species available
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    cages = db.relationship('Cage', backref='species', lazy=True)
+    animals = db.relationship('Animal', backref='species', lazy=True)
 
 class Source(db.Model):
+    # Source for a particular animal
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
-    cages = db.relationship('Cage', backref='source', lazy=True)
     animals = db.relationship('Animal', backref='source', lazy=True)
 
 class Procedure(db.Model):
+    # Any sort of procedure that might be performed on an animal (e.g., noise-exposure, ABR, injection, etc.).
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
     events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
 
 class TerminationReason(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    reason = db.Column(db.String(150), unique=True, nullable=False)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+    description = db.Column(db.Text, nullable=True)
     animals = db.relationship('Animal', backref='termination_reason', lazy=True)
 
 class Cage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
-    date_of_birth = db.Column(db.Date, nullable=False)
-    sex = db.Column(db.String(10), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), nullable=True)
-    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=True)
     animals = db.relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
 
     @property
-    def age_in_days(self):
-        return (date.today() - self.date_of_birth).days
-
-    @property
-    def source_display(self):
-        if self.source:
-            return self.source.name
-        if self.breeding_pair:
-            return f"Breeding Pair {self.breeding_pair.custom_id}"
-        return "Unknown"
+    def sources(self):
+        return sorted({a.source for a in self.animals})
 
     @property
     def is_active(self):
@@ -87,22 +79,17 @@ class Cage(db.Model):
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=False)
-    animal_number = db.Column(db.Integer, nullable=True)
-    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=True)
-    general_notes = db.Column(db.Text, nullable=True)
-    is_terminated = db.Column(db.Boolean, default=False, nullable=False)
+    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
+    sex = db.Column(db.String(10), nullable=False)
+    dob = db.Column(db.Date, nullable=False)
+    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), nullable=True)
+    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
     termination_reason_id = db.Column(db.Integer, db.ForeignKey('termination_reason.id'), nullable=True)
-    ears_extracted = db.Column(db.String(10), default='None')
     events = db.relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     ears = db.relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    breeding_pair_male = db.relationship('BreedingPair', foreign_keys='BreedingPair.male_animal_id', backref='male', lazy=True)
-    breeding_pair_female = db.relationship('BreedingPair', foreign_keys='BreedingPair.female_animal_id', backref='female', lazy=True)
-    sex = db.Column(db.String(10), nullable=False)
-    date_of_birth = db.Column(db.Date, nullable=False)
-    species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), nullable=True)
-    species = db.relationship('Species')
 
     @property
     def has_events(self):
@@ -117,6 +104,14 @@ class Animal(db.Model):
     def age_in_days(self):
         return (date.today() - self.date_of_birth).days
 
+    @property
+    def age_in_weeks(self):
+        return self.age_in_days / 7
+
+    @property
+    def age_in_months(self):
+        return self.age_in_days / 30
+
 class BreedingPair(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
@@ -125,12 +120,11 @@ class BreedingPair(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     litters = db.relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
-    cages_sourced = db.relationship('Cage', backref='breeding_pair', lazy=True)
 
 class Litter(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=False)
-    birth_date = db.Column(db.Date, nullable=False)
+    dob = db.Column(db.Date, nullable=False)
     pup_count = db.Column(db.Integer, nullable=False)
     is_weaned = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -152,7 +146,7 @@ class ImmunolabelingPanel(db.Model):
 class Reagent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    dilution = db.Column(db.String(50), nullable=True)
+    description = db.Column(db.Text, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=False)
 
 class Ear(db.Model):
@@ -183,7 +177,11 @@ def active_animal_factory(): return Animal.query.filter_by(is_terminated=False)
 
 class SimpleAddForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
-    submit = SubmitField('Add')
+
+
+class SimpleAddWithDescriptionForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    description = StringField('Procedure Description', validators=[Optional()])
 
 class CageForm(FlaskForm):
     custom_id = StringField('Cage ID (e.g., B001)', validators=[DataRequired(), Length(min=1, max=50)])
@@ -193,7 +191,6 @@ class CageForm(FlaskForm):
     number_of_animals = IntegerField('Number of Animals', validators=[InputRequired(), NumberRange(min=1)])
     date_of_birth = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
-    submit = SubmitField('Create Cage')
 
     def validate_custom_id(self, field):
         if Cage.query.filter_by(custom_id=field.data).first():
@@ -205,7 +202,6 @@ class NewAnimalForm(FlaskForm):
     species = QuerySelectField('Species', query_factory=species_factory, get_label='id', allow_blank=False, validators=[DataRequired()])
     source = QuerySelectField('Source', query_factory=source_factory, get_label='id', allow_blank=True)
     date_of_birth = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
-    submit = SubmitField('Add Animal')
 
     def validate_custom_id(self, field):
         if Animal.query.filter_by(custom_id=field.data).first():
@@ -215,23 +211,18 @@ class ScheduleEventForm(FlaskForm):
     procedure = QuerySelectField('Procedure', query_factory=procedure_factory, get_label='name', allow_blank=False)
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
-    submit = SubmitField('Schedule Event')
 
 class CompleteEventForm(FlaskForm):
     completion_date = DateField('Actual Completion Date', default=date.today, validators=[DataRequired()])
-    notes = TextAreaField('Completion Notes', validators=[Optional()])
-    submit = SubmitField('Mark as Completed')
 
 class CageNoteForm(FlaskForm):
     notes = TextAreaField('Cage Notes', validators=[Optional()])
-    submit = SubmitField('Save Notes')
 
 class BreedingPairForm(FlaskForm):
     custom_id = StringField('Pair ID', validators=[DataRequired(), Length(min=1, max=50)])
     male_animal = QuerySelectField('Male', query_factory=male_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
     female_animal = QuerySelectField('Female', query_factory=female_animal_factory, get_label='custom_id', allow_blank=False, validators=[DataRequired()])
     start_date = DateField('Pairing Start Date', default=date.today, validators=[DataRequired()])
-    submit = SubmitField('Create Breeding Pair')
 
     def validate_custom_id(self, field):
         if BreedingPair.query.filter_by(custom_id=field.data).first():
@@ -240,53 +231,34 @@ class BreedingPairForm(FlaskForm):
 class LitterForm(FlaskForm):
     birth_date = DateField('Litter Birth Date', default=date.today, validators=[DataRequired()])
     pup_count = IntegerField('Number of Pups', validators=[InputRequired(), NumberRange(min=1)])
-    submit = SubmitField('Save Litter')
 
 class TerminationForm(FlaskForm):
     termination_date = DateField('Date of Termination', default=date.today, validators=[DataRequired()])
     termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='reason', allow_blank=True)
     ears_extracted = SelectField('Ears Extracted', choices=[('None', 'None'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')], validators=[DataRequired()])
-    submit = SubmitField('Confirm Termination')
 
 class AnimalNoteForm(FlaskForm):
     general_notes = TextAreaField('General Notes', validators=[Optional()])
-    submit = SubmitField('Save Notes')
 
-class PanelForm(FlaskForm):
-    name = StringField('Panel Name', validators=[DataRequired()])
-    submit = SubmitField('Create Panel')
-
-class ReagentForm(FlaskForm):
-    name = StringField('Reagent Name', validators=[DataRequired()])
-    dilution = StringField('Dilution', validators=[DataRequired()])
-    submit = SubmitField('Add Reagent')
-    
 class RenamePanelForm(FlaskForm):
     name = StringField('New Panel Name', validators=[DataRequired()])
-    submit = SubmitField('Rename')
 
 class StudyForm(FlaskForm):
     name = StringField('Study Name', validators=[DataRequired()])
     description = TextAreaField('Description', validators=[Optional()])
-    submit = SubmitField('Save Changes')
 
 class AddToStudyForm(FlaskForm):
     animals = QuerySelectMultipleField('Select Animals', query_factory=active_animal_factory, get_label='custom_id',
                                      widget=ListWidget(prefix_label=False), option_widget=CheckboxInput())
-    submit = SubmitField('Add Selected Animals')
 
 class QuickAddToStudyForm(FlaskForm):
     study = QuerySelectField('Study', query_factory=study_factory, get_label='name', allow_blank=False)
-    submit = SubmitField('Add')
 
 # --- Context Processors and Before Request ---
 @app.before_request
 def before_request_func():
     g.study_form = StudyForm()
     g.rename_panel_form = RenamePanelForm()
-    g.reagent_form = ReagentForm()
-    g.simple_add_form = SimpleAddForm()
-    g.panel_form = PanelForm()
     g.schedule_event_form = ScheduleEventForm()
     g.complete_event_form = CompleteEventForm()
     g.new_animal_form = NewAnimalForm()
@@ -783,7 +755,7 @@ def remove_from_study(study_id, animal_id):
         db.session.commit()
         flash(f'Animal {animal.custom_id} removed from study.', 'success')
     return redirect(url_for('study_detail', study_id=study.id))
-    
+
 @app.route('/study/quick_add/<int:animal_id>', methods=['POST'])
 def quick_add_to_study(animal_id):
     animal = Animal.query.get_or_404(animal_id)
@@ -799,74 +771,77 @@ def quick_add_to_study(animal_id):
     return redirect(request.referrer or url_for('view_animals'))
 
 # --- Settings Routes ---
+SETTINGS = {
+    'species': {'model': Species, 'form': SimpleAddForm},
+    'source': {'model': Source, 'form': SimpleAddForm},
+    'procedure': {'model': Procedure, 'form': SimpleAddWithDescriptionForm},
+    'termination_reason': {'model': TerminationReason, 'form': SimpleAddWithDescriptionForm},
+    'immunolabeling_panel': {'model': ImmunolabelingPanel, 'form': SimpleAddForm},
+    'reagent': {'model': Reagent, 'form': SimpleAddWithDescriptionForm},
+}
+
+
 @app.route('/settings')
 def settings():
-    return render_template('settings.html', 
-                           species=Species.query.all(), 
-                           sources=Source.query.all(), 
-                           procedures=Procedure.query.all(),
-                           termination_reasons=TerminationReason.query.all(),
-                           panels=ImmunolabelingPanel.query.all())
+    return render_template(
+        'settings.html',
+        species=Species.query.all(),
+        sources=Source.query.all(),
+        procedures=Procedure.query.all(),
+        termination_reasons=TerminationReason.query.all(),
+        panels=ImmunolabelingPanel.query.all(),
+        simple_add_form=SimpleAddForm(),
+        simple_add_with_description_form=SimpleAddWithDescriptionForm(),
+    )
 
 @app.route('/settings/add/<item_type>', methods=['POST'])
 def add_setting(item_type):
-    form = g.simple_add_form
+    Model = SETTINGS[item_type]['model']
+    form = SETTINGS[item_type]['form']()
     if form.validate_on_submit():
-        field_name = 'reason' if item_type == 'termination_reason' else 'name'
-        Model = {'species': Species, 'source': Source, 'procedure': Procedure, 'termination_reason': TerminationReason}.get(item_type)
-        
-        if Model and not Model.query.filter(getattr(Model, field_name) == form.name.data).first():
-            item = Model(**{field_name: form.name.data})
+        if Model.query.filter(Model.name == form.name.data).first():
+            flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
+        else:
+            data = form.data.copy()
+            data.pop('csrf_token')
+            item = Model(**data)
             db.session.add(item)
             db.session.commit()
             flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
-        else:
-            flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
+    return redirect(url_for('settings'))
+
+@app.route('/settings/update/<item_type>/<int:item_id>', methods=['POST'])
+def update_setting(item_type, item_id):
+    # Fetch the record
+    print(item_type)
+    print(item_id)
+    item = SETTINGS[item_type]['model'].query.get_or_404(item_id)
+    # Get the new name/reason from the form
+    form = SETTINGS[item_type]['form']()
+    try:
+        for k, v in form.data.items():
+            if k == 'csrf_token':
+                continue
+            setattr(item, k, v)
+        db.session.commit()
+        flash(f"Updated successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error updating: {str(e)}", "danger")
     return redirect(url_for('settings'))
 
 @app.route('/settings/delete/<item_type>/<int:item_id>', methods=['POST'])
 def delete_setting(item_type, item_id):
-    Model = {'species': Species, 'source': Source, 'procedure': Procedure, 'termination_reason': TerminationReason}.get(item_type)
-    item = Model.query.get_or_404(item_id)
-    field_name = 'reason' if item_type == 'termination_reason' else 'name'
-    
-    if (item_type == 'species' and item.cages) or \
-       (item_type == 'source' and item.cages) or \
+    item = SETTINGS[item_type]['model'].query.get_or_404(item_id)
+    if (item_type == 'species' and item.animals) or \
+       (item_type == 'source' and item.animals) or \
        (item_type == 'procedure' and item.events) or \
        (item_type == 'termination_reason' and item.animals):
-        flash(f'Cannot delete "{getattr(item, field_name)}" because it is currently in use.', 'danger')
+        flash(f'Cannot delete {item.name} because it is currently in use.', 'danger')
         return redirect(url_for('settings'))
-
     db.session.delete(item)
     db.session.commit()
     flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
-    return redirect(url_for('settings'))
-
-@app.route('/settings/panel/new', methods=['POST'])
-def add_panel():
-    form = g.panel_form
-    if form.validate_on_submit():
-        if not ImmunolabelingPanel.query.filter_by(name=form.name.data).first():
-            panel = ImmunolabelingPanel(name=form.name.data)
-            db.session.add(panel)
-            db.session.commit()
-            flash(f'Panel "{panel.name}" created.', 'success')
-        else:
-            flash('A panel with this name already exists.', 'danger')
-    return redirect(url_for('settings'))
-
-@app.route('/settings/panel/rename/<int:panel_id>', methods=['POST'])
-def rename_panel(panel_id):
-    panel = ImmunolabelingPanel.query.get_or_404(panel_id)
-    form = g.rename_panel_form
-    if form.validate_on_submit():
-        new_name = form.name.data
-        if new_name != panel.name and not ImmunolabelingPanel.query.filter_by(name=new_name).first():
-            panel.name = new_name
-            db.session.commit()
-            flash('Panel renamed successfully.', 'success')
-        else:
-            flash('Panel name already exists or is unchanged.', 'danger')
     return redirect(url_for('settings'))
 
 @app.route('/settings/panel/delete/<int:panel_id>', methods=['POST'])
@@ -882,10 +857,10 @@ def delete_panel(panel_id):
 
 @app.route('/settings/reagent/new/<int:panel_id>', methods=['POST'])
 def add_reagent(panel_id):
-    form = g.reagent_form
+    form = SimpleAddWithDescriptionForm()
     panel = ImmunolabelingPanel.query.get_or_404(panel_id)
     if form.validate_on_submit():
-        reagent = Reagent(name=form.name.data, dilution=form.dilution.data, panel_id=panel.id)
+        reagent = Reagent(name=form.name.data, description=form.description.data, panel_id=panel.id)
         db.session.add(reagent)
         db.session.commit()
         flash(f'Reagent "{reagent.name}" added to panel "{panel.name}".', 'success')

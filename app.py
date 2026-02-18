@@ -218,6 +218,9 @@ class Ear(db.Model):
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
 
+#class ConfocalImage(db.Model):
+#    pass
+
 class Study(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
@@ -821,11 +824,11 @@ def save_ear_note(ear_id):
 @app.route('/studies')
 def view_studies():
     studies = Study.query.all()
-    return render_template('studies.html', studies=studies)
+    return render_template('studies.html', studies=studies, study_form=StudyForm())
 
 @app.route('/studies/new', methods=['POST'])
 def add_study():
-    form = g.study_form
+    form = StudyForm()
     if form.validate_on_submit():
         if Study.query.filter_by(name=form.name.data).first():
             flash('A study with this name already exists.', 'danger')
@@ -841,9 +844,9 @@ def study_detail(study_id):
     study = Study.query.get_or_404(study_id)
     edit_form = StudyForm(obj=study)
     add_form = AddToStudyForm()
-    add_form.animals.query = Animal.query.filter(Animal.is_terminated==False, ~Animal.studies.any(id=study.id))
+    add_form.animals.query = Animal.query.filter(Animal.custom_id != None)
 
-    if edit_form.submit.data and edit_form.validate_on_submit():
+    if edit_form.data and edit_form.validate_on_submit():
         if edit_form.name.data != study.name and Study.query.filter_by(name=edit_form.name.data).first():
             flash('A study with this name already exists.', 'danger')
         else:
@@ -853,19 +856,25 @@ def study_detail(study_id):
             flash(f'Study "{study.name}" has been updated.', 'success')
         return redirect(url_for('study_detail', study_id=study.id))
         
-    return render_template('study_detail.html', study=study, edit_form=edit_form, add_form=add_form)
+    return render_template(
+        'study_detail.html',
+        study=study,
+        edit_form=edit_form,
+        add_form=add_form,
+        note_form=NoteForm()
+    )
 
 @app.route('/study/<int:study_id>/add_animals', methods=['POST'])
 def add_to_study(study_id):
     study = Study.query.get_or_404(study_id)
     form = AddToStudyForm()
-    form.animals.query = Animal.query.filter(Animal.is_terminated==False, ~Animal.studies.any(id=study.id))
+    form.animals.query = Animal.query.all()
     if form.validate_on_submit():
         for animal in form.animals.data:
             study.animals.append(animal)
         db.session.commit()
         flash(f'{len(form.animals.data)} animals added to study "{study.name}".', 'success')
-    return redirect(url_for('study_detail', study_id=study.id))
+    return redirect(request.referrer or url_for('study_detail', study_id=study.id))
 
 @app.route('/study/<int:study_id>/remove/<int:animal_id>', methods=['POST'])
 def remove_from_study(study_id, animal_id):
@@ -875,7 +884,7 @@ def remove_from_study(study_id, animal_id):
         study.animals.remove(animal)
         db.session.commit()
         flash(f'Animal {animal.custom_id} removed from study.', 'success')
-    return redirect(url_for('study_detail', study_id=study.id))
+    return redirect(request.referrer or url_for('study_detail', study_id=study.id))
 
 @app.route('/study/quick_add/<int:animal_id>', methods=['POST'])
 def quick_add_to_study(animal_id):

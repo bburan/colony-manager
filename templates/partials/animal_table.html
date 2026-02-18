@@ -9,8 +9,8 @@
                     <th class="border-0">Sex</th>
                     <th class="border-0 text-center">Age</th>
                     <th class="border-0">Events</th>
-                    <th class="border-0">Studies</th>
-                    <th class="pe-4 border-0 text-end"></th>
+                    {% if show_study_column|default(True) %}<th class="border-0">Studies</th>{% endif %}
+                    {% if show_termination_action|default(True) %}<th class="pe-4 border-0 text-end"></th>{% endif %}
                 </tr>
             </thead>
             <tbody class="align-middle">
@@ -52,7 +52,7 @@
                     <td class="text-center">{{ animal.age_display(age_unit|default('day')) }}</td>
 
                     <td>
-                        <button type="button" class="btn btn-secondary btn-sm shadow-sm"
+                        <button type="button" class="btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
                                 data-bs-toggle="popover"
                                 data-bs-trigger="click"
                                 data-bs-container="body"
@@ -64,43 +64,33 @@
                         <button type="button" onclick="resetEventModal('{{  animal.id }}'); toggleModal('schedule-event-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow-sm"><i class="fas fa-calendar-plus"></i></button>
                     </td>
 
+                    {% if show_study_column|default(True) %}
                     <td>
-                        <div class="d-flex flex-column gap-1">
-                            {% for study in animal.studies %}
-                                <a href="{{url_for('study_detail', study_id=study.id)}}" class="text-decoration-none fw-bold text-primary" style="font-size: 0.75rem;">
-                                    <i class="fas fa-microscope me-1"></i>{{ study.name }}
-                                </a>
-                            {% endfor %}
+                        {# 1. The Trigger Button #}
+                        <div class="btn-group shadow-sm">
+                            <button type="button" class="btn btn-{{ 'outline-' if animal.studies.count() == 0 else '' }}secondary btn-sm px-2"
+                                    data-bs-toggle="popover"
+                                    data-bs-trigger="click"
+                                    data-bs-container="body"
+                                    data-bs-html="true"
+                                    title="Study Enrollment: {{ animal.custom_id }}"
+                                    data-bs-content-id="#studies-popover-{{ animal.id }}">
+                                {{ animal.studies.count() }}
+                            </button>
+                        </div>
+                    </td>
+                    {% endif %}
 
-                            {% if animal.is_active %}
-                                {% set study_form_id = "form-study-add-" ~ animal.id %}
-
-                                <form id="{{ study_form_id }}" action="{{ url_for('quick_add_to_study', animal_id=animal.id) }}" method="POST">
-                                    {{ quick_add_form.hidden_tag() }}
-                                </form>
-
-                                <div class="input-group input-group-sm mt-1">
-                                    {{ quick_add_form.study(class="form-select form-select-sm",
-                                                           style="font-size: 0.7rem;",
-                                                           form=study_form_id,
-                                                           onchange="markDirty(this)") }}
-                                    <button type="submit"
-                                            form="{{ study_form_id }}"
-                                            class="btn btn-outline-secondary btn-sm save-btn">
-                                        <i class="fas fa-plus"></i>
+                    {% if show_termination_action|default(True) %}
+                        <td class="pe-4 text-end">
+                                {% if animal.is_active and animal.custom_id %}
+                                    <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow" title="Terminate">
+                                        <i class="fas fa-crosshairs fa-sm"></i>
                                     </button>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td class="pe-4 text-end">
-                            {% if animal.is_active and animal.custom_id %}
-                                <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow" title="Terminate">
-                                    <i class="fas fa-crosshairs fa-sm"></i>
-                                </button>
-                            {% endif %}
-                        </div>
-                    </td>
+                                {% endif %}
+                            </div>
+                        </td>
+                    {%  endif %}
                 </tr>
                 {% else %}
                 <tr>

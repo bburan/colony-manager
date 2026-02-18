@@ -333,18 +333,62 @@ def before_request_func():
     g.event_form = EventForm()
 
 # --- Routes ---
+from datetime import date, timedelta
+from sqlalchemy import or_
+
+
 @app.route('/')
 def index():
-    active_cages_count = sum(1 for cage in Cage.query.all() if cage.is_active)
-    active_animals_count = Animal.query.filter_by(is_terminated=False).count()
+    today = date.today()
+    thirty_days_ago = today - timedelta(days=30)
+
+    # 1. Metrics for Top Cards
+    # Using .filter instead of list comprehension for performance
+    active_cages_count = Cage.query.filter(Cage.animals.any()).count()
+
+    # Active animals (assuming active means not yet terminated)
+    active_animals_count = Animal.query.filter(Animal.termination_date == None).count()
+
     active_breeding_pairs_count = BreedingPair.query.filter_by(is_active=True).count()
+
+    # Ears for processing (those not yet dissected)
     ears_for_processing_count = Ear.query.filter(Ear.dissection_date == None).count()
+
+    # 2. Upcoming Events Table (Next 7 days + Overdue)
+    upcoming_events = AnimalEvent.query.filter(
+        AnimalEvent.completion_date == None,
+        AnimalEvent.scheduled_date <= today + timedelta(days=7)
+    ).order_by(AnimalEvent.scheduled_date.asc()).all()
+
+    # 3. Action Required & Summary Logic
+    overdue_events_count = AnimalEvent.query.filter(
+        AnimalEvent.completion_date == None,
+        AnimalEvent.scheduled_date <= today,
+    ).count()
+
+    active_studies_count = Study.query.count()
+
+    # Animals terminated in the last 30 days
+    recent_terminations = Animal.query.filter(
+        Animal.termination_date >= thirty_days_ago
+    ).count()
+
     return render_template('index.html',
-        active_cages=active_cages_count,
-        active_animals=active_animals_count,
-        active_pairs=active_breeding_pairs_count,
-        ears_to_process=ears_for_processing_count
-    )
+                           # Card Metrics
+                           active_cages=active_cages_count,
+                           active_animals=active_animals_count,
+                           active_pairs=active_breeding_pairs_count,
+                           ears_to_process=ears_for_processing_count,
+
+                           # Schedule & Alerts
+                           upcoming_events=upcoming_events,
+                           overdue_events_count=overdue_events_count,
+                           today=today,
+
+                           # Summary Stats
+                           active_studies_count=active_studies_count,
+                           recent_terminations=recent_terminations
+                           )
     
 @app.route('/calendar')
 def calendar():
@@ -538,21 +582,6 @@ def update_animal_id(animal_id):
         db.session.commit()
         flash('Animal ID updated successfully.', 'success')
     return redirect(request.referrer or url_for('view_animals'))
-    
-@app.route('/animal/unterminate/<int:animal_id>', methods=['POST'])
-def unterminate_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
-    animal.is_terminated = False
-    animal.termination_date = None
-    animal.termination_reason_id = None
-    animal.ears_extracted = 'None'
-    
-    Ear.query.filter_by(animal_id=animal.id).delete()
-    
-    db.session.commit()
-    flash(f'Termination for animal {animal.custom_id} has been reversed.', 'success')
-    return redirect(request.referrer or url_for('view_animals'))
-
 
 @app.route('/animal/activate/<int:animal_id>', methods=['POST'])
 def activate_animal(animal_id):
@@ -577,7 +606,6 @@ def terminate_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = TerminationForm()
     if form.validate_on_submit():
-        animal.is_terminated = True
         animal.termination_date = form.termination_date.data
         animal.termination_reason = form.termination_reason.data
         animal.ears_extracted = form.ears_extracted.data

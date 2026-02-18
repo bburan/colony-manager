@@ -47,7 +47,7 @@
             </header>
             <form method="POST" action="{{ url_for('cage_detail', cage_id=cage.id) }}" class="card-body">
                 {{ form.hidden_tag() }}
-                {{ form.notes(class="form-control form-control-sm mb-3", rows=8, placeholder="Add notes for this cage...") }}
+                {{ form.note(class="form-control form-control-sm mb-3", rows=8, placeholder="Add notes for this cage...") }}
                 <button type="submit" class="btn btn-primary btn-sm w-100">Save Notes</button>
             </form>
         </section>

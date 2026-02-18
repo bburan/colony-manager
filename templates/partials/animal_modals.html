@@ -199,21 +199,19 @@
                 </div>
             {% endif %}
 
-            {% if animal.is_active %}
-                <p class="fw-bold text-secondary mb-1 border-bottom pb-1">Add to Study</p>
-                {% set study_form_id = "form-study-add-" ~ animal.id %}
-                <form id="{{ study_form_id }}" action="{{ url_for('quick_add_to_study', animal_id=animal.id) }}" method="POST">
-                    {{ quick_add_form.hidden_tag() }}
-                    <div class="input-group input-group-sm mt-2">
-                        {{ quick_add_form.study(class="form-select form-select-sm",
-                                               style="font-size: 0.75rem;",
-                                               form=study_form_id) }}
-                        <button type="submit" form="{{ study_form_id }}" class="btn btn-primary btn-sm">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
-                </form>
-            {% endif %}
+            <p class="fw-bold text-secondary mb-1 border-bottom pb-1">Add to Study</p>
+            {% set study_form_id = "form-study-add-" ~ animal.id %}
+            <form id="{{ study_form_id }}" action="{{ url_for('quick_add_to_study', animal_id=animal.id) }}" method="POST">
+                {{ quick_add_form.hidden_tag() }}
+                <div class="input-group input-group-sm mt-2">
+                    {{ quick_add_form.study(class="form-select form-select-sm",
+                                           style="font-size: 0.75rem;",
+                                           form=study_form_id) }}
+                    <button type="submit" form="{{ study_form_id }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 {% endif %}

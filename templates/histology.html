@@ -43,6 +43,7 @@ Histology Pipeline
         <table class="table table-hover align-middle mb-0 small">
             <thead class="bg-light text-secondary text-uppercase fw-bold">
                 <tr>
+                    <th class="border-0">Note</th>
                     <th class="ps-4 border-0">Animal ID</th>
                     <th class="border-0">Ear</th>
                     <th class="border-0">Euthanasia Date</th>
@@ -64,6 +65,32 @@ Histology Pipeline
                 </form>
 
                 <tr>
+                    <td class="text-center">
+                        <button type="button"
+                                class="btn btn-sm btn-{{ '' if ear.notes else 'outline-' }}secondary shadow-sm"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="click"
+                                data-bs-html="true"
+                                data-bs-container="body"
+                                data-bs-content-id="#ear-notes-content-{{ ear.id }}">
+                            <i class="fas fa-sticky-note"></i>
+                        </button>
+                        <div id="ear-notes-content-{{ ear.id }}" class="d-none">
+                            <section class="mb-3 p-3 bg-light border-start border-primary border-4">
+                                <label class="d-block small fw-bold text-uppercase text-primary mb-1" style="font-size: 0.65rem;">Ear Notes</label>
+                                <div class="small text-muted fst-italic">{{ ear.notes or "No notes recorded for this tissue." }}</div>
+                            </section>
+                            <section class="mb-3 p-3 bg-light border-start border-primary border-4">
+                                <label class="d-block small fw-bold text-uppercase text-primary mb-1" style="font-size: 0.65rem;">Animal Notes</label>
+                                <div class="small text-muted fst-italic">
+                                    {{ ear.animal.notes if ear.animal.notes else "No notes recorded for this animal." }}
+                                </div>
+                            </section>
+                            <button class="btn btn-primary btn-sm w-100"
+                                    onclick="openEarNoteModal('{{ ear.id }}')">
+                                Edit Notes
+                            </button>
+                        </div>
                     <td class="ps-4 fw-bold text-primary">{{ ear.animal.custom_id }}</td>
                     <td>
                         <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
@@ -111,4 +138,47 @@ Histology Pipeline
         </table>
     </main>
 </article>
+
+{% for ear in ears %}
+<div class="modal fade" id="ear-note-modal-{{ ear.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form action="{{ url_for('save_ear_note', ear_id=ear.id) }}" method="POST" class="modal-content border-0 shadow">
+            <header class="modal-header border-bottom-0 pt-4 px-4">
+                <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
+                    Ear Notes: {{ ear.animal.custom_id }} ({{ ear.side }})
+                </h3>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </header>
+
+            <main class="modal-body px-4">
+                <section class="mb-3 p-3 bg-light rounded-3 border-start border-primary border-4">
+                    <label class="d-block small fw-bold text-uppercase text-primary mb-1" style="font-size: 0.65rem;">
+                        <i class="fas fa-info-circle me-1"></i>Animal General Notes
+                    </label>
+                    <div class="small text-muted fst-italic">
+                        {{ ear.animal.notes if ear.animal.notes else "No general animal notes recorded." }}
+                    </div>
+                </section>
+
+                <hr class="text-muted opacity-25">
+
+                {{ histology_note_form.hidden_tag() }}
+                <div class="mb-0">
+                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">
+                        Tissue Observations ({{ ear.side }})
+                    </label>
+                    <textarea name="note" rows="5" class="form-control form-control-sm"
+                              placeholder="Describe tissue quality, staining issues, etc...">{{ ear.notes or '' }}</textarea>
+                </div>
+            </main>
+
+            <footer class="modal-footer border-top-0 pb-4 px-4">
+                <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm px-3 shadow-sm">Save Ear Note</button>
+            </footer>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
 {% endblock %}

@@ -240,6 +240,30 @@
 
             linkedBtn.classList.toggle('is-dirty', isDirty);
         }
+
+        function openEarNoteModal(earId) {
+            console.log("Attempting to open modal for Ear ID:", earId);
+
+            // 1. Close any open popovers
+            const popoverTrigger = document.querySelector(`[data-bs-content-id="#ear-notes-content-${earId}"]`);
+            if (popoverTrigger) {
+                const instance = bootstrap.Popover.getInstance(popoverTrigger);
+                if (instance) instance.hide();
+            }
+
+            // 2. Find the Modal
+            const modalId = `ear-note-modal-${earId}`;
+            const modalEl = document.getElementById(modalId);
+
+            if (modalEl) {
+                // Use the global toggleModal helper if you have it,
+                // or initialize a new BS5 Modal instance:
+                const modalInstance = new bootstrap.Modal(modalEl);
+                modalInstance.show();
+            } else {
+                console.error("Critical Error: Modal with ID " + modalId + " was not found in the DOM.");
+            }
+        }
     </script>
 </body>
 </html>

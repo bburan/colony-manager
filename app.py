@@ -216,6 +216,7 @@ class Ear(db.Model):
     dissection_date = db.Column(db.Date, nullable=True)
     immunolabel_date = db.Column(db.Date, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
 
 class Study(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -787,7 +788,8 @@ def view_histology():
         panels=panels,
         labeled_filter=labeled_filter,
         sort_by=sort_by,  # Pass this back to keep buttons active
-        histology_form=HistologyForm()
+        histology_form=HistologyForm(),
+        histology_note_form=NoteForm(),
     )
 
 @app.route('/histology/update/<int:ear_id>', methods=['POST'])
@@ -806,6 +808,14 @@ def update_ear(ear_id):
     else:
         print(form.errors)
     return redirect(request.referrer or url_for('view_histology'))
+
+@app.route('/save_ear_note/<int:ear_id>', methods=['POST'])
+def save_ear_note(ear_id):
+    ear = Ear.query.get_or_404(ear_id)
+    ear.notes = request.form.get('note')
+    db.session.commit()
+    flash('Ear note updated.', 'success')
+    return redirect(url_for('view_histology'))
 
 # --- Studies Routes ---
 @app.route('/studies')

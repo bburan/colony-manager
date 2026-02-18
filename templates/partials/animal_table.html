@@ -3,6 +3,7 @@
         <table class="table table-hover align-middle mb-0 small">
             <thead class="bg-light text-secondary text-uppercase fw-bold">
                 <tr>
+                    <th class="border-0">Note</th>
                     <th class="ps-4 border-0">Animal ID</th>
                     {% if show_cage_column %}<th class="border-0">Cage</th>{% endif %}
                     <th class="border-0">Species</th>
@@ -10,12 +11,24 @@
                     <th class="border-0 text-center">Age</th>
                     <th class="border-0">Events</th>
                     <th class="border-0">Studies</th>
-                    <th class="pe-4 border-0 text-end">Actions</th>
+                    <th class="pe-4 border-0 text-end"></th>
                 </tr>
             </thead>
             <tbody>
                 {% for animal in animals %}
-                <tr class="{{ 'opacity-50 table-light' if animal.is_terminated }}">
+                <tr class="{{ 'table-light' if not animal.is_active }}">
+                    <td>
+                        <button type="button"
+                            class="btn btn-sm btn-outline-secondary shadow"
+                            data-bs-toggle="popover"
+                            data-bs-trigger="click"
+                            data-bs-html="true"
+                            data-bs-container="body"
+                            title="Notes"
+                            data-bs-content-id="#notes-content-{{ animal.id }}">
+                        <i class="fas fa-sticky-note"></i>
+                        </button>
+                    </td>
                     <td class="ps-4 fw-bold">
                         <a href="{{ url_for('animal_detail', animal_id=animal.id) }}" class="text-decoration-none">
                             {{ animal.custom_id }}
@@ -35,54 +48,20 @@
                     {% endif %}
 
                     <td>{{ animal.species.name }}</td>
-                    <td>{{ animal.sex }}</td>
+                    <td>{{ animal.sex_symbol }}</td>
                     <td class="text-center">{{ animal.age_in_days }}d</td>
 
-                    <td class="text-center">
-                        {% set scheduled = animal.events.filter_by(status='scheduled').all() %}
-                        {% set completed = animal.events.filter_by(status='completed').all() %}
-                        {% if scheduled or completed %}
-                            <button type="button" class="btn btn-secondary btn-sm shadow-sm"
-                                    data-bs-toggle="popover"
-                                    data-bs-trigger="click hover"
-                                    data-bs-container="body"
-                                    data-bs-html="true"
-                                    title="Event History"
-                                    data-bs-content-id="#events-popover-{{ animal.id }}">
-                                {{ scheduled|length + completed|length }}
-                            </button>
-
-                            <div id="events-popover-{{ animal.id }}" class="d-none">
-                                <div class="small" style="min-width: 200px;">
-                                    {% if scheduled %}
-                                        <p class="fw-bold text-primary mb-1 border-bottom pb-1">Scheduled</p>
-                                        <div class="list-group list-group-flush mb-2">
-                                            {% for e in scheduled %}
-                                            <button type="button" class="list-group-item list-group-item-action p-2 border-0 rounded d-flex justify-content-between align-items-center"
-                                                    onclick="editEvent('{{ animal.id }}', '{{ e.id }}', '{{ e.procedure_id }}', '{{ e.scheduled_date.strftime('%Y-%m-%d') }}', '{{ e.notes|replace('\n', ' ')|e }}')">
-                                                <span>{{ e.procedure.name }} <br><small class="text-muted">{{ e.scheduled_date.strftime('%b %d, %Y') }}</small></span>
-                                                <i class="fas fa-edit text-primary opacity-50"></i>
-                                            </button>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                    {% if completed %}
-                                        <p class="fw-bold text-primary mb-1 border-bottom pb-1">Completed</p>
-                                        <div class="list-group list-group-flush mb-2">
-                                            {% for e in completed %}
-                                            <button type="button" class="list-group-item list-group-item-action p-2 border-0 rounded d-flex justify-content-between align-items-center"
-                                                    onclick="editEvent('{{ animal.id }}', '{{ e.id }}', '{{ e.procedure_id }}', '{{ e.scheduled_date.strftime('%Y-%m-%d') }}', '{{ e.notes|replace('\n', ' ')|e }}')">
-                                                <span>{{ e.procedure.name }} <br><small class="text-muted">{{ e.completion_date.strftime('%b %d, %Y') }}</small></span>
-                                                <i class="fas fa-edit text-primary opacity-50"></i>
-                                            </button>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% else %}
-                            <span class="text-muted opacity-50">&mdash;</span>
-                        {% endif %}
+                    <td>
+                        <button type="button" class="btn btn-secondary btn-sm shadow-sm"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="click"
+                                data-bs-container="body"
+                                data-bs-html="true"
+                                title="Event History"
+                                data-bs-content-id="#events-popover-{{ animal.id }}">
+                            {{  animal.events.count() }}
+                        </button>
+                        <button type="button" onclick="resetEventModal('{{  animal.id }}'); toggleModal('schedule-event-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow-sm"><i class="fas fa-calendar-plus"></i></button>
                     </td>
 
                     <td>
@@ -103,20 +82,11 @@
                     </td>
 
                     <td class="pe-4 text-end">
-                        <div class="d-flex justify-content-end gap-2 align-items-center">
-                            <button type="button" onclick="toggleModal('note-modal-{{ animal.id }}')" class="btn btn-sm btn-secondary shadow" title="Notes">
-                                <i class="fas fa-sticky-note"></i>
-                            </button>
 
-                            {% if not animal.is_terminated %}
-                                <button type="button" onclick="toggleModal('schedule-event-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow"><i class="fas fa-calendar-plus"></i></button>
+                            {% if animal.is_active %}
                                 <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow" title="Terminate">
                                     <i class="fas fa-crosshairs fa-sm"></i>
                                 </button>
-                            {% else %}
-                                <form action="{{ url_for('unterminate_animal', animal_id=animal.id) }}" method="POST" class="d-inline">
-                                    <button type="submit" class="btn btn-link btn-sm p-0 text-success text-decoration-none fw-bold" style="font-size: 0.7rem;">UN-TERM</button>
-                                </form>
                             {% endif %}
                         </div>
                     </td>
@@ -132,7 +102,5 @@
 </div>
 
 {% for animal in animals %}
-    {% if not animal.is_terminated %}
-        {% include 'partials/animal_modals.html' %}
-    {% endif %}
+    {% include 'partials/animal_modals.html' %}
 {% endfor %}

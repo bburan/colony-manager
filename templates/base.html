@@ -167,55 +167,60 @@
             });
         });
 
+        /** Opens the Note Modal and pre-fills existing text **/
+        function openNoteModal(animalId) {
+            // 1. Hide the popover
+            const activePop = document.querySelector('.popover');
+            if (activePop) activePop.remove();
 
-            // Close popovers when clicking outside
-            /*
-            document.addEventListener('click', function (e) {
-                popoverTriggerList.forEach(el => {
-                    if (!el.contains(e.target) && !e.target.closest('.popover')) {
-                        bootstrap.Popover.getInstance(el)?.hide();
-                    }
-                });
-            });
+            // 2. Grab the text from the hidden div source
+            const sourceEl = document.querySelector(`#notes-content-${animalId} .text-muted`);
+            const notesText = sourceEl ? sourceEl.innerText.replace('No notes recorded.', '').trim() : '';
 
-             */
-
-        function editEvent(animalId, eventId, procedureId, date, notes) {
-            // Hide open popovers
-            const activePopover = document.querySelector('.popover');
-            if (activePopover) {
-                // Find the trigger element that owns this popover and hide it
-                const triggerEl = document.querySelector(`[data-bs-content-id="#events-popover-${animalId}"]`);
-                if (triggerEl) {
-                    bootstrap.Popover.getInstance(triggerEl).hide();
-                }
+            // 3. Put it in the modal and open
+            const modalEl = document.getElementById(`note-modal-${animalId}`);
+            if (modalEl) {
+                modalEl.querySelector('textarea').value = notesText;
+                toggleModal(`note-modal-${animalId}`);
             }
-            // 1. Find the modal for this specific animal
+        }
+
+        /** Updates Event Modal to 'Edit Mode' and fills data **/
+        function editEvent(animalId, eventId, procedureId, scheduledDate, completedDate, notes) {
+            // Hide popover
+            const popoverEl = document.querySelector(`[data-bs-content-id="#events-popover-${animalId}"]`);
+            if (popoverEl) bootstrap.Popover.getInstance(popoverEl).hide();
 
             const modalId = `schedule-event-modal-${animalId}`;
             const modalEl = document.getElementById(modalId);
 
             if (modalEl) {
-                // 2. Update the Form Action URL to an 'update' route if you have one
-                // Or simply keep it as is if your backend handles the logic
-                const form = modalEl.querySelector('form');
+                // Change UI text
+                document.getElementById(`event-modal-title-${animalId}`).innerText = "Edit Event Details";
+                document.getElementById(`event-modal-submit-${animalId}`).innerText = "Save Changes";
+                document.getElementById(`event-modal-submit-${animalId}`).classList.replace('btn-primary', 'btn-warning');
 
-                // 3. Populate the fields
-                // Note: Using 'name' or 'id' selectors based on WTForms output
-                const procField = modalEl.querySelector('[name="procedure"]');
-                const dateField = modalEl.querySelector('[name="event_date"]');
-                const noteField = modalEl.querySelector('[name="notes"]');
+                // Fill form fields
+                document.getElementById(`edit-event-id-${animalId}`).value = eventId;
+                modalEl.querySelector('[name="procedure"]').value = procedureId;
+                modalEl.querySelector('[name="scheduled_date"]').value = scheduledDate;
+                modalEl.querySelector('[name="completion_date"]').value = completedDate;
+                modalEl.querySelector('[name="notes"]').value = notes;
 
-                if (procField) procField.value = procedureId;
-                if (dateField) dateField.value = date;
-                if (noteField) noteField.value = notes;
-
-                // 4. Change the Modal Title to "Edit" instead of "Schedule"
-                const title = modalEl.querySelector('.modal-title');
-                if (title) title.innerHTML = `<i class="fas fa-edit me-2"></i>Edit Event: ${eventId}`;
-
-                // 5. Open the modal
                 toggleModal(modalId);
+            }
+        }
+
+        /** Resets the Modal back to 'Schedule Mode' when opened via the calendar button **/
+        function resetEventModal(animalId) {
+            const modalId = `schedule-event-modal-${animalId}`;
+            const modalEl = document.getElementById(modalId);
+            if (modalEl) {
+                document.getElementById(`event-modal-title-${animalId}`).innerText = `Schedule Event: ${animalId}`;
+                document.getElementById(`event-modal-submit-${animalId}`).innerText = "Schedule";
+                document.getElementById(`event-modal-submit-${animalId}`).classList.replace('btn-warning', 'btn-primary');
+                document.getElementById(`edit-event-id-${animalId}`).value = "";
+                modalEl.querySelector('form').reset();
             }
         }
     </script>

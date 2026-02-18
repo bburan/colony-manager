@@ -105,7 +105,6 @@ class Cage(db.Model):
     @property
     def source_display(self):
         sources = set(a.source_display for a in self.animals)
-        print(sources)
         if len(sources) == 0:
             return 'N/A'
         return ', '.join(sorted(sources))
@@ -158,6 +157,17 @@ class Animal(db.Model):
     def source_display(self):
         return 'N/A' if self.source is None else self.source.name
 
+    @property
+    def scheduled_events(self):
+        scheduled = [e for e in self.events if e.completion_date is None]
+        return sorted(scheduled, key=lambda x: x.scheduled_date)
+
+    @property
+    def completed_events(self):
+        # Sorts by completion date
+        completed = [e for e in self.events if e.completion_date is not None]
+        return sorted(completed, key=lambda x: x.completion_date)
+
 class BreedingPair(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
@@ -180,7 +190,6 @@ class AnimalEvent(db.Model):
     procedure_id = db.Column(db.Integer, db.ForeignKey('procedure.id'), nullable=False)
     scheduled_date = db.Column(db.Date, nullable=False)
     completion_date = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(20), nullable=False, default='scheduled')
     notes = db.Column(db.Text, nullable=True)
 
 class ImmunolabelingPanel(db.Model):
@@ -224,7 +233,6 @@ def active_animal_factory(): return Animal.query.filter_by(is_terminated=False)
 class SimpleAddForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
 
-
 class SimpleAddWithDescriptionForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Procedure Description', validators=[Optional()])
@@ -253,13 +261,10 @@ class NewAnimalForm(FlaskForm):
         if Animal.query.filter_by(custom_id=field.data).first():
             raise ValidationError(f'Animal ID "{field.data}" already exists.')
 
-class ScheduleEventForm(FlaskForm):
+class EventForm(FlaskForm):
     procedure = QuerySelectField('Procedure', query_factory=procedure_factory, get_label='name', allow_blank=False)
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
-    notes = TextAreaField('Notes', validators=[Optional()])
-
-class CompleteEventForm(FlaskForm):
-    completion_date = DateField('Actual Completion Date', default=date.today, validators=[DataRequired()])
+    completion_date = DateField('Completed Date', default=None, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])
 
 class CageNoteForm(FlaskForm):
@@ -284,8 +289,8 @@ class TerminationForm(FlaskForm):
     termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='name', allow_blank=True)
     ears_extracted = SelectField('Ears Extracted', choices=[('None', 'None'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')], validators=[DataRequired()])
 
-class AnimalNoteForm(FlaskForm):
-    general_notes = TextAreaField('General Notes', validators=[Optional()])
+class NoteForm(FlaskForm):
+    note = TextAreaField('Notes', validators=[Optional()])
 
 class RenamePanelForm(FlaskForm):
     name = StringField('New Panel Name', validators=[DataRequired()])
@@ -304,12 +309,7 @@ class QuickAddToStudyForm(FlaskForm):
 # --- Context Processors and Before Request ---
 @app.before_request
 def before_request_func():
-    g.study_form = StudyForm()
-    g.rename_panel_form = RenamePanelForm()
-    g.schedule_event_form = ScheduleEventForm()
-    g.complete_event_form = CompleteEventForm()
-    g.new_animal_form = NewAnimalForm()
-    g.litter_form = LitterForm()
+    g.event_form = EventForm()
 
 # --- Routes ---
 @app.route('/')
@@ -380,10 +380,11 @@ def cage_detail(cage_id):
         flash('Cage notes updated successfully.', 'success')
         return redirect(url_for('cage_detail', cage_id=cage.id))
     animals = cage.animals.order_by('custom_id').all()
-    return render_template('cage_detail.html', cage=cage, form=form,
+    return render_template(
+        'cage_detail.html', cage=cage, form=form,
                            animals=animals, termination_form=TerminationForm(),
                            quick_add_form=QuickAddToStudyForm(),
-                           note_form=AnimalNoteForm())
+                           note_form=NoteForm())
 
 @app.route('/cages/new', methods=['GET', 'POST'])
 def new_cage():
@@ -520,19 +521,28 @@ def terminate_animal(animal_id):
         flash(f'Animal {animal.custom_id} has been marked as terminated.', 'success')
     else:
         flash('Error in termination form. A reason might be required if you added one.', 'danger')
-    return redirect(url_for('view_animals'))
+    return redirect(request.referrer or url_for('view_animals'))
 
-@app.route('/animal/schedule_event/<int:animal_id>', methods=['POST'])
+@app.route('/animal/event/<int:animal_id>', methods=['POST'])
 def schedule_event(animal_id):
-    form = ScheduleEventForm()
+    event_id = request.form.get('event_id')  # This comes from our JS helper
+    form = EventForm()
     if form.validate_on_submit():
-        event = AnimalEvent(
-            animal_id=animal_id,
-            procedure_id=form.procedure.data.id,
-            scheduled_date=form.scheduled_date.data,
-            notes=form.notes.data,
-            status='scheduled'
-        )
+        if event_id:
+            event = AnimalEvent.query.get_or_404(event_id)
+            event.procedure = form.procedure.data
+            event.scheduled_date = form.scheduled_date.data
+            event.completion_date = form.completion_date.data
+            event.notes = form.notes.data
+        else:
+            event = AnimalEvent(
+                animal_id=animal_id,
+                procedure_id=form.procedure.data.id,
+                scheduled_date=form.scheduled_date.data,
+                completion_date=form.completion_date.data,
+                notes=form.notes.data,
+                status='scheduled'
+            )
         db.session.add(event)
         db.session.commit()
         flash('Event scheduled successfully.', 'success')
@@ -540,30 +550,29 @@ def schedule_event(animal_id):
         flash('Error scheduling event.', 'danger')
     return redirect(request.referrer or url_for('view_animals'))
 
-@app.route('/event/complete/<int:event_id>', methods=['POST'])
-def complete_event(event_id):
-    event = AnimalEvent.query.get_or_404(event_id)
-    form = CompleteEventForm()
-    if form.validate_on_submit():
-        event.status = 'completed'
-        event.completion_date = form.completion_date.data
-        if form.notes.data:
-            event.notes = form.notes.data
+
+@app.route('/events/delete/<int:event_id>', methods=['POST'])
+def delete_event(event_id):
+    event = db.session.get(AnimalEvent, event_id)
+    if event:
+        animal_id = event.animal_id  # Grab this to redirect back to the right page
+        db.session.delete(event)
         db.session.commit()
-        flash(f'Event "{event.procedure.name}" for animal {event.animal.custom_id} marked as complete.', 'success')
+        # Flash messages are great for feedback
+        flash("Event deleted successfully.", "success")
     else:
-        flash('Error completing event.', 'danger')
-    return redirect(request.referrer or url_for('view_animals'))
+        flash("Event not found.", "danger")
+    return redirect(request.referrer or url_for('view_animal', animal_id=animal_id))
 
 @app.route('/animal/note/<int:animal_id>', methods=['POST'])
 def save_animal_note(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = AnimalNoteForm()
+    form = NoteForm()
     if form.validate_on_submit():
-        animal.general_notes = form.general_notes.data
+        animal.notes = form.note.data
         db.session.commit()
         flash(f'Notes for animal {animal.custom_id} updated.', 'success')
-    return redirect(url_for('view_animals'))
+    return redirect(request.referrer or url_for('view_animals'))
 
 # --- Breeding Routes ---
 @app.route('/breeding')
@@ -868,8 +877,6 @@ def add_setting(item_type):
 @app.route('/settings/update/<item_type>/<int:item_id>', methods=['POST'])
 def update_setting(item_type, item_id):
     # Fetch the record
-    print(item_type)
-    print(item_id)
     item = SETTINGS[item_type]['model'].query.get_or_404(item_id)
     # Get the new name/reason from the form
     form = SETTINGS[item_type]['form']()

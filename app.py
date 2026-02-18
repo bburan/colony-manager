@@ -504,6 +504,25 @@ def unterminate_animal(animal_id):
     flash(f'Termination for animal {animal.custom_id} has been reversed.', 'success')
     return redirect(request.referrer or url_for('view_animals'))
 
+
+@app.route('/animal/activate/<int:animal_id>', methods=['POST'])
+def activate_animal(animal_id):
+    animal = db.session.get(Animal, animal_id)
+    new_id = request.form.get('custom_id', '').strip()
+
+    if animal and new_id:
+        # Optional: Check if the ID is already taken
+        exists = db.session.query(Animal).filter_by(custom_id=new_id).first()
+        if exists:
+            flash(f"Error: ID {new_id} is already assigned to another animal.", "danger")
+        else:
+            animal.custom_id = new_id
+            db.session.commit()
+            flash(f"Animal activated with ID: {new_id}", "success")
+
+    # Redirect back to where they were
+    return redirect(request.referrer or url_for('view_animals'))
+
 @app.route('/animals/terminate/<int:animal_id>', methods=['POST'])
 def terminate_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)

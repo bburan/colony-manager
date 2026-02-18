@@ -214,6 +214,7 @@ class Ear(db.Model):
     side = db.Column(db.String(5), nullable=False)
     cryoprotection_date = db.Column(db.Date, nullable=True)
     dissection_date = db.Column(db.Date, nullable=True)
+    immunolabel_date = db.Column(db.Date, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=True)
 
 class Study(db.Model):
@@ -241,6 +242,9 @@ class SimpleAddWithDescriptionForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Procedure Description', validators=[Optional()])
 
+class NoteForm(FlaskForm):
+    note = TextAreaField('Notes', validators=[Optional()])
+
 class CageForm(FlaskForm):
     custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=4)])
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name', allow_blank=False, validators=[DataRequired()])
@@ -253,6 +257,12 @@ class CageForm(FlaskForm):
     def validate_custom_id(self, field):
         if Cage.query.filter_by(custom_id=field.data).first():
             raise ValidationError(f'Cage ID "{field.data}" already exists.')
+
+class HistologyForm(FlaskForm):
+    cryoprotection_date = DateField('Cryoprotection date', validators=[Optional()])
+    dissection_date = DateField('Dissection date', validators=[Optional()])
+    immunolabel_date = DateField('Immunolabel date', validators=[Optional()])
+    panel = QuerySelectField('Immunolabeling Panel', query_factory=panel_factory, get_label='name', allow_blank=True, validators=[Optional()])
 
 class NewAnimalForm(FlaskForm):
     custom_id = StringField('Animal ID', validators=[DataRequired()])
@@ -270,9 +280,6 @@ class EventForm(FlaskForm):
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     completion_date = DateField('Completed Date', default=None, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])
-
-class CageNoteForm(FlaskForm):
-    notes = TextAreaField('Cage Notes', validators=[Optional()])
 
 class BreedingPairForm(FlaskForm):
     custom_id = StringField('Pair ID', validators=[DataRequired(), Length(min=1, max=50)])
@@ -293,11 +300,6 @@ class TerminationForm(FlaskForm):
     termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='name', allow_blank=True)
     ears_extracted = SelectField('Ears Extracted', choices=[('None', 'None'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')], validators=[DataRequired()])
 
-class NoteForm(FlaskForm):
-    note = TextAreaField('Notes', validators=[Optional()])
-
-class RenamePanelForm(FlaskForm):
-    name = StringField('New Panel Name', validators=[DataRequired()])
 
 class StudyForm(FlaskForm):
     name = StringField('Study Name', validators=[DataRequired()])
@@ -377,7 +379,7 @@ def update_cage_notes(cage_id):
 @app.route('/cage/<int:cage_id>', methods=['GET', 'POST'])
 def cage_detail(cage_id):
     cage = Cage.query.get_or_404(cage_id)
-    form = CageNoteForm(obj=cage)
+    form = NoteForm()
     if form.validate_on_submit():
         cage.notes = form.notes.data
         db.session.commit()
@@ -759,38 +761,51 @@ def reactivate_pair(pair_id):
 # --- Histology Routes ---
 @app.route('/histology')
 def view_histology():
-    dissected_filter = request.args.get('dissected_filter', 'all')
     labeled_filter = request.args.get('labeled_filter', 'all')
-    
-    query = Ear.query
-    
-    if dissected_filter == 'dissected':
-        query = query.filter(Ear.dissection_date != None)
-    elif dissected_filter == 'not_dissected':
-        query = query.filter(Ear.dissection_date == None)
-        
+    sort_by = request.args.get('sort_by', 'id')  # New sort argument
+    query = Ear.query.join(Animal)
+
+    # Filter Logic
     if labeled_filter == 'labeled':
-        query = query.filter(Ear.panel_id != None)
+        query = query.filter(Ear.immunolabel_date != None)
     elif labeled_filter == 'not_labeled':
-        query = query.filter(Ear.panel_id == None)
-    
-    ears = query.join(Animal).order_by(Ear.id.desc()).all()
+        query = query.filter(Ear.immunolabel_date == None)
+
+    # Sort Logic
+    if sort_by == 'euthanasia':
+        query = query.order_by(Animal.termination_date.desc().nulls_last())
+    else:
+        query = query.order_by(Ear.id.desc())
+
+    ears = query.all()
+    print(ears)
     panels = ImmunolabelingPanel.query.all()
-    return render_template('histology.html', ears=ears, panels=panels, 
-                           dissected_filter=dissected_filter, labeled_filter=labeled_filter)
+
+    return render_template(
+        'histology.html',
+        ears=ears,
+        panels=panels,
+        labeled_filter=labeled_filter,
+        sort_by=sort_by,  # Pass this back to keep buttons active
+        histology_form=HistologyForm()
+    )
 
 @app.route('/histology/update/<int:ear_id>', methods=['POST'])
 def update_ear(ear_id):
     ear = Ear.query.get_or_404(ear_id)
-    cp_date_str = request.form.get('cryoprotection_date')
-    ear.cryoprotection_date = datetime.strptime(cp_date_str, '%Y-%m-%d').date() if cp_date_str else None
-    ds_date_str = request.form.get('dissection_date')
-    ear.dissection_date = datetime.strptime(ds_date_str, '%Y-%m-%d').date() if ds_date_str else None
-    panel_id = request.form.get('panel_id')
-    ear.panel_id = int(panel_id) if panel_id and panel_id != 'None' else None
-    db.session.commit()
-    flash(f'Ear #{ear.id} ({ear.animal.custom_id} - {ear.side}) updated.', 'success')
-    return redirect(url_for('view_histology'))
+    form = HistologyForm()
+    if form.validate_on_submit():
+        ear.cryoprotection_date = form.cryoprotection_date.data
+        ear.dissection_date = form.dissection_date.data
+        ear.immunolabel_date = form.immunolabel_date.data
+        selected_panel = form.panel.data
+        ear.panel_id = selected_panel.id if selected_panel else None
+        print(form.data)
+        db.session.commit()
+        flash(f'Ear #{ear.id} ({ear.animal.custom_id} - {ear.side}) updated.', 'success')
+    else:
+        print(form.errors)
+    return redirect(request.referrer or url_for('view_histology'))
 
 # --- Studies Routes ---
 @app.route('/studies')

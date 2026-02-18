@@ -121,21 +121,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        /** Standardized Dirty-State Checker **/
-        function markDirty(input) {
-            const form = input.closest('form');
-            const saveBtn = form.querySelector('.save-btn');
-            if (!saveBtn) return;
-
-            const allInputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
-            let isDirty = Array.from(allInputs).some(i => {
-                if (i.type === 'checkbox' || i.type === 'radio') return i.checked !== i.defaultChecked;
-                return i.value.trim() !== i.defaultValue.trim();
-            });
-
-            saveBtn.classList.toggle('is-dirty', isDirty);
-        }
-
         /** Simple Helper for Manual Modal Triggering (If needed) **/
         function toggleModal(id) {
             const el = document.getElementById(id);
@@ -222,6 +207,38 @@
                 document.getElementById(`edit-event-id-${animalId}`).value = "";
                 modalEl.querySelector('form').reset();
             }
+        }
+
+        /** Standardized Dirty-State Checker (HTML5 Form Attribute Version) **/
+        function markDirty(input) {
+            // Access the form directly via the built-in 'form' property
+            const activeForm = input.form;
+
+            if (!activeForm) {
+                console.error("Input is not linked to a form. Ensure form='id' is set correctly.");
+                return;
+            }
+
+            const saveBtn = activeForm.querySelector('.save-btn');
+
+            // Fallback: if the button is outside the form, find it by its 'form' attribute
+            const linkedBtn = saveBtn || document.querySelector(`button[form="${activeForm.id}"].save-btn`);
+
+            if (!linkedBtn) return;
+
+            const allInputs = activeForm.querySelectorAll('input:not([type="hidden"]), textarea, select');
+
+            // Also include inputs that are outside the form but linked via the 'form' attribute
+            const externalInputs = document.querySelectorAll(`[form="${activeForm.id}"]`);
+            const combinedInputs = [...new Set([...allInputs, ...externalInputs])];
+
+            let isDirty = combinedInputs.some(i => {
+                if (i.type === 'submit' || i.type === 'button') return false;
+                if (i.type === 'checkbox' || i.type === 'radio') return i.checked !== i.defaultChecked;
+                return i.value.trim() !== (i.defaultValue || "").trim();
+            });
+
+            linkedBtn.classList.toggle('is-dirty', isDirty);
         }
     </script>
 </body>

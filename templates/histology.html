@@ -5,49 +5,110 @@ Histology Pipeline
 {% endblock %}
 
 {% block content %}
-<div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-            <tr>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Animal ID</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ear</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Euthanasia Date</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cryoprotection</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dissection</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Immunolabeling Panel</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-            </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+<article class="card border-0 shadow-sm mb-4">
+    <header class="card-header bg-white border-0 pt-3 px-3">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            <i class="fas fa-filter me-2"></i>Pipeline Filters
+        </h2>
+    </header>
+
+    <main class="card-body pt-1 pb-3 px-3">
+        <div class="row g-3">
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Immunolabel Status</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    {% for val, label in [('all', 'All'), ('labeled', 'Labeled'), ('not_labeled', 'Pending')] %}
+                    <a href="{{ url_for('view_histology', labeled_filter=val, sort_by=sort_by) }}"
+                       class="btn {{ 'btn-primary' if labeled_filter == val else 'btn-outline-secondary' }}">
+                       {{ label }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-auto ms-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    <a href="{{ url_for('view_histology', labeled_filter=labeled_filter, sort_by='id') }}"
+                       class="btn {{ 'btn-primary' if sort_by == 'id' else 'btn-outline-secondary' }}">Ear ID</a>
+                    <a href="{{ url_for('view_histology', labeled_filter=labeled_filter, sort_by='euthanasia') }}"
+                       class="btn {{ 'btn-primary' if sort_by == 'euthanasia' else 'btn-outline-secondary' }}">Euthanasia Date</a>
+                </div>
+            </div>
+        </div>
+    </main>
+</article>
+
+    <main class="table-responsive">
+        <table class="table table-hover align-middle mb-0 small">
+            <thead class="bg-light text-secondary text-uppercase fw-bold">
+                <tr>
+                    <th class="ps-4 border-0">Animal ID</th>
+                    <th class="border-0">Ear</th>
+                    <th class="border-0">Euthanasia Date</th>
+                    <th class="border-0">Cryoprotection</th>
+                    <th class="border-0">Dissection</th>
+                    <th class="border-0">Immunolabel</th>
+                    <th class="border-0">Panel</th>
+                    <th class="pe-4 border-0 text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
             {% for ear in ears %}
-            <tr>
-                <form action="{{ url_for('update_ear', ear_id=ear.id) }}" method="POST">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ear.animal.custom_id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ear.side }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ear.animal.termination_date.strftime('%Y-%m-%d') if ear.animal.termination_date }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <input type="date" name="cryoprotection_date" value="{{ ear.cryoprotection_date.strftime('%Y-%m-%d') if ear.cryoprotection_date }}" class="w-full border rounded-md p-1 text-sm border-gray-300">
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <input type="date" name="dissection_date" value="{{ ear.dissection_date.strftime('%Y-%m-%d') if ear.dissection_date }}" class="w-full border rounded-md p-1 text-sm border-gray-300">
-                </td>
-                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <select name="panel_id" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                        <option value="None">--- Select Panel ---</option>
-                        {% for panel in panels %}
-                        <option value="{{ panel.id }}" {% if ear.panel_id == panel.id %}selected{% endif %}>{{ panel.name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                     <button type="submit" class="text-blue-600 hover:text-blue-900">Save</button>
-                </td>
+                {% set form_id = "form-ear-" ~ ear.id %}
+                {# Use the form passed from the view #}
+                {% set form = histology_form %}
+
+                <form id="{{ form_id }}" action="{{ url_for('update_ear', ear_id=ear.id) }}" method="POST">
+                    {{ form.hidden_tag() }}
                 </form>
-            </tr>
-            {% else %}
-            <tr><td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">No ears in histology pipeline.</td></tr>
+
+                <tr>
+                    <td class="ps-4 fw-bold text-primary">{{ ear.animal.custom_id }}</td>
+                    <td>
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                            {{ ear.side }}
+                        </span>
+                    </td>
+                    <td class="text-muted small">
+                        {{ ear.animal.termination_date.strftime('%b %d, %Y') if ear.animal.termination_date else '---' }}
+                    </td>
+
+                    <td>
+                        {{ form.cryoprotection_date(form=form_id,
+                           value=ear.cryoprotection_date.strftime('%Y-%m-%d') if ear.cryoprotection_date,
+                           class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
+                    </td>
+                    <td>
+                        {{ form.dissection_date(form=form_id,
+                           value=ear.dissection_date.strftime('%Y-%m-%d') if ear.dissection_date,
+                           class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
+                    </td>
+                    <td>
+                        {{ form.immunolabel_date(form=form_id,
+                           value=ear.immunolabel_date.strftime('%Y-%m-%d') if ear.immunolabel_date,
+                           class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
+                    </td>
+                    <td>
+                        {# Manual select is safer in a loop to ensure 'selected' works per-ear #}
+                        <select name="panel" form="{{ form_id }}" class="form-select form-select-sm border-0 bg-light" onchange="markDirty(this)">
+                            <option value=""></option>
+                            {% for panel in panels %}
+                            <option value="{{ panel.id }}" {% if ear.panel_id == panel.id %}selected{% endif %}>
+                                {{ panel.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="pe-4 text-end">
+                        <button type="submit" form="{{ form_id }}" class="btn btn-sm save-btn">
+                            <i class="fas fa-save"></i>
+                        </button>
+                    </td>
+                </tr>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
+            </tbody>
+        </table>
+    </main>
+</article>
 {% endblock %}

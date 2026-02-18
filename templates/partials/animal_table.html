@@ -72,19 +72,30 @@
                                     <i class="fas fa-microscope me-1"></i>{{ study.name }}
                                 </a>
                             {% endfor %}
-                            {% if not animal.is_terminated %}
-                            <form action="{{ url_for('quick_add_to_study', animal_id=animal.id) }}" method="POST" class="input-group input-group-sm mt-1">
-                                {{ quick_add_form.hidden_tag() }}
-                                {{ quick_add_form.study(class="form-select form-select-sm", style="font-size: 0.7rem;") }}
-                                <button class="btn btn-outline-secondary btn-sm"><i class="fas fa-plus"></i></button>
-                            </form>
+
+                            {% if animal.is_active %}
+                                {% set study_form_id = "form-study-add-" ~ animal.id %}
+
+                                <form id="{{ study_form_id }}" action="{{ url_for('quick_add_to_study', animal_id=animal.id) }}" method="POST">
+                                    {{ quick_add_form.hidden_tag() }}
+                                </form>
+
+                                <div class="input-group input-group-sm mt-1">
+                                    {{ quick_add_form.study(class="form-select form-select-sm",
+                                                           style="font-size: 0.7rem;",
+                                                           form=study_form_id,
+                                                           onchange="markDirty(this)") }}
+                                    <button type="submit"
+                                            form="{{ study_form_id }}"
+                                            class="btn btn-outline-secondary btn-sm save-btn">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
                             {% endif %}
                         </div>
                     </td>
-
                     <td class="pe-4 text-end">
-
-                            {% if animal.is_active %}
+                            {% if animal.is_active and animal.custom_id %}
                                 <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow" title="Terminate">
                                     <i class="fas fa-crosshairs fa-sm"></i>
                                 </button>

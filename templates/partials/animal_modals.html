@@ -34,7 +34,7 @@
     </div>
 </div>
 
-{%  if show_termination_action %}
+{%  if show_termination_action|default(True) %}
 <div class="modal fade" id="term-modal-{{ animal.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form action="{{ url_for('terminate_animal', animal_id=animal.id) }}" method="POST" class="modal-content border-0 shadow">

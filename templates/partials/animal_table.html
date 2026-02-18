@@ -91,12 +91,13 @@
 
                     {% if show_termination_action|default(True) %}
                         <td class="pe-4 text-end">
-                                {% if animal.is_active and animal.custom_id %}
-                                    <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow" title="Terminate">
-                                        <i class="fas fa-crosshairs fa-sm"></i>
-                                    </button>
-                                {% endif %}
-                            </div>
+                            {% if animal.is_active and animal.custom_id %}
+                                <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')"
+                                        class="btn btn-secondary btn-sm shadow"
+                                        title="Terminate">
+                                    <i class="fas fa-crosshairs fa-sm"></i>
+                                </button>
+                            {% endif %}
                         </td>
                     {%  endif %}
                 </tr>

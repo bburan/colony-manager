@@ -122,9 +122,14 @@
 
     <script>
         /** Simple Helper for Manual Modal Triggering (If needed) **/
-        function toggleModal(id) {
-            const el = document.getElementById(id);
-            if (el) bootstrap.Modal.getOrCreateInstance(el).toggle();
+        function toggleModal(modalId) {
+            const modalEl = document.getElementById(modalId);
+            if (modalEl) {
+                const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modalInstance.show();
+            } else {
+                console.error("Modal not found:", modalId);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', function () {

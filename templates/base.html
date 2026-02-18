@@ -9,56 +9,107 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        /* Ensuring the layout feels like your previous Tailwind version */
-        body { background-color: #f8f9fa; }
-        .navbar-dark .navbar-nav .nav-link { color: rgba(255,255,255,.75); }
-        .navbar-dark .navbar-nav .nav-link:hover { color: #fff; background-color: #374151; border-radius: 0.375rem; }
-        header { background: white; border-bottom: 1px solid #dee2e6; }
+        :root {
+            --app-bg: #f8f9fa;
+        }
+        body {
+            background-color: var(--app-bg);
+            display: flex;
+            flex-direction: column;
+        }
+        /* Refined Nav Hover using transparency instead of hardcoded Tailwind hex */
+        .navbar-dark .nav-link {
+            transition: all 0.2s;
+            padding: 0.5rem 1rem;
+        }
+        .navbar-dark .nav-link:hover {
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 0.375rem;
+        }
+        .navbar-dark .nav-link.active {
+            background-color: rgba(255,255,255,0.15);
+            border-radius: 0.375rem;
+        }
+
+        /* Content Area Adjustments */
+        header.app-header {
+            background: #fff;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        /* Save Button Logic */
+        .save-btn {
+            opacity: 0.2;
+            transition: all 0.2s ease-in-out;
+            pointer-events: none;
+            color: var(--bs-secondary);
+        }
+        .save-btn.is-dirty {
+            opacity: 1;
+            pointer-events: auto;
+            color: var(--bs-primary);
+            transform: scale(1.1);
+        }
+        .dropdown-menu {
+            min-width: 160px;
+            z-index: 1060; /* Ensure it stays above other table elements */
+        }
+        .dropdown-item:active {
+            background-color: var(--bs-success);
+        }
     </style>
 </head>
 <body class="h-100">
 
-<div class="min-vh-100">
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-dna me-2"></i>
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="fas fa-dna text-info me-2"></i>Colony Manager
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <div class="navbar-nav ms-3">
-                    <a href="{{ url_for('index') }}" class="nav-link">Dashboard</a>
-                    <a href="{{ url_for('calendar') }}" class="nav-link">Calendar</a>
-                    <a href="{{ url_for('view_breeding_pairs') }}" class="nav-link">Breeding</a>
-                    <a href="{{ url_for('view_cages') }}" class="nav-link">Cages</a>
-                    <a href="{{ url_for('view_animals') }}" class="nav-link">Animals</a>
-                    <a href="{{ url_for('view_studies') }}" class="nav-link">Studies</a>
-                    <a href="{{ url_for('view_histology') }}" class="nav-link">Histology</a>
-                    <a href="{{ url_for('settings') }}" class="nav-link">Settings</a>
-                </div>
+
+            <div class="collapse navbar-collapse" id="appNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    {% set nav_items = [
+                        ('index', 'Dashboard'),
+                        ('calendar', 'Calendar'),
+                        ('view_breeding_pairs', 'Breeding'),
+                        ('view_cages', 'Cages'),
+                        ('view_animals', 'Animals'),
+                        ('view_studies', 'Studies'),
+                        ('view_histology', 'Histology'),
+                        ('settings', 'Settings')
+                    ] %}
+                    {% for endpoint, label in nav_items %}
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint == endpoint }}"
+                           href="{{ url_for(endpoint) }}">{{ label }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
     </nav>
 
-    <header class="py-4 shadow-sm">
+    <header class="app-header py-4">
         <div class="container">
-            <h1 class="h2 mb-0 fw-bold text-dark">
+            <h1 class="h3 mb-0 fw-bold text-dark">
                 {% block header %}{% endblock %}
             </h1>
         </div>
     </header>
 
-    <main class="py-4">
+    <main class="flex-shrink-0 py-4">
         <div class="container">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show" role="alert">
-                        {{ message }}
+                    <aside class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show border-0 shadow-sm" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>{{ message }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
+                    </aside>
                     {% endfor %}
                 {% endif %}
             {% endwith %}
@@ -66,64 +117,107 @@
             {% block content %}{% endblock %}
         </div>
     </main>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<script>
-    /**
-     * Bootstrap has its own Modal API.
-     * You can call this using: new bootstrap.Modal(document.getElementById('myID')).toggle();
-     */
-    function toggleModal(modalID) {
-        const modalElement = document.getElementById(modalID);
-        if (modalElement) {
-            const modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
-            modalInstance.toggle();
+    <script>
+        /** Standardized Dirty-State Checker **/
+        function markDirty(input) {
+            const form = input.closest('form');
+            const saveBtn = form.querySelector('.save-btn');
+            if (!saveBtn) return;
+
+            const allInputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
+            let isDirty = Array.from(allInputs).some(i => {
+                if (i.type === 'checkbox' || i.type === 'radio') return i.checked !== i.defaultChecked;
+                return i.value.trim() !== i.defaultValue.trim();
+            });
+
+            saveBtn.classList.toggle('is-dirty', isDirty);
         }
-    }
-</script>
 
-<style>
-    /* Save button starts hidden/grayed out */
-    .save-btn {
-        opacity: 0.2;
-        transition: all 0.2s ease-in-out;
-        pointer-events: none;
-        color: #6c757d;
-        border: none;
-        background: none;
-    }
-    /* Lights up blue when input changes */
-    .save-btn.is-dirty {
-        opacity: 1;
-        pointer-events: auto;
-        color: #0d6efd;
-        transform: scale(1.1);
-    }
-</style>
-
-<script>
-function markDirty(input) {
-    const form = input.closest('form');
-    const saveBtn = form.querySelector('.save-btn');
-    const allInputs = form.querySelectorAll('input, textarea');
-
-    let isDirty = false;
-    allInputs.forEach(i => {
-        // Compare current value against the value present on page load
-        if (i.type === 'text' || i.tagName === 'TEXTAREA') {
-            if (i.value.trim() !== i.defaultValue.trim()) isDirty = true;
+        /** Simple Helper for Manual Modal Triggering (If needed) **/
+        function toggleModal(id) {
+            const el = document.getElementById(id);
+            if (el) bootstrap.Modal.getOrCreateInstance(el).toggle();
         }
-    });
 
-    if (isDirty) {
-        saveBtn.classList.add('is-dirty');
-    } else {
-        saveBtn.classList.remove('is-dirty');
-    }
-}
-</script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
 
+            popoverTriggerList.forEach(el => {
+                const targetId = el.getAttribute('data-bs-content-id');
+                const targetEl = document.querySelector(targetId);
+
+                new bootstrap.Popover(el, {
+                    html: true,
+                    sanitize: false,
+                    container: 'body',
+                    content: targetEl.innerHTML, // Directly pass the HTML instead of a function
+                    boundary: 'viewport'
+                });
+
+                document.addEventListener('click', function (e) {
+                    popoverTriggerList.forEach(el => {
+                        if (!el.contains(e.target) && !e.target.closest('.popover')) {
+                            bootstrap.Popover.getInstance(el)?.hide();
+                        }
+                    });
+                });
+            });
+        });
+
+
+            // Close popovers when clicking outside
+            /*
+            document.addEventListener('click', function (e) {
+                popoverTriggerList.forEach(el => {
+                    if (!el.contains(e.target) && !e.target.closest('.popover')) {
+                        bootstrap.Popover.getInstance(el)?.hide();
+                    }
+                });
+            });
+
+             */
+
+        function editEvent(animalId, eventId, procedureId, date, notes) {
+            // Hide open popovers
+            const activePopover = document.querySelector('.popover');
+            if (activePopover) {
+                // Find the trigger element that owns this popover and hide it
+                const triggerEl = document.querySelector(`[data-bs-content-id="#events-popover-${animalId}"]`);
+                if (triggerEl) {
+                    bootstrap.Popover.getInstance(triggerEl).hide();
+                }
+            }
+            // 1. Find the modal for this specific animal
+
+            const modalId = `schedule-event-modal-${animalId}`;
+            const modalEl = document.getElementById(modalId);
+
+            if (modalEl) {
+                // 2. Update the Form Action URL to an 'update' route if you have one
+                // Or simply keep it as is if your backend handles the logic
+                const form = modalEl.querySelector('form');
+
+                // 3. Populate the fields
+                // Note: Using 'name' or 'id' selectors based on WTForms output
+                const procField = modalEl.querySelector('[name="procedure"]');
+                const dateField = modalEl.querySelector('[name="event_date"]');
+                const noteField = modalEl.querySelector('[name="notes"]');
+
+                if (procField) procField.value = procedureId;
+                if (dateField) dateField.value = date;
+                if (noteField) noteField.value = notes;
+
+                // 4. Change the Modal Title to "Edit" instead of "Schedule"
+                const title = modalEl.querySelector('.modal-title');
+                if (title) title.innerHTML = `<i class="fas fa-edit me-2"></i>Edit Event: ${eventId}`;
+
+                // 5. Open the modal
+                toggleModal(modalId);
+            }
+        }
+    </script>
 </body>
 </html>

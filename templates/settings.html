@@ -1,113 +1,97 @@
 {% extends "base.html" %}
 
 {% block content %}
-
-<div class="row g-4 mb-4">
+<section class="row g-4 mb-4">
     {% for type, label, items, placeholder in [('species', 'Species', species, 'New Species'), ('source', 'Sources', sources, 'New Source')] %}
-    <div class="col-12 col-md-6">
-        <div class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
-                <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="mb-3">
-                    {{ simple_add_form.hidden_tag() }}
-                    <div class="input-group input-group-sm">
-                        <input type="text" name="name" class="form-control" placeholder="{{ placeholder }}">
-                        <button class="btn btn-primary">Add</button>
-                    </div>
-                </form>
+    <article class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 card-body">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
+            <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="input-group input-group-sm mb-3">
+                {{ simple_add_form.hidden_tag() }}
+                <input type="text" name="name" class="form-control" placeholder="{{ placeholder }}">
+                <button class="btn btn-primary">Add</button>
+            </form>
 
-                <ul class="list-group list-group-flush small">
-                    {% for item in items %}
-                    <li class="list-group-item px-0 border-light d-flex align-items-center">
-                        <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST" class="d-flex flex-grow-1 align-items-center">
-                            <input type="text" name="name" value="{{ item.name }}"
-                                   class="form-control form-control-sm border-0 bg-transparent fw-medium p-0"
-                                   oninput="markDirty(this)">
-                            <button type="submit" class="btn btn-link btn-sm save-btn p-0 ms-2"><i class="fas fa-cloud-upload-alt"></i></button>
-                        </form>
-                        <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" onsubmit="return confirm('Delete?');">
-                            <button class="btn btn-link btn-sm text-danger p-0 ms-2"><i class="fas fa-trash-alt"></i></button>
-                        </form>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+            <ul class="list-group list-group-flush small">
+                {% for item in items %}
+                <li class="list-group-item px-0 border-light d-flex align-items-center">
+                    <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST" class="d-flex flex-grow-1 align-items-center">
+                        <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm border-0 bg-transparent fw-medium p-0" oninput="markDirty(this)">
+                        <button type="submit" class="btn btn-link btn-sm save-btn p-0 ms-2"><i class="fas fa-cloud-upload-alt"></i></button>
+                    </form>
+                    <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" onsubmit="return confirm('Delete?');">
+                        <button class="btn btn-link btn-sm text-danger p-0 ms-2"><i class="fas fa-trash-alt"></i></button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
         </div>
-    </div>
+    </article>
     {% endfor %}
-</div>
+</section>
 
-<div class="row g-4 mb-5">
+<section class="row g-4 mb-5">
     {% for type, label, items, placeholder in [('procedure', 'Procedures', procedures, 'New Procedure'), ('termination_reason', 'Termination Reasons', termination_reasons, 'New Reason')] %}
-    <div class="col-12 col-md-6">
-        <div class="card h-100 shadow-sm border-0">
-            <div class="card-body">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
-                <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="mb-4 bg-light p-3 rounded">
-                    {{ simple_add_with_description_form.hidden_tag() }}
-                    <div class="input-group input-group-sm mb-2">
-                        <input type="text" name="name" class="form-control fw-bold" placeholder="{{ placeholder }}">
-                        <button class="btn btn-primary">Add</button>
-                    </div>
-                    <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description..."></textarea>
-                </form>
+    <article class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 card-body">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
+            <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="bg-light p-3 rounded mb-4">
+                {{ simple_add_with_description_form.hidden_tag() }}
+                <div class="input-group input-group-sm mb-2">
+                    <input type="text" name="name" class="form-control fw-bold" placeholder="{{ placeholder }}">
+                    <button class="btn btn-primary">Add</button>
+                </div>
+                <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description..."></textarea>
+            </form>
 
-                <ul class="list-group list-group-flush small">
-                    {% for item in items %}
-                    <li class="list-group-item px-0 border-light py-3">
-                        <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST">
-                            <div class="d-flex justify-content-between">
-                                <div class="flex-grow-1">
-                                    <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 mb-1" oninput="markDirty(this)">
-                                    <textarea name="description" class="form-control form-control-sm border-0 bg-transparent text-muted p-0" rows="2" oninput="markDirty(this)">{{ item.description or '' }}</textarea>
-                                </div>
-                                <div class="d-flex flex-column ms-2">
-                                    <button type="submit" class="btn btn-link btn-sm save-btn p-0 mb-2"><i class="fas fa-cloud-upload-alt fa-lg"></i></button>
-                                    <button type="button" class="btn btn-link btn-sm text-danger p-0" onclick="if(confirm('Delete?')) this.closest('li').querySelector('.del-form').submit();"><i class="fas fa-trash-alt"></i></button>
-                                </div>
-                            </div>
+            <ul class="list-group list-group-flush small">
+                {% for item in items %}
+                <li class="list-group-item px-0 border-light py-3 d-flex align-items-start">
+                    <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST" class="flex-grow-1">
+                        <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 mb-1" oninput="markDirty(this)">
+                        <textarea name="description" class="form-control form-control-sm border-0 bg-transparent text-muted p-0" rows="2" oninput="markDirty(this)">{{ item.description or '' }}</textarea>
+                    </form>
+                    <div class="d-flex flex-column ms-2">
+                        <button type="submit" form="update-{{ item.id }}" class="btn btn-link btn-sm save-btn p-0 mb-2"><i class="fas fa-cloud-upload-alt fa-lg"></i></button>
+                        <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" onsubmit="return confirm('Delete?');">
+                            <button class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-trash-alt"></i></button>
                         </form>
-                        <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" class="del-form d-none"></form>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
         </div>
-    </div>
+    </article>
     {% endfor %}
-</div>
+</section>
 
-<div class="card shadow-sm border-0 mb-5">
-    <div class="card-header bg-white py-3">
-        <div class="row align-items-center">
-            <div class="col-md-7"><h2 class="h5 mb-0 fw-bold">Immunolabeling Panels</h2></div>
-            <div class="col-md-5">
-                <form action="{{ url_for('add_setting', item_type='immunolabeling_panel') }}" method="POST" class="input-group input-group-sm">
-                    {{ simple_add_form.hidden_tag() }}
-                    <input type="text" name="name" class="form-control" placeholder="New Panel Name">
-                    <button class="btn btn-primary">Create</button>
-                </form>
-            </div>
-        </div>
-    </div>
+<section class="card shadow-sm border-0 mb-5">
+    <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">
+        <h2 class="h5 mb-0 fw-bold">Immunolabeling Panels</h2>
+        <form action="{{ url_for('add_setting', item_type='immunolabeling_panel') }}" method="POST" class="input-group input-group-sm w-auto">
+            {{ simple_add_form.hidden_tag() }}
+            <input type="text" name="name" class="form-control" placeholder="New Panel Name">
+            <button class="btn btn-primary">Create</button>
+        </form>
+    </header>
 
     <div class="list-group list-group-flush">
         {% for panel in panels %}
-        <div class="list-group-item p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+        <article class="list-group-item p-4">
+            <header class="d-flex justify-content-between align-items-center mb-3">
                 <form action="{{ url_for('update_setting', item_type='immunolabeling_panel', item_id=panel.id) }}" method="POST" class="d-flex align-items-center">
                     <input type="text" name="name" value="{{ panel.name }}" class="form-control form-control-sm fw-bold border-0 bg-light me-2" oninput="markDirty(this)">
                     <button type="submit" class="btn btn-link btn-sm save-btn p-0"><i class="fas fa-cloud-upload-alt"></i></button>
                 </form>
                 <form action="{{ url_for('delete_panel', panel_id=panel.id) }}" method="POST" onsubmit="return confirm('Delete panel?');">
-                    <button class="btn btn-sm btn-link text-danger text-decoration-none"><i class="fas fa-trash-alt"></i></button>
+                    <button class="btn btn-sm btn-link text-danger"><i class="fas fa-trash-alt"></i></button>
                 </form>
-            </div>
+            </header>
 
             <div class="bg-light rounded p-3 border">
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     {% for reagent in panel.reagents %}
-                    <div class="badge bg-white text-dark border d-flex align-items-center p-1 shadow-sm">
+                    <span class="badge bg-white text-dark border d-flex align-items-center p-1 shadow-sm">
                         <form action="{{ url_for('update_setting', item_type='reagent', item_id=reagent.id) }}" method="POST" class="d-flex align-items-center px-1">
                             <input type="text" name="name" value="{{ reagent.name }}" class="border-0 bg-transparent fw-bold small" style="width: 80px;" oninput="markDirty(this)">
                             <input type="text" name="description" value="{{ reagent.description }}" class="border-0 bg-transparent text-muted small ms-1" style="width: 50px;" oninput="markDirty(this)">
@@ -116,7 +100,7 @@
                         <form action="{{ url_for('delete_setting', item_type='reagent', item_id=reagent.id) }}" method="POST" class="ms-1 border-start ps-1">
                             <button class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times"></i></button>
                         </form>
-                    </div>
+                    </span>
                     {% endfor %}
                 </div>
                 <form action="{{ url_for('add_reagent', panel_id=panel.id) }}" method="POST" class="row g-2">
@@ -126,8 +110,8 @@
                     <div class="col-md-3"><button class="btn btn-success btn-sm w-100">Add</button></div>
                 </form>
             </div>
-        </div>
+        </article>
         {% endfor %}
     </div>
-</div>
+</section>
 {% endblock %}

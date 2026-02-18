@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block header %}Create New Cage{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <section class="col-lg-8">
+        <nav class="mb-3">
+            <a href="{{ url_for('view_cages') }}" class="text-decoration-none small text-muted">
+                <i class="fas fa-arrow-left me-1"></i> Back to List
+            </a>
+        </nav>
+
+        <form action="{{ url_for('new_cage') }}" method="POST" class="card shadow-sm border-0">
+            {{ form.hidden_tag() }}
+            <header class="card-header bg-white py-3">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Cage Details</h2>
+            </header>
+
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Cage Identifier</label>
+                        {{ form.custom_id(class="form-control", placeholder="e.g. B001") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Source</label>
+                        {{ form.source(class="form-select") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Number of animals</label>
+                        {{ form.number_of_animals(class="form-control") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Species</label>
+                        {{ form.species(class="form-select") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Sex</label>
+                        {{ form.sex(class="form-select") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Date of Birth</label>
+                        {{ form.dob(class="form-control", type="date") }}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-bold">Notes</label>
+                        {{ form.notes(class="form-control", rows="3", placeholder="Initial observations or setup details...") }}
+                    </div>
+                </div>
+            </div>
+
+            <footer class="card-footer bg-light py-3 d-flex justify-content-end">
+                <a href="{{ url_for('view_cages') }}" class="btn btn-link btn-sm text-secondary me-3 text-decoration-none">Cancel</a>
+                <button type="submit" class="btn btn-primary px-4">Create Cage</button>
+            </footer>
+        </form>
+    </section>
+</div>
+{% endblock %}

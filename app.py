@@ -1,4 +1,6 @@
 import os
+from xml.sax.handler import property_declaration_handler
+
 from flask import Flask, render_template, request, redirect, url_for, flash, g, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData, desc
@@ -41,6 +43,7 @@ class Species(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='species', lazy=True)
+    cages = db.relationship('Cage', backref='species', lazy=True)
 
 class Source(db.Model):
     # Source for a particular animal
@@ -74,11 +77,42 @@ class Cage(db.Model):
 
     @property
     def is_active(self):
-        return self.animals.filter_by(is_terminated=False).count() > 0
+        return self.animals.filter_by(termination_date=None).count() > 0
+
+    @property
+    def sex(self):
+        return sorted(set(a.sex for a in self.animals))
+
+    @property
+    def sex_symbol(self):
+        result = sorted(set(a.sex_symbol for a in self.animals))
+        if len(result) == 2:
+            return '⚥'
+        elif len(result) == 1:
+            return result[0]
+        else:
+            return ''
+
+    def age_display(self, unit='day'):
+        ages = sorted(set(getattr(a, f'age_in_{unit}s') for a in self.animals))
+        if len(ages) == 0:
+            return 'N/A'
+        elif len(ages) == 1:
+            return f'{ages[0]:.1f} {unit}s'
+        else:
+            return f'{ages[0]:.1f} to {ages[-1]:.1f} {unit}s'
+
+    @property
+    def source_display(self):
+        sources = set(a.source_display for a in self.animals)
+        print(sources)
+        if len(sources) == 0:
+            return 'N/A'
+        return ', '.join(sorted(sources))
 
 class Animal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    custom_id = db.Column(db.String(100), unique=True, nullable=False)
+    custom_id = db.Column(db.String(100), unique=True, nullable=True)
     cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
     species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
     sex = db.Column(db.String(10), nullable=False)
@@ -94,7 +128,7 @@ class Animal(db.Model):
     @property
     def has_events(self):
         return self.events.count() > 0
-    
+
     @property
     def last_event_date(self):
         last_event = self.events.filter_by(status='completed').order_by(AnimalEvent.completion_date.desc()).first()
@@ -102,7 +136,7 @@ class Animal(db.Model):
 
     @property
     def age_in_days(self):
-        return (date.today() - self.date_of_birth).days
+        return (date.today() - self.dob).days
 
     @property
     def age_in_weeks(self):
@@ -111,6 +145,18 @@ class Animal(db.Model):
     @property
     def age_in_months(self):
         return self.age_in_days / 30
+
+    @property
+    def is_active(self):
+        return self.termination_date is None
+
+    @property
+    def sex_symbol(self):
+        return '♀' if self.sex == 'female' else '♂'
+
+    @property
+    def source_display(self):
+        return 'N/A' if self.source is None else self.source.name
 
 class BreedingPair(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -170,7 +216,7 @@ def source_factory(): return Source.query.order_by('name')
 def study_factory(): return Study.query.order_by('name')
 def procedure_factory(): return Procedure.query.order_by('name')
 def panel_factory(): return ImmunolabelingPanel.query.order_by('name')
-def termination_reason_factory(): return TerminationReason.query.order_by('reason')
+def termination_reason_factory(): return TerminationReason.query.order_by(TerminationReason.name)
 def male_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Male').order_by(Animal.id)
 def female_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Female').order_by(Animal.id)
 def active_animal_factory(): return Animal.query.filter_by(is_terminated=False)
@@ -184,12 +230,12 @@ class SimpleAddWithDescriptionForm(FlaskForm):
     description = StringField('Procedure Description', validators=[Optional()])
 
 class CageForm(FlaskForm):
-    custom_id = StringField('Cage ID (e.g., B001)', validators=[DataRequired(), Length(min=1, max=50)])
+    custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=4)])
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name', allow_blank=False, validators=[DataRequired()])
     source = QuerySelectField('Source', query_factory=source_factory, get_label='name', allow_blank=True)
-    sex = SelectField('Sex', choices=[('Male', 'Male'), ('Female', 'Female')], validators=[DataRequired()])
-    number_of_animals = IntegerField('Number of Animals', validators=[InputRequired(), NumberRange(min=1)])
-    date_of_birth = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
+    sex = SelectField('Sex', choices=[('male', 'male'), ('female', 'female')], validators=[DataRequired()])
+    number_of_animals = IntegerField('Number of Animals', validators=[InputRequired(), NumberRange(min=0)])
+    dob = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
 
     def validate_custom_id(self, field):
@@ -214,6 +260,7 @@ class ScheduleEventForm(FlaskForm):
 
 class CompleteEventForm(FlaskForm):
     completion_date = DateField('Actual Completion Date', default=date.today, validators=[DataRequired()])
+    notes = TextAreaField('Notes', validators=[Optional()])
 
 class CageNoteForm(FlaskForm):
     notes = TextAreaField('Cage Notes', validators=[Optional()])
@@ -234,7 +281,7 @@ class LitterForm(FlaskForm):
 
 class TerminationForm(FlaskForm):
     termination_date = DateField('Date of Termination', default=date.today, validators=[DataRequired()])
-    termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='reason', allow_blank=True)
+    termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='name', allow_blank=True)
     ears_extracted = SelectField('Ears Extracted', choices=[('None', 'None'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')], validators=[DataRequired()])
 
 class AnimalNoteForm(FlaskForm):
@@ -294,23 +341,34 @@ def calendar():
 # --- Cage Routes ---
 @app.route('/cages')
 def view_cages():
-    sort_by = request.args.get('sort_by', 'id')
+    age_unit = request.args.get('age_unit', 'day')
     filter_by = request.args.get('filter', 'active')
-    if sort_by == 'age':
-        query = Cage.query.order_by(Cage.date_of_birth.asc())
-    else:
-        query = Cage.query.order_by(Cage.custom_id.asc())
-    
-    all_cages = query.all()
+    all_cages = Cage.query.all()
     if filter_by == 'active':
         cages = [c for c in all_cages if c.is_active]
     elif filter_by == 'inactive':
         cages = [c for c in all_cages if not c.is_active]
     else:
         cages = all_cages
-    
-    form = CageForm()
-    return render_template('cages.html', cages=cages, form=form, sort_by=sort_by, filter_by=filter_by)
+    return render_template(
+        'cages.html',
+        cages=cages,
+        form=CageForm(),
+        age_unit=age_unit,
+        filter_by=filter_by
+    )
+
+@app.route('/cage/rename/<int:cage_id>', methods=['GET', 'POST'])
+def rename_cage(cage_id):
+    pass
+
+@app.route('/cage/delete/<int:cage_id>', methods=['GET', 'POST'])
+def delete_cage(cage_id):
+    pass
+
+@app.route('/cage/update-notes/<int:cage_id>', methods=['GET', 'POST'])
+def update_cage_notes(cage_id):
+    pass
 
 @app.route('/cage/<int:cage_id>', methods=['GET', 'POST'])
 def cage_detail(cage_id):
@@ -321,45 +379,39 @@ def cage_detail(cage_id):
         db.session.commit()
         flash('Cage notes updated successfully.', 'success')
         return redirect(url_for('cage_detail', cage_id=cage.id))
-        
-    animals = cage.animals.order_by('animal_number').all()
-    
-    return render_template('cage_detail.html', cage=cage, form=form, animals=animals, 
-                           termination_form=TerminationForm(), quick_add_form=QuickAddToStudyForm(), note_form=AnimalNoteForm())
+    animals = cage.animals.order_by('custom_id').all()
+    return render_template('cage_detail.html', cage=cage, form=form,
+                           animals=animals, termination_form=TerminationForm(),
+                           quick_add_form=QuickAddToStudyForm(),
+                           note_form=AnimalNoteForm())
 
-@app.route('/cages/new', methods=['POST'])
-def add_cage():
+@app.route('/cages/new', methods=['GET', 'POST'])
+def new_cage():
     form = CageForm()
     if form.validate_on_submit():
-        new_cage = Cage(
+        cage = Cage(
             custom_id=form.custom_id.data,
-            species=form.species.data,
-            source=form.source.data,
-            sex=form.sex.data,
-            date_of_birth=form.date_of_birth.data,
-            notes=form.notes.data
+            notes=form.notes.data,
+            species_id=form.species.data.id,
         )
-        db.session.add(new_cage)
-        db.session.commit()
-
         for i in range(form.number_of_animals.data):
             animal = Animal(
-                cage_id=new_cage.id, 
-                animal_number=i + 1,
-                custom_id=f"{new_cage.custom_id}-{i+1}",
-                sex=new_cage.sex,
-                date_of_birth=new_cage.date_of_birth,
-                species_id=new_cage.species_id
+                cage=cage,
+                sex=form.sex.data,
+                dob=form.dob.data,
+                species=form.species.data,
+                source=form.source.data,
             )
             db.session.add(animal)
-        
+        db.session.add(cage)
         db.session.commit()
-        flash(f'Cage {new_cage.custom_id} with {form.number_of_animals.data} animals created.', 'success')
+        flash(f'Cage {cage.custom_id} with {form.number_of_animals.data} animals created.', 'success')
+        return redirect(url_for('view_cages'))
     else:
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f"Error in {getattr(form, field).label.text}: {error}", 'danger')
-    return redirect(url_for('view_cages'))
+    return render_template('cage_add.html', form=CageForm())
 
 # --- Animal Routes ---
 @app.route('/animals')
@@ -373,9 +425,9 @@ def view_animals():
     query = Animal.query
 
     if status_filter == 'active':
-        query = query.filter(Animal.is_terminated==False)
+        query = query.filter(Animal.termination_reason_id.is_(None))
     elif status_filter == 'terminated':
-        query = query.filter(Animal.is_terminated==True)
+        query = query.filter(Animal.termination_reason_id.is_not(None))
     
     if procedure_filter != 'all':
         query = query.join(Animal.events).filter(AnimalEvent.procedure_id == int(procedure_filter))
@@ -384,7 +436,6 @@ def view_animals():
         query = query.join(Animal.studies).filter(Study.id == int(study_filter))
 
     animals = query.all()
-    
     if sort_by == 'age':
         animals.sort(key=lambda a: a.age_in_days)
     elif sort_by == 'event_date':
@@ -403,6 +454,10 @@ def view_animals():
                            sort_by=sort_by, event_filter=event_filter, status_filter=status_filter,
                            procedure_filter=procedure_filter, study_filter=study_filter,
                            procedures=Procedure.query.all(), studies=Study.query.all())
+
+@app.route('/animal/detail/<int:animal_id>')
+def animal_detail(animal_id):
+    return
 
 @app.route('/animal/delete/<int:animal_id>', methods=['POST'])
 def delete_animal(animal_id):

@@ -5,36 +5,60 @@ Animal Overview
 {% endblock %}
 
 {% block content %}
-<!-- Filter and Sort Controls -->
-<div class="mb-4 p-4 bg-gray-50 rounded-lg space-y-4 md:space-y-0 md:flex justify-between items-center">
-    <!-- Filters -->
-    <div class="flex items-center gap-4">
-        <div>
-            <span class="text-sm font-medium text-gray-700 mr-2">Status:</span>
-            <div class="inline-flex rounded-md shadow-sm">
-                <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='active') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'active' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Active</a>
-                <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='terminated') }}" class="px-3 py-1 text-sm font-medium border-t border-b border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'terminated' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Terminated</a>
-                <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter='all') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if status_filter == 'all' else 'bg-white text-gray-700 hover:bg-gray-50' }}">All</a>
+<article class="card border-0 shadow-sm mb-4">
+    <header class="card-header bg-white border-0 pt-3 px-3">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            <i class="fas fa-filter me-2"></i>Filters & Sorting
+        </h2>
+    </header>
+
+    <main class="card-body py-3 px-3">
+        <div class="row g-3">
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Status</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    {% for val, label in [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')] %}
+                    <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter=val) }}"
+                       class="btn {{ 'btn-primary' if status_filter == val else 'btn-outline-secondary' }}">
+                       {{ label }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Events</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    {% for val, label in [('all', 'All'), ('events', 'Has Events'), ('no_events', 'None')] %}
+                    <a href="{{ url_for('view_animals', sort_by=sort_by, status_filter=status_filter, event_filter=val) }}"
+                       class="btn {{ 'btn-primary' if event_filter == val else 'btn-outline-secondary' }}">
+                       {{ label }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-auto ms-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='id') }}"
+                       class="btn {{ 'btn-primary' if sort_by == 'id' else 'btn-outline-secondary' }}">ID</a>
+                    <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='age') }}"
+                       class="btn {{ 'btn-primary' if sort_by == 'age' else 'btn-outline-secondary' }}">Age</a>
+                </div>
+            </div>
+
+            <div class="col-auto ms-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Age</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                <a href="{{ url_for('view_animals', age_unit='day') }}" class="btn {{ 'btn-primary' if age_unit == 'day' else 'btn-outline-secondary' }}">Day</a>
+                <a href="{{ url_for('view_animals', age_unit='week') }}" class="btn {{ 'btn-primary' if age_unit == 'week' else 'btn-outline-secondary' }}">Week</a>
+                <a href="{{ url_for('view_animals', age_unit='month') }}" class="btn {{ 'btn-primary' if age_unit == 'month' else 'btn-outline-secondary' }}">Month</a>
+                </div>
             </div>
         </div>
-        <div>
-            <span class="text-sm font-medium text-gray-700 mr-2">Events:</span>
-             <div class="inline-flex rounded-md shadow-sm">
-                <a href="{{ url_for('view_animals', sort_by=sort_by, status_filter=status_filter, event_filter='all') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if event_filter == 'all' else 'bg-white text-gray-700 hover:bg-gray-50' }}">All</a>
-                <a href="{{ url_for('view_animals', sort_by=sort_by, status_filter=status_filter, event_filter='events') }}" class="px-3 py-1 text-sm font-medium border-t border-b border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if event_filter == 'events' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Has Events</a>
-                <a href="{{ url_for('view_animals', sort_by=sort_by, status_filter=status_filter, event_filter='no_events') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if event_filter == 'no_events' else 'bg-white text-gray-700 hover:bg-gray-50' }}">No Events</a>
-            </div>
-        </div>
-    </div>
-    <!-- Sorting -->
-    <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-gray-700 mr-2">Sort by:</span>
-        <div class="inline-flex rounded-md shadow-sm">
-            <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='id') }}" class="px-3 py-1 rounded-l-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if sort_by == 'id' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Animal ID</a>
-            <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='age') }}" class="px-3 py-1 rounded-r-md text-sm font-medium border border-gray-300 {{ 'bg-blue-600 text-white border-blue-600' if sort_by == 'age' else 'bg-white text-gray-700 hover:bg-gray-50' }}">Age</a>
-        </div>
-    </div>
-</div>
+    </main>
+</article>
 
 {% set show_cage_column = True %}
 {% include 'partials/animal_table.html' %}

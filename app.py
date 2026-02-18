@@ -168,6 +168,10 @@ class Animal(db.Model):
         completed = [e for e in self.events if e.completion_date is not None]
         return sorted(completed, key=lambda x: x.completion_date)
 
+    def age_display(self, unit='day'):
+        age = getattr(self, f'age_in_{unit}s')
+        return f'{age:.1f} {unit}s'
+
 class BreedingPair(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
@@ -422,8 +426,9 @@ def view_animals():
     status_filter = request.args.get('status_filter', 'active')
     procedure_filter = request.args.get('procedure_filter', 'all')
     study_filter = request.args.get('study_filter', 'all')
-    
-    query = Animal.query
+    age_unit = request.args.get('age_unit', 'day')
+
+    query = Animal.query.filter(Animal.custom_id.is_not(None))
 
     if status_filter == 'active':
         query = query.filter(Animal.termination_reason_id.is_(None))
@@ -449,12 +454,21 @@ def view_animals():
     elif event_filter == 'no_events':
         animals = [a for a in animals if not a.has_events]
 
-    return render_template('animals.html', animals=animals, 
-                           termination_form=TerminationForm(), note_form=AnimalNoteForm(), 
-                           quick_add_form=QuickAddToStudyForm(),
-                           sort_by=sort_by, event_filter=event_filter, status_filter=status_filter,
-                           procedure_filter=procedure_filter, study_filter=study_filter,
-                           procedures=Procedure.query.all(), studies=Study.query.all())
+    return render_template(
+        'animals.html',
+        animals=animals,
+        termination_form=TerminationForm(),
+        note_form=NoteForm(),
+        quick_add_form=QuickAddToStudyForm(),
+        sort_by=sort_by,
+        event_filter=event_filter,
+        status_filter=status_filter,
+        procedure_filter=procedure_filter,
+        age_unit=age_unit,
+        study_filter=study_filter,
+        #procedures=Procedure.query.all(),
+        #studies=Study.query.all()
+    )
 
 @app.route('/animal/detail/<int:animal_id>')
 def animal_detail(animal_id):
@@ -560,7 +574,6 @@ def schedule_event(animal_id):
                 scheduled_date=form.scheduled_date.data,
                 completion_date=form.completion_date.data,
                 notes=form.notes.data,
-                status='scheduled'
             )
         db.session.add(event)
         db.session.commit()

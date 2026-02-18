@@ -5,7 +5,6 @@
                 <tr>
                     <th class="border-0">Note</th>
                     <th class="ps-4 border-0">Animal ID</th>
-                    {% if show_cage_column %}<th class="border-0">Cage</th>{% endif %}
                     <th class="border-0">Species</th>
                     <th class="border-0">Sex</th>
                     <th class="border-0 text-center">Age</th>
@@ -19,7 +18,7 @@
                 <tr class="align-middle {{ 'table-light' if not animal.is_active }}">
                     <td>
                         <button type="button"
-                            class="btn btn-sm btn-outline-secondary shadow"
+                            class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary shadow"
                             data-bs-toggle="popover"
                             data-bs-trigger="click"
                             data-bs-html="true"
@@ -49,22 +48,9 @@
                             </form>
                         {% endif %}
                     </td>
-
-                    {% if show_cage_column %}
-                    <td>
-                        {% if animal.cage %}
-                            <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}" class="badge bg-info-subtle text-info text-decoration-none border border-info-subtle">
-                                {{ animal.cage.custom_id }}
-                            </a>
-                        {% else %}
-                            <span class="text-muted fst-italic">Uncaged</span>
-                        {% endif %}
-                    </td>
-                    {% endif %}
-
                     <td>{{ animal.species.name }}</td>
                     <td>{{ animal.sex_symbol }}</td>
-                    <td class="text-center">{{ animal.age_in_days }}d</td>
+                    <td class="text-center">{{ animal.age_display(age_unit|default('day')) }}</td>
 
                     <td>
                         <button type="button" class="btn btn-secondary btn-sm shadow-sm"

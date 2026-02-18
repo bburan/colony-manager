@@ -445,8 +445,19 @@ def view_animals():
     study_filter = request.args.get('study_filter', 'all')
     age_unit = request.args.get('age_unit', 'day')
     event_status = request.args.get('event_status', 'all')
+    search_query = request.args.get('search_query', '')
 
     query = Animal.query.filter(Animal.custom_id.is_not(None))
+
+    if search_query:
+        # We join Events and Procedures to allow searching by procedure name
+        # .ilike(f'%{search_query}%') handles the "partial match" requirement
+        query = query.join(Animal.events, isouter=True).join(AnimalEvent.procedure, isouter=True).filter(
+            db.or_(
+                Animal.custom_id.ilike(f'%{search_query}%'),
+                Procedure.name.ilike(f'%{search_query}%')
+            )
+        )
 
     if status_filter == 'active':
         query = query.filter(Animal.termination_reason_id.is_(None))
@@ -490,7 +501,7 @@ def view_animals():
         procedure_filter=procedure_filter,
         age_unit=age_unit,
         study_filter=study_filter,
-        #procedures=Procedure.query.all(),
+        procedures=Procedure.query.all(),
         #studies=Study.query.all()
     )
 

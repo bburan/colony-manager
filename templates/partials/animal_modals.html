@@ -156,17 +156,29 @@
 {% endmacro %}
 
 <div id="events-popover-{{ animal.id }}" class="d-none">
-    <div class="small" style="min-width: 200px;">
-        {# Call for Scheduled Events #}
-        {{ render_event_list('Scheduled', animal.scheduled_events, animal.id) }}
+    <div class="small" style="min-width: 220px;">
+        {# 1. Call for Scheduled Events (Active Tasks) #}
+        <div class="mb-2">
+            {{ render_event_list('Scheduled', animal.scheduled_events, animal.id) }}
+        </div>
 
-        {# Call for Completed Events #}
-        {{ render_event_list('Completed', animal.completed_events, animal.id, show_completion=True) }}
+        {# 2. Call for Completed Events (History) #}
+        <div class="mb-3">
+            {{ render_event_list('Completed', animal.completed_events, animal.id, show_completion=True) }}
+        </div>
+
+        {# 3. Action Footer: Relocated Schedule Button #}
+        <div class="pt-2 border-top">
+            <button type="button"
+                    onclick="resetEventModal('{{ animal.id }}'); toggleModal('schedule-event-modal-{{ animal.id }}')"
+                    class="btn btn-primary btn-sm w-100 shadow-sm">
+                <i class="fas fa-calendar-plus me-1"></i>Schedule New Event
+            </button>
+        </div>
     </div>
 </div>
 
 {% if show_study_column|default(True) %}
-    {# 2. The Hidden Popover Content #}
     <div id="studies-popover-{{ animal.id }}" class="d-none">
         <div class="small" style="min-width: 220px;">
             {% if animal.studies %}
@@ -179,7 +191,7 @@
                         </a>
                         <form action="{{ url_for('remove_from_study', study_id=study.id, animal_id=animal.id) }}" method="POST" class="m-0">
                             <button type="submit" class="btn btn-link text-danger p-0 ms-2" title="Remove from study">
-                                <i class="fas fa-times-circle"></i>
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </form>
                     </div>

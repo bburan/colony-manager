@@ -264,6 +264,17 @@
                 console.error("Critical Error: Modal with ID " + modalId + " was not found in the DOM.");
             }
         }
+
+        document.addEventListener('show.bs.modal', function () {
+            const popovers = document.querySelectorAll('.popover');
+            popovers.forEach(pop => {
+                const trigger = document.querySelector(`[aria-describedby="${pop.id}"]`);
+                if (trigger) {
+                    const instance = bootstrap.Popover.getInstance(trigger);
+                    if (instance) instance.hide();
+                }
+            });
+        });
     </script>
 </body>
 </html>

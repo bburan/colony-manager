@@ -18,7 +18,7 @@ Animal Overview
                 <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Status</label>
                 <div class="btn-group btn-group-sm shadow-sm">
                     {% for val, label in [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')] %}
-                    <a href="{{ url_for('view_animals', sort_by=sort_by, event_filter=event_filter, status_filter=val) }}"
+                    <a href="{{ url_for('view_animals', status_filter=val, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
                        class="btn {{ 'btn-primary' if status_filter == val else 'btn-outline-secondary' }}">
                        {{ label }}
                     </a>
@@ -30,7 +30,7 @@ Animal Overview
                 <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Events</label>
                 <div class="btn-group btn-group-sm shadow-sm">
                     {% for val, label in [('all', 'All'), ('events', 'Has Events'), ('no_events', 'None')] %}
-                    <a href="{{ url_for('view_animals', sort_by=sort_by, status_filter=status_filter, event_filter=val) }}"
+                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=val, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
                        class="btn {{ 'btn-primary' if event_filter == val else 'btn-outline-secondary' }}">
                        {{ label }}
                     </a>
@@ -38,22 +38,51 @@ Animal Overview
                 </div>
             </div>
 
-            <div class="col-auto ms-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Procedure</label>
+                <select class="form-select form-select-sm shadow-sm" style="min-width: 160px;"
+                        onchange="location.href=this.value">
+                    <option value="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter='all', event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}">All Procedures</option>
+                    {% for proc in all_procedures %}
+                    <option value="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=proc.id, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
+                            {{ 'selected' if procedure_filter == proc.id|string }}>
+                        {{ proc.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Alerts</label>
                 <div class="btn-group btn-group-sm shadow-sm">
-                    <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='id') }}"
-                       class="btn {{ 'btn-primary' if sort_by == 'id' else 'btn-outline-secondary' }}">ID</a>
-                    <a href="{{ url_for('view_animals', event_filter=event_filter, status_filter=status_filter, sort_by='age') }}"
-                       class="btn {{ 'btn-primary' if sort_by == 'age' else 'btn-outline-secondary' }}">Age</a>
+                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) if event_status != 'none' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
+                        class="btn {{ 'btn-secondary text-white' if event_status == 'all' else 'btn-outline-secondary' }}">All</a>
+                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='due', sort_by=sort_by, age_unit=age_unit) if event_status != 'due' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
+                       class="btn {{ 'btn-success text-white' if event_status == 'due' else 'btn-outline-success' }}">Due</a>
+                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='overdue', sort_by=sort_by, age_unit=age_unit) if event_status != 'overdue' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
+                       class="btn {{ 'btn-danger' if event_status == 'overdue' else 'btn-outline-danger' }}">Overdue</a>
                 </div>
             </div>
 
-            <div class="col-auto ms-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Age</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                <a href="{{ url_for('view_animals', age_unit='day') }}" class="btn {{ 'btn-primary' if age_unit == 'day' else 'btn-outline-secondary' }}">Day</a>
-                <a href="{{ url_for('view_animals', age_unit='week') }}" class="btn {{ 'btn-primary' if age_unit == 'week' else 'btn-outline-secondary' }}">Week</a>
-                <a href="{{ url_for('view_animals', age_unit='month') }}" class="btn {{ 'btn-primary' if age_unit == 'month' else 'btn-outline-secondary' }}">Month</a>
+            <div class="col-auto ms-auto d-flex gap-3">
+                <div>
+                    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
+                    <div class="btn-group btn-group-sm shadow-sm">
+                        {% for val, label in [('id', 'ID'), ('age', 'Age')] %}
+                        <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=val, age_unit=age_unit) }}"
+                           class="btn {{ 'btn-primary' if sort_by == val else 'btn-outline-secondary' }}">{{ label }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Age Unit</label>
+                    <div class="btn-group btn-group-sm shadow-sm">
+                        {% for val, label in [('day', 'D'), ('week', 'W'), ('month', 'M')] %}
+                        <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=val) }}"
+                           class="btn {{ 'btn-primary' if age_unit == val else 'btn-outline-secondary' }}">{{ label }}</a>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>

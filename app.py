@@ -129,6 +129,17 @@ class Animal(db.Model):
         return self.events.count() > 0
 
     @property
+    def event_due(self):
+        return any(e.scheduled_date == date.today() and e.completion_date is None for e in self.events)
+
+    @property
+    def event_overdue(self):
+        # Returns True if there are any incomplete events scheduled before today
+        if self.events.count() > 0:
+            print(self.events[0].completion_date)
+        return any(e.scheduled_date < date.today() and e.completion_date is None for e in self.events)
+
+    @property
     def last_event_date(self):
         last_event = self.events.filter_by(status='completed').order_by(AnimalEvent.completion_date.desc()).first()
         return last_event.completion_date if last_event else date.min
@@ -433,6 +444,7 @@ def view_animals():
     procedure_filter = request.args.get('procedure_filter', 'all')
     study_filter = request.args.get('study_filter', 'all')
     age_unit = request.args.get('age_unit', 'day')
+    event_status = request.args.get('event_status', 'all')
 
     query = Animal.query.filter(Animal.custom_id.is_not(None))
 
@@ -460,6 +472,11 @@ def view_animals():
     elif event_filter == 'no_events':
         animals = [a for a in animals if not a.has_events]
 
+    if event_status == 'due':
+        animals = [a for a in animals if a.event_due]
+    elif event_status == 'overdue':
+        animals = [a for a in animals if a.event_overdue]
+
     return render_template(
         'animals.html',
         animals=animals,
@@ -468,6 +485,7 @@ def view_animals():
         quick_add_form=QuickAddToStudyForm(),
         sort_by=sort_by,
         event_filter=event_filter,
+        event_status=event_status,
         status_filter=status_filter,
         procedure_filter=procedure_filter,
         age_unit=age_unit,

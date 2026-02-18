@@ -52,7 +52,16 @@
                     <td class="text-center">{{ animal.age_display(age_unit|default('day')) }}</td>
 
                     <td>
-                        <button type="button" class="btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
+                        {% if animal.event_overdue %}
+                            {% set btn_class = "btn-danger" %}
+                        {%  elif animal.event_due %}
+                            {% set btn_class = "btn-success" %}
+                        {% elif animal.events.count() > 0 %}
+                            {% set btn_class = "btn-secondary" %}
+                        {% else %}
+                            {% set btn_class = "btn-outline-secondary" %}
+                        {% endif %}
+                        <button type="button" class="{{ btn_class }} btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
                                 data-bs-toggle="popover"
                                 data-bs-trigger="click"
                                 data-bs-container="body"
@@ -61,7 +70,6 @@
                                 data-bs-content-id="#events-popover-{{ animal.id }}">
                             {{  animal.events.count() }}
                         </button>
-                        <button type="button" onclick="resetEventModal('{{  animal.id }}'); toggleModal('schedule-event-modal-{{ animal.id }}')" class="btn btn-secondary btn-sm shadow-sm"><i class="fas fa-calendar-plus"></i></button>
                     </td>
 
                     {% if show_study_column|default(True) %}

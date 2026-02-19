@@ -235,7 +235,6 @@ class ConfocalImageType(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     confocal_images = db.relationship('ConfocalImage', backref='image_type', lazy=True)
 
-
 class ConfocalImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ear_id = db.Column(db.Integer, db.ForeignKey('ear.id'), nullable=False)
@@ -243,6 +242,7 @@ class ConfocalImage(db.Model):
     frequency = db.Column(db.Integer, nullable=False)
     image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id'), nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(150), nullable=True)
 
 class Study(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -848,6 +848,7 @@ def reactivate_pair(pair_id):
 # --- Histology Routes ---
 @app.route('/histology')
 def view_histology():
+    analysis_filter = request.args.get('analysis_filter', 'all')
     labeled_filter = request.args.get('labeled_filter', 'all')
     sort_by = request.args.get('sort_by', 'id')  # New sort argument
     query = Ear.query.join(Animal)
@@ -864,12 +865,16 @@ def view_histology():
     else:
         query = query.order_by(Ear.id.desc())
 
-    ears = query.all()
-    print(ears)
+    if analysis_filter != 'all':
+        # Join the ConfocalImage table and filter by the status column
+        query = query.join(ConfocalImage).filter(ConfocalImage.status == analysis_filter)
+
+    ears = query.distinct().all()
     panels = ImmunolabelingPanel.query.all()
 
     return render_template(
         'histology.html',
+        analysis_filter=analysis_filter,
         ears=ears,
         panels=panels,
         labeled_filter=labeled_filter,
@@ -909,13 +914,40 @@ def add_confocal_images(ear_id):
                 ear_id=ear.id,
                 frequency=float(freq_str),
                 image_type=form.image_type.data,
-                notes=form.notes.data
+                notes=form.notes.data,
+                status='pending',
             )
             db.session.add(new_image)
 
         db.session.commit()
         flash(f'Images added for {ear.animal.custom_id} {ear.side}', 'success')
 
+    return redirect(url_for('view_histology'))
+
+@app.route('/update_confocal_image/<int:image_id>', methods=['POST'])
+def update_confocal_image(image_id):
+    img = ConfocalImage.query.get_or_404(image_id)
+    img.status = request.form.get('status')
+    img.notes = request.form.get('notes')
+    db.session.commit()
+    return redirect(url_for('view_histology'))
+
+
+@app.route('/delete_confocal_image/<int:image_id>', methods=['POST'])
+def delete_confocal_image(image_id):
+    # Locate the specific image record
+    image_record = ConfocalImage.query.get_or_404(image_id)
+
+    try:
+        db.session.delete(image_record)
+        db.session.commit()
+        # Using a category like 'info' or 'success' for your flash messages
+        flash('Imaging record deleted successfully.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error deleting record.', 'danger')
+
+    # Return the user to the histology pipeline
     return redirect(url_for('view_histology'))
 
 @app.route('/save_ear_note/<int:ear_id>', methods=['POST'])

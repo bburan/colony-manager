@@ -280,6 +280,18 @@
                 }
             });
         });
+
+        function openEditImageModal(id, freq, status, notes) {
+            const form = document.getElementById('edit-image-form');
+            // Set the action URL dynamically
+            form.action = `/update_confocal_image/${id}`;
+
+            document.getElementById('modal-freq-display').innerText = freq;
+            document.getElementById('edit-image-status').value = status || 'pending';
+            document.getElementById('edit-image-notes').value = notes;
+
+            toggleModal('edit-image-status-modal');
+        }
     </script>
 </body>
 </html>

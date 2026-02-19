@@ -6,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData, desc
 from flask_migrate import Migrate
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, DateField, SelectField, SubmitField, TextAreaField
+from wtforms import StringField, IntegerField, DateField, SelectField, SelectMultipleField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length
 from wtforms.widgets import ListWidget, CheckboxInput
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
@@ -228,9 +228,21 @@ class Ear(db.Model):
     immunolabel_date = db.Column(db.Date, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    confocal_images = db.relationship('ConfocalImage', backref='ear', lazy=True)
 
-#class ConfocalImage(db.Model):
-#    pass
+class ConfocalImageType(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    confocal_images = db.relationship('ConfocalImage', backref='image_type', lazy=True)
+
+
+class ConfocalImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ear_id = db.Column(db.Integer, db.ForeignKey('ear.id'), nullable=False)
+    #ear = db.relationship('Ear')
+    frequency = db.Column(db.Integer, nullable=False)
+    image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id'), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
 
 class Study(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -249,6 +261,7 @@ def termination_reason_factory(): return TerminationReason.query.order_by(Termin
 def male_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Male').order_by(Animal.id)
 def female_animal_factory(): return Animal.query.filter(Animal.is_terminated==False, Animal.sex=='Female').order_by(Animal.id)
 def active_animal_factory(): return Animal.query.filter_by(is_terminated=False)
+def confocal_image_type_factory(): return ConfocalImageType.query.order_by('name')
 
 class SimpleAddForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
@@ -327,6 +340,19 @@ class AddToStudyForm(FlaskForm):
 class QuickAddToStudyForm(FlaskForm):
     study = QuerySelectField('Study', query_factory=study_factory, get_label='name', allow_blank=False)
 
+class ConfocalImageForm(FlaskForm):
+    # Frequencies: Octave spaced from 0.5 to 64
+    FREQUENCIES = [0.5, 0.7, 1, 1.4, 2, 2.8, 4, 5.6, 8, 11.2, 16, 22.6, 32, 45.2, 64]
+
+    frequencies = SelectMultipleField(
+        'Frequencies (kHz)',
+        choices=[(str(f), str(f)) for f in FREQUENCIES],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False)
+    )
+    image_type = QuerySelectField('Image Type', query_factory=confocal_image_type_factory, get_label='name', validators=[DataRequired()])
+    notes = TextAreaField('Notes', validators=[Optional()])
+
 # --- Context Processors and Before Request ---
 @app.before_request
 def before_request_func():
@@ -392,14 +418,14 @@ def index():
     
 @app.route('/calendar')
 def calendar():
-    events = AnimalEvent.query.filter(AnimalEvent.status.in_(['scheduled', 'completed'])).all()
+    events = AnimalEvent.query.all()
     calendar_events = []
     for event in events:
         calendar_events.append({
             'title': f"{event.animal.custom_id}: {event.procedure.name}",
-            'start': event.scheduled_date.isoformat(),
-            'url': url_for('animals'),
-            'color': '#3B82F6' if event.status == 'scheduled' else '#10B981'
+            'start': event.completion_date.isoformat() if event.completion_date is not None else event.scheduled_date.isoformat(),
+            'url': url_for('view_animals'),
+            'backgroundColor': '#198754' if event.completion_date is not None else '#0d6efd',
         })
     return render_template('calendar.html', calendar_events=calendar_events)
 
@@ -850,6 +876,7 @@ def view_histology():
         sort_by=sort_by,  # Pass this back to keep buttons active
         histology_form=HistologyForm(),
         histology_note_form=NoteForm(),
+        confocal_form=ConfocalImageForm(),
     )
 
 @app.route('/histology/update/<int:ear_id>', methods=['POST'])
@@ -868,6 +895,28 @@ def update_ear(ear_id):
     else:
         print(form.errors)
     return redirect(request.referrer or url_for('view_histology'))
+
+@app.route('/add_confocal_images/<int:ear_id>', methods=['POST'])
+def add_confocal_images(ear_id):
+    ear = Ear.query.get_or_404(ear_id)
+    form = ConfocalImageForm()
+    # Populate choices for image type
+    form.image_type.choices = [(t.id, t.name) for t in ConfocalImageType.query.all()]
+
+    if form.validate_on_submit():
+        for freq_str in form.frequencies.data:
+            new_image = ConfocalImage(
+                ear_id=ear.id,
+                frequency=float(freq_str),
+                image_type=form.image_type.data,
+                notes=form.notes.data
+            )
+            db.session.add(new_image)
+
+        db.session.commit()
+        flash(f'Images added for {ear.animal.custom_id} {ear.side}', 'success')
+
+    return redirect(url_for('view_histology'))
 
 @app.route('/save_ear_note/<int:ear_id>', methods=['POST'])
 def save_ear_note(ear_id):
@@ -965,8 +1014,8 @@ SETTINGS = {
     'termination_reason': {'model': TerminationReason, 'form': SimpleAddWithDescriptionForm},
     'immunolabeling_panel': {'model': ImmunolabelingPanel, 'form': SimpleAddForm},
     'reagent': {'model': Reagent, 'form': SimpleAddWithDescriptionForm},
+    'confocal_image_type': {'model': ConfocalImageType, 'form': SimpleAddForm},
 }
-
 
 @app.route('/settings')
 def settings():
@@ -976,6 +1025,7 @@ def settings():
         sources=Source.query.all(),
         procedures=Procedure.query.all(),
         termination_reasons=TerminationReason.query.all(),
+        confocal_image_types=ConfocalImageType.query.all(),
         panels=ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),

@@ -5,42 +5,118 @@ Event Calendar
 {% endblock %}
 
 {% block content %}
-<div class="bg-white p-6 rounded-lg shadow">
-    <div class="flex items-center space-x-4 mb-4">
-        <div class="flex items-center">
-            <span class="w-4 h-4 rounded-full bg-blue-500 mr-2"></span>
-            <span class="text-sm text-gray-700">Scheduled</span>
+<article class="card border-0 shadow-sm">
+    <header class="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+        <div class="d-flex gap-3">
+            <div class="d-flex align-items-center">
+                <span class="badge rounded-pill bg-primary me-2" style="width: 12px; height: 12px; padding: 0;">&nbsp;</span>
+                <span class="small fw-bold text-secondary text-uppercase" style="font-size: 0.65rem;">Scheduled</span>
+            </div>
+            <div class="d-flex align-items-center">
+                <span class="badge rounded-pill bg-success me-2" style="width: 12px; height: 12px; padding: 0;">&nbsp;</span>
+                <span class="small fw-bold text-secondary text-uppercase" style="font-size: 0.65rem;">Completed</span>
+            </div>
         </div>
-        <div class="flex items-center">
-            <span class="w-4 h-4 rounded-full bg-green-500 mr-2"></span>
-            <span class="text-sm text-gray-700">Completed</span>
-        </div>
-    </div>
-    <div id="calendar"></div>
-</div>
 
-<!-- FullCalendar JS and initialization script -->
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+        <div class="text-muted small d-none d-md-block">
+            <i class="fas fa-info-circle me-1"></i>Click an event to view animal details
+        </div>
+    </header>
+
+    <main class="card-body p-4">
+        <div id="calendar"></div>
+    </main>
+</article>
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+
+<style>
+    :root {
+        --fc-border-color: #f1f3f5;
+        --fc-button-bg-color: #f8f9fa;
+        --fc-button-border-color: #dee2e6;
+        --fc-button-text-color: #495057;
+        --fc-button-hover-bg-color: #e9ecef;
+        --fc-button-active-bg-color: #0d6efd;
+        --fc-button-active-border-color: #0d6efd;
+        --fc-today-bg-color: rgba(13, 110, 253, 0.04);
+    }
+
+    /* Toolbar Styling */
+    .fc .fc-toolbar-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #212529;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .fc .fc-button {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: capitalize;
+        padding: 0.4rem 0.8rem;
+        box-shadow: none !important;
+    }
+    .fc .fc-button-primary:not(:disabled).fc-button-active {
+        color: #fff;
+    }
+
+    /* Event Styling */
+    .fc-event {
+        cursor: pointer;
+        border: none !important;
+        border-radius: 4px;
+        padding: 1px 4px;
+        font-size: 0.8rem;
+        transition: transform 0.1s ease;
+    }
+    .fc-event:hover {
+        transform: scale(1.02);
+    }
+
+    /* List View Customization */
+    .fc-list-day-cushion {
+        background-color: #f8f9fa !important;
+    }
+    .fc-list-event:hover td {
+        background-color: rgba(0,0,0,0.02) !important;
+    }
+    .fc-list-event-title a {
+        color: #212529 !important;
+        text-decoration: none !important;
+        font-weight: 600;
+    }
+</style>
+
+
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const calendarEl = document.getElementById('calendar');
         const calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
+            height: 'auto',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                right: 'dayGridMonth,listMonth' // Added listMonth toggle here
+            },
+            buttonText: {
+                today: 'Today',
+                month: 'Grid',
+                list: 'Agenda' // Renamed for clarity
             },
             events: {{ calendar_events|tojson }},
             eventClick: function(info) {
-                // Prevent default browser navigation
                 info.jsEvent.preventDefault();
-                // Go to the URL if it exists
                 if (info.event.url) {
                     window.location.href = info.event.url;
                 }
+            },
+            eventDidMount: function(info) {
+                // Add tooltip using basic title attribute
+                info.el.setAttribute('title', info.event.title);
             }
         });
         calendar.render();

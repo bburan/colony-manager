@@ -2,7 +2,7 @@
 
 {% block content %}
 <section class="row g-4 mb-4">
-    {% for type, label, items, placeholder in [('species', 'Species', species, 'New Species'), ('source', 'Sources', sources, 'New Source')] %}
+    {% for type, label, items, placeholder in [('species', 'Species', species, 'New Species'), ('source', 'Sources', sources, 'New Source'), ('confocal_image_type', 'Confocal Image Type', confocal_image_types, 'New Confocal Image Type')] %}
     <article class="col-md-6">
         <div class="card h-100 shadow-sm border-0 card-body">
             <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>

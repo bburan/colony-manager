@@ -224,26 +224,34 @@
                 return;
             }
 
-            const saveBtn = activeForm.querySelector('.save-btn');
+            let saveBtn = activeForm.querySelector('.save-btn');
+            if (!saveBtn) {
+                saveBtn = document.querySelector('#' + activeForm.id + '-save');
+            }
+            if (!saveBtn) {
+                saveBtn = document.querySelector(`button[form="${activeForm.id}"].save-btn`);
+            }
+            console.error('Found save-btn ' + saveBtn.id);
 
-            // Fallback: if the button is outside the form, find it by its 'form' attribute
-            const linkedBtn = saveBtn || document.querySelector(`button[form="${activeForm.id}"].save-btn`);
-
-            if (!linkedBtn) return;
-
-            const allInputs = activeForm.querySelectorAll('input:not([type="hidden"]), textarea, select');
-
-            // Also include inputs that are outside the form but linked via the 'form' attribute
-            const externalInputs = document.querySelectorAll(`[form="${activeForm.id}"]`);
-            const combinedInputs = [...new Set([...allInputs, ...externalInputs])];
-
-            let isDirty = combinedInputs.some(i => {
-                if (i.type === 'submit' || i.type === 'button') return false;
-                if (i.type === 'checkbox' || i.type === 'radio') return i.checked !== i.defaultChecked;
-                return i.value.trim() !== (i.defaultValue || "").trim();
+            elements = Array.from(activeForm.elements);
+            let isDirty = elements.some(element => {
+                if (element.type === 'checkbox' || element.type === 'radio') {
+                    return element.checked !== element.defaultChecked;
+                } else if (element.tagName.toLowerCase() === 'select') {
+                    const optionsArray = Array.from(element.options);
+                    return optionsArray.some(option => option.selected !== option.defaultSelected);
+                } else if (element.type !== 'button' && element.type !== 'submit' && element.type !== 'reset') {
+                    return element.value.trim() !== (element.defaultValue || "").trim();
+                }
             });
 
-            linkedBtn.classList.toggle('is-dirty', isDirty);
+            if (isDirty) {
+                saveBtn.disabled = false;
+                saveBtn.classList.toggle('is-dirty');
+            } else {
+                saveBtn.disabled = true;
+                saveBtn.classList.toggle('is-dirty');
+            }
         }
 
         function openEarNoteModal(earId) {

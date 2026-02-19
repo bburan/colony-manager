@@ -901,6 +901,16 @@ def update_ear(ear_id):
         print(form.errors)
     return redirect(request.referrer or url_for('view_histology'))
 
+@app.route('/ear/<int:ear_id>')
+def ear_detail(ear_id):
+    ear = Ear.query.get_or_404(ear_id)
+    # We pass the same forms used elsewhere for consistency
+    return render_template('ear_detail.html',
+                           ear=ear,
+                           confocal_form=ConfocalImageForm(),
+                           histology_note_form=NoteForm()
+                           )
+
 @app.route('/add_confocal_images/<int:ear_id>', methods=['POST'])
 def add_confocal_images(ear_id):
     ear = Ear.query.get_or_404(ear_id)
@@ -930,7 +940,7 @@ def update_confocal_image(image_id):
     img.status = request.form.get('status')
     img.notes = request.form.get('notes')
     db.session.commit()
-    return redirect(url_for('view_histology'))
+    return redirect(request.referrer or url_for('view_histology'))
 
 
 @app.route('/delete_confocal_image/<int:image_id>', methods=['POST'])
@@ -948,7 +958,7 @@ def delete_confocal_image(image_id):
         flash('Error deleting record.', 'danger')
 
     # Return the user to the histology pipeline
-    return redirect(url_for('view_histology'))
+    return redirect(request.referrer or url_for('view_histology'))
 
 @app.route('/save_ear_note/<int:ear_id>', methods=['POST'])
 def save_ear_note(ear_id):

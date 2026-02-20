@@ -1,62 +1,43 @@
 {% extends "base.html" %}
 
+{% set simple_items = [
+    ('species', species),
+    ('source', sources),
+    ('confocal_image_type', confocal_image_types),
+    ('termination_reason', termination_reasons),
+    ('ear_procedure', ear_procedures),
+    ('animal_procedure', animal_procedures),
+    ]
+%}
+
 {% block content %}
-<section class="row g-4 mb-4">
-    {% for type, label, items, placeholder in [('species', 'Species', species, 'New Species'), ('source', 'Sources', sources, 'New Source'), ('confocal_image_type', 'Confocal Image Type', confocal_image_types, 'New Confocal Image Type')] %}
-    <article class="col-md-6">
-        <div class="card h-100 shadow-sm border-0 card-body">
-            <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
+<section class="row g-3 mb-3">
+    {% for type, items in simple_items %}
+    <article class="col-md-4">
+        <div class="card shadow-sm card-body">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
             <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="input-group input-group-sm mb-3">
                 {{ simple_add_form.hidden_tag() }}
-                <input type="text" name="name" class="form-control" placeholder="{{ placeholder }}">
+                <input type="text" name="name" class="form-control" placeholder="New {{ type.replace('_', ' ') }}">
                 <button class="btn btn-primary">Add</button>
             </form>
 
             <ul class="list-group list-group-flush small">
                 {% for item in items %}
                 <li class="list-group-item px-0 border-light d-flex align-items-center">
-                    <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST" class="d-flex flex-grow-1 align-items-center">
-                        <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm border-0 bg-transparent fw-medium p-0" oninput="markDirty(this)">
-                        <button type="submit" class="btn btn-link btn-sm save-btn p-0 ms-2"><i class="fas fa-cloud-upload-alt"></i></button>
+                    <form id="update-setting-{{type}}-{{item.id}}" 
+                        action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" 
+                        method="POST" class="d-flex flex-grow-1 align-items-center">
+                        <input type="text" name="name" value="{{ item.name }}" 
+                            class="form-control form-control-sm border-0 bg-transparent fw-medium p-0" 
+                            oninput="markDirty(this)">
+                        <button type="submit" id="update-setting-{{type}}-{{item.id}}-save" disabled 
+                            class="btn btn-sm"><i class="fas fa-save"></i></button>
                     </form>
-                    <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" onsubmit="return confirm('Delete?');">
-                        <button class="btn btn-link btn-sm text-danger p-0 ms-2"><i class="fas fa-trash-alt"></i></button>
+                    <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" 
+                        method="POST" onsubmit="return confirm('Delete?');">
+                        <button class="btn btn-sm text-danger"><i class="fas fa-trash-alt"></i></button>
                     </form>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
-    </article>
-    {% endfor %}
-</section>
-
-<section class="row g-4 mb-5">
-    {% for type, label, items, placeholder in [('procedure', 'Procedures', procedures, 'New Procedure'), ('termination_reason', 'Termination Reasons', termination_reasons, 'New Reason')] %}
-    <article class="col-md-6">
-        <div class="card h-100 shadow-sm border-0 card-body">
-            <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ label }}</h2>
-            <form action="{{ url_for('add_setting', item_type=type) }}" method="POST" class="bg-light p-3 rounded mb-4">
-                {{ simple_add_with_description_form.hidden_tag() }}
-                <div class="input-group input-group-sm mb-2">
-                    <input type="text" name="name" class="form-control fw-bold" placeholder="{{ placeholder }}">
-                    <button class="btn btn-primary">Add</button>
-                </div>
-                <textarea name="description" class="form-control form-control-sm" rows="2" placeholder="Description..."></textarea>
-            </form>
-
-            <ul class="list-group list-group-flush small">
-                {% for item in items %}
-                <li class="list-group-item px-0 border-light py-3 d-flex align-items-start">
-                    <form action="{{ url_for('update_setting', item_type=type, item_id=item.id) }}" method="POST" class="flex-grow-1">
-                        <input type="text" name="name" value="{{ item.name }}" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0 mb-1" oninput="markDirty(this)">
-                        <textarea name="description" class="form-control form-control-sm border-0 bg-transparent text-muted p-0" rows="2" oninput="markDirty(this)">{{ item.description or '' }}</textarea>
-                    </form>
-                    <div class="d-flex flex-column ms-2">
-                        <button type="submit" form="update-{{ item.id }}" class="btn btn-link btn-sm save-btn p-0 mb-2"><i class="fas fa-cloud-upload-alt fa-lg"></i></button>
-                        <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" method="POST" onsubmit="return confirm('Delete?');">
-                            <button class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-trash-alt"></i></button>
-                        </form>
-                    </div>
                 </li>
                 {% endfor %}
             </ul>

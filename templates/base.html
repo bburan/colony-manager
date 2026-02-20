@@ -121,100 +121,68 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        /** Simple Helper for Manual Modal Triggering (If needed) **/
-        function toggleModal(modalId) {
-            const modalEl = document.getElementById(modalId);
-            if (modalEl) {
-                const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-                modalInstance.show();
-            } else {
-                console.error("Modal not found:", modalId);
-            }
-        }
+        // 1. Hide all popovers when a NEW popover is about to show
+        document.addEventListener('show.bs.popover', function (e) {
+            const allPopovers = document.querySelectorAll('[data-bs-toggle="popover"]');
+            allPopovers.forEach(el => {
+                // Don't hide the one that is currently trying to open!
+                if (el !== e.target) {
+                    const instance = bootstrap.Popover.getInstance(el);
+                    if (instance) instance.hide();
+                }
+            });
+        });
+
+        // 2. Hide all popovers when a MODAL is about to show
+        document.addEventListener('show.bs.modal', function () {
+            const allPopovers = document.querySelectorAll('[data-bs-toggle="popover"]');
+            allPopovers.forEach(el => {
+                const instance = bootstrap.Popover.getInstance(el);
+                if (instance) instance.hide();
+            });
+        });
 
         document.addEventListener('DOMContentLoaded', function () {
             const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
 
-            popoverTriggerList.forEach(el => {
-                const targetId = el.getAttribute('data-bs-content-id');
-                const targetEl = document.querySelector(targetId);
-
-                new bootstrap.Popover(el, {
+            popoverTriggerList.forEach(element => {
+                // 1. Initialize the popover instance
+                const popover = new bootstrap.Popover(element, {
                     html: true,
-                    sanitize: false,
-                    container: 'body',
-                    content: targetEl.innerHTML, // Directly pass the HTML instead of a function
-                    boundary: 'viewport'
+                    sanitize: false // Set to true if you don't trust the AJAX source
                 });
 
-                document.addEventListener('click', function (e) {
-                    popoverTriggerList.forEach(el => {
-                        if (!el.contains(e.target) && !e.target.closest('.popover')) {
-                            bootstrap.Popover.getInstance(el)?.hide();
-                        }
+                // 2. Check for the specific class before adding the AJAX logic
+                if (element.classList.contains('ajax-popover')) {
+                    let isFetched = false;
+
+                    element.addEventListener('show.bs.popover', function () {
+                        if (isFetched) return;
+
+                        fetch(this.getAttribute('data-id')) // Ensure this is a valid URL
+                            .then(response => {
+                                if (!response.ok) throw new Error('Network error');
+                                return response.text();
+                            })
+                            .then(data => {
+                                // Update the popover content dynamically
+                                isFetched = true;
+                                popover.setContent({
+                                    '.popover-body': data
+                                });
+                                console.log('set data: ', data);
+                            })
+                            .catch(err => {
+                                popover.setContent({
+                                    '.popover-body': 'Error loading content.'
+                                });
+                                console.error('Popover Fetch Error:', err);
+                            });
                     });
-                });
+                }
             });
         });
 
-        /** Opens the Note Modal and pre-fills existing text **/
-        function openNoteModal(animalId) {
-            // 1. Hide the popover
-            const activePop = document.querySelector('.popover');
-            if (activePop) activePop.remove();
-
-            // 2. Grab the text from the hidden div source
-            const sourceEl = document.querySelector(`#notes-content-${animalId} .text-muted`);
-            const notesText = sourceEl ? sourceEl.innerText.replace('No notes recorded.', '').trim() : '';
-
-            // 3. Put it in the modal and open
-            const modalEl = document.getElementById(`note-modal-${animalId}`);
-            if (modalEl) {
-                modalEl.querySelector('textarea').value = notesText;
-                toggleModal(`note-modal-${animalId}`);
-            }
-        }
-
-        /** Updates Event Modal to 'Edit Mode' and fills data **/
-        function editEvent(animalId, eventId, procedureId, scheduledDate, completedDate, notes) {
-            // Hide popover
-            const popoverEl = document.querySelector(`[data-bs-content-id="#events-popover-${animalId}"]`);
-            if (popoverEl) bootstrap.Popover.getInstance(popoverEl).hide();
-
-            const modalId = `schedule-event-modal-${animalId}`;
-            const modalEl = document.getElementById(modalId);
-
-            if (modalEl) {
-                // Change UI text
-                document.getElementById(`event-modal-title-${animalId}`).innerText = "Edit Event Details";
-                document.getElementById(`event-modal-submit-${animalId}`).innerText = "Save Changes";
-                document.getElementById(`event-modal-submit-${animalId}`).classList.replace('btn-primary', 'btn-warning');
-
-                // Fill form fields
-                document.getElementById(`edit-event-id-${animalId}`).value = eventId;
-                modalEl.querySelector('[name="procedure"]').value = procedureId;
-                modalEl.querySelector('[name="scheduled_date"]').value = scheduledDate;
-                modalEl.querySelector('[name="completion_date"]').value = completedDate;
-                modalEl.querySelector('[name="notes"]').value = notes;
-
-                toggleModal(modalId);
-            }
-        }
-
-        /** Resets the Modal back to 'Schedule Mode' when opened via the calendar button **/
-        function resetEventModal(animalId) {
-            const modalId = `schedule-event-modal-${animalId}`;
-            const modalEl = document.getElementById(modalId);
-            if (modalEl) {
-                document.getElementById(`event-modal-title-${animalId}`).innerText = `Schedule Event: ${animalId}`;
-                document.getElementById(`event-modal-submit-${animalId}`).innerText = "Schedule";
-                document.getElementById(`event-modal-submit-${animalId}`).classList.replace('btn-warning', 'btn-primary');
-                document.getElementById(`edit-event-id-${animalId}`).value = "";
-                modalEl.querySelector('form').reset();
-            }
-        }
-
-        /** Standardized Dirty-State Checker (HTML5 Form Attribute Version) **/
         function markDirty(input) {
             // Access the form directly via the built-in 'form' property
             const activeForm = input.form;
@@ -224,14 +192,7 @@
                 return;
             }
 
-            let saveBtn = activeForm.querySelector('.save-btn');
-            if (!saveBtn) {
-                saveBtn = document.querySelector('#' + activeForm.id + '-save');
-            }
-            if (!saveBtn) {
-                saveBtn = document.querySelector(`button[form="${activeForm.id}"].save-btn`);
-            }
-            console.error('Found save-btn ' + saveBtn.id);
+            const saveBtn = document.querySelector("#" + activeForm.id + "-save");
 
             elements = Array.from(activeForm.elements);
             let isDirty = elements.some(element => {
@@ -254,52 +215,40 @@
             }
         }
 
-        function openEarNoteModal(earId) {
-            console.log("Attempting to open modal for Ear ID:", earId);
+        async function openEditModal(itemType, itemId) {
+            const modalBody = document.getElementById('modalBody');
+            const editModalElement = document.getElementById('editModal');
+            const modalInstance = new bootstrap.Modal(editModalElement);
+            modalBody.innerHTML = `
+                <div class="d-flex justify-content-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>`;
+            modalInstance.show();
+            try {
+                const response = await fetch(`/ajax/form/${itemType}/${itemId}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const html = await response.text();
 
-            // 1. Close any open popovers
-            const popoverTrigger = document.querySelector(`[data-bs-content-id="#ear-notes-content-${earId}"]`);
-            if (popoverTrigger) {
-                const instance = bootstrap.Popover.getInstance(popoverTrigger);
-                if (instance) instance.hide();
+                // 5. Inject the HTML into the modal
+                modalBody.innerHTML = html;
+            } catch (error) {
+                modalBody.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading data: ${error.message}
+                    </div>`;
             }
-
-            // 2. Find the Modal
-            const modalId = `ear-note-modal-${earId}`;
-            const modalEl = document.getElementById(modalId);
-
-            if (modalEl) {
-                // Use the global toggleModal helper if you have it,
-                // or initialize a new BS5 Modal instance:
-                const modalInstance = new bootstrap.Modal(modalEl);
-                modalInstance.show();
-            } else {
-                console.error("Critical Error: Modal with ID " + modalId + " was not found in the DOM.");
-            }
-        }
-
-        document.addEventListener('show.bs.modal', function () {
-            const popovers = document.querySelectorAll('.popover');
-            popovers.forEach(pop => {
-                const trigger = document.querySelector(`[aria-describedby="${pop.id}"]`);
-                if (trigger) {
-                    const instance = bootstrap.Popover.getInstance(trigger);
-                    if (instance) instance.hide();
-                }
-            });
-        });
-
-        function openEditImageModal(id, freq, status, notes) {
-            const form = document.getElementById('edit-image-form');
-            // Set the action URL dynamically
-            form.action = `/update_confocal_image/${id}`;
-
-            document.getElementById('modal-freq-display').innerText = freq;
-            document.getElementById('edit-image-status').value = status || 'pending';
-            document.getElementById('edit-image-notes').value = notes;
-
-            toggleModal('edit-image-status-modal');
         }
     </script>
+
+    <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-sm" id="modalBody">
+            <div class="spinner-border"></div>
+        </div>
+      </div>
+    </div>
+
 </body>
 </html>

@@ -20,10 +20,11 @@
                         <button type="button"
                             class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary shadow"
                             data-bs-toggle="popover"
-                            data-bs-trigger="click"
-                            data-bs-html="true"
                             data-bs-container="body"
-                            data-bs-content-id="#notes-content-{{ animal.id }}">
+                            data-bs-trigger="hover"
+                            data-bs-content="{{ animal.notes }}"
+                            onclick="openEditModal('AnimalNote', {{ animal.id }})"
+                        >
                         <i class="fas fa-sticky-note"></i>
                         </button>
                     </td>
@@ -61,13 +62,13 @@
                         {% else %}
                             {% set btn_class = "btn-outline-secondary" %}
                         {% endif %}
-                        <button type="button" class="{{ btn_class }} btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
+                        <button type="button" class="ajax-popover {{ btn_class }} btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
                                 data-bs-toggle="popover"
-                                data-bs-trigger="click"
-                                data-bs-container="body"
+                                data-bs-trigger="hover click focus"
                                 data-bs-html="true"
+                                data-id="{{ url_for('ajax_animal_events', animal_id=animal.id) }}"
                                 title="Event History"
-                                data-bs-content-id="#events-popover-{{ animal.id }}">
+                        >
                             {{  animal.events.count() }}
                         </button>
                     </td>
@@ -78,7 +79,7 @@
                         <div class="btn-group shadow-sm">
                             <button type="button" class="btn btn-{{ 'outline-' if animal.studies.count() == 0 else '' }}secondary btn-sm px-2"
                                     data-bs-toggle="popover"
-                                    data-bs-trigger="click"
+                                    data-bs-trigger="hover"
                                     data-bs-container="body"
                                     data-bs-html="true"
                                     title="Study Enrollment: {{ animal.custom_id }}"
@@ -92,7 +93,7 @@
                     {% if show_termination_action|default(True) %}
                         <td class="pe-4 text-end">
                             {% if animal.is_active and animal.custom_id %}
-                                <button type="button" onclick="toggleModal('term-modal-{{ animal.id }}')"
+                                <button type="button" onclick="openEditModal('TerminationReason', {{ animal.id }})"
                                         class="btn btn-secondary btn-sm shadow"
                                         title="Terminate">
                                     <i class="fas fa-crosshairs fa-sm"></i>

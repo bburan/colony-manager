@@ -1,0 +1,24 @@
+<dl class="row">
+    <dt class="col-4">Cage</dt>
+    <dd class="col-8">
+        <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}">
+            {{ animal.cage.custom_id }}
+        </a>
+    </dd>
+    <dt class="col-4">Species</dt>
+    <dd class="col-8">{{ animal.species.name }}</dd>
+    <dt class="col-4">Sex</dt>
+    <dd class="col-8">{{ animal.sex_symbol }}</dd>
+    <dt class="col-4">Birth</dt>
+    <dd class="col-8">{{ animal.dob.strftime('%B %d, %Y') }}</dd>
+    <dt class="col-4">Age</dt>
+    <dd class="col-8">{{ animal.age_display('week') }}</dd>
+    <dt class="col-4">Source</dt>
+    <dd class="col-8">{{ animal.source.name }}</dd>
+    {% if not animal.is_active %}
+        <dt class="col-4">Termination Reason</dt>
+        <dd class="col-8">{{ animal.termination_reason.name }}</dd>
+        <dt class="col-4">Termination Date</dt>
+        <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') }}</dd>
+    {% endif %}
+</dl>

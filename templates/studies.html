@@ -5,49 +5,13 @@ Studies
 {% endblock %}
 
 {% block content %}
-<article class="card border-0 shadow-sm mb-5">
-    <header class="card-header bg-light border-0 pt-3 px-4">
-        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-            <i class="fas fa-folder-plus me-2"></i>Create New Study
-        </h2>
-    </header>
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-layer-group me-2"></i>Existing Studies</h2>
+        <button class="btn btn-sm" onclick="openEditModal('NewStudy', 0)"><i class="fas fa-folder"> +</i></button>
+    </div>
 
-    <main class="card-body p-4">
-        <form action="{{ url_for('add_study') }}" method="POST">
-            {% set form = study_form %}
-            {{ form.hidden_tag() }}
-
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">
-                        {{ form.name.label }}
-                    </label>
-                    {{ form.name(class="form-control form-control-sm", placeholder="e.g., Noise Exposure 2026") }}
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">
-                        {{ form.description.label }}
-                    </label>
-                    {{ form.description(rows=1, class="form-control form-control-sm", placeholder="Brief objectives...") }}
-                </div>
-                <div class="col-12 text-end mt-3">
-                    <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">
-                        <i class="fas fa-plus me-2"></i>Create Study
-                    </button>
-                </div>
-            </div>
-        </form>
-    </main>
-</article>
-
-<article class="card border-0 shadow-sm">
-    <header class="card-header bg-white border-0 pt-3 px-4">
-        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-            <i class="fas fa-layer-group me-2"></i>Existing Studies
-        </h2>
-    </header>
-
-    <main class="list-group list-group-flush border-top">
+    <div class="list-group list-group-flush border-top">
         {% for study in studies %}
         <div class="list-group-item list-group-item-action p-3">
             <div class="row align-items-center">
@@ -75,6 +39,6 @@ Studies
             <p class="small text-uppercase fw-bold mb-0">No studies found</p>
         </div>
         {% endfor %}
-    </main>
-</article>
+    </div>
+</div>
 {% endblock %}

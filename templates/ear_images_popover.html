@@ -1,0 +1,18 @@
+{% if ear.confocal_images %}
+    {% for group in ear.confocal_images|groupby('image_type.name') %}
+        <p class="small fw-bold text-uppercase text-primary mb-1 mt-2 border-bottom pb-1" style="font-size: 0.6rem;">
+            {{ group.grouper }}</p>
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    {% for img in group.list|sort(attribute='frequency') %}
+                        {% set status_color = 'success' if img.status == 'analyzed' else 'warning' if img.status == 'need_review' else 'secondary' %}
+                        <span class="badge bg-{{ status_color }}-subtle text-{{ status_color }} border border-{{ status_color }}-subtle fw-normal"
+                              title="{{ img.status|replace('_', ' ')|title }}"
+                              style="font-size: 0.65rem; padding: 0.25em 0.5em;">
+                            {{ img.frequency }}
+                        </span>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+{% else %}
+    <p>No images recorded.</p>
+{% endif %}

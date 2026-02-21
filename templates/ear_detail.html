@@ -1,88 +1,115 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
-Ear Detail: {{ ear.animal.custom_id }} ({{ ear.side }})
+Ear {{ ear.animal.custom_id }} {{ ear.side }}
 {% endblock %}
 
 {% block content %}
 <div class="row g-4">
-    <div class="col-lg-4">
+    <div class="col-4">
         <div class="card shadow-sm mb-4">
-            <header class="card-header bg-white border-0">
+            <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase">Notes</h2>
-            </header>
-            <main class="card-body">
-                <div class="mb-4">
-                    <label class="small fw-bold text-uppercase">Animal</label>
-                    <div class="small text-muted">{{ ear.animal.notes or 'No notes' }}</div>
-                </div>
-                <div class="mb-4">
-                    <label class="small fw-bold text-uppercase">Tissue</label>
-                    <div class="small text-muted">{{ ear.notes or 'No notes' }}</div>
-                </div>
-            </main>
+                <button class="btn btn-sm" onclick="openEditModal('EarNote', {{ ear.id }})"><i class="fas fa-pencil"></i></button>
+            </div>
+            <div class="card-body">
+                <dl>
+                    <dt>Animal</dt>
+                    <dd>{{ ear.animal.notes }}</dd>
+                    <dt>Ear</dt>
+                    <dd>{{ ear.notes }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h2 class="h6 fw-bold text-uppercase">Ear</h2>
+                <button class="btn btn-sm" onclick="openEditModal('EarHistology', {{ ear.id }})"><i class="fas fa-pencil"></i></button>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-6">Cryoprotection</dt>
+                    <dd class="col-6">{{ macros.format_date(ear.cryoprotection_date) }}</dd>
+                    <dt class="col-6">Dissection</dt>
+                    <dd class="col-6">{{ macros.format_date(ear.dissection_date) }}</dd>
+                    <dt class="col-6">Immunolabel</dt>
+                    <dd class="col-6">{{ macros.format_date(ear.immunolabel_date) }}</dd>
+                    <dt class="col-6">Panel</dt>
+                    <dd class="col-6">{{ ear.panel.name }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase">Animal</h2>
+            </div>
+            <div class="card-body">
+                {% set animal = ear.animal %}
+                {% include "partials/animal_detail_card.html" %}
+            </div>
         </div>
     </div>
 
-    <div class="col-lg-8">
-        <article class="card shadow-sm">
-            <header class="card-header bg-white border-0 pt-3 px-4 d-flex justify-content-between align-items-center">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Confocal Imaging Pipeline</h2>
-                <button onclick="toggleModal('image-modal-{{ ear.id }}')" class="btn btn-primary btn-sm shadow-sm">
-                    <i class="fas fa-plus me-1"></i>Add Images</button>
-            </header>
-            <main class="card-body p-0">
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead class="bg-light text-secondary text-uppercase fw-bold" style="font-size: 0.65rem;">
-                <tr>
-                    <th class="ps-4 border-0" style="width: 15%;">Type</th>
-                    <th class="border-0 text-center" style="width: 10%;">kHz</th>
-                    <th class="border-0" style="width: 20%;">Status</th>
-                    <th class="border-0">Notes</th>
-                    <th class="pe-4 border-0 text-end" style="width: 10%;">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for group in ear.confocal_images|groupby('image_type.name') %}
-                    {% for img in group.list|sort(attribute='frequency') %}
-                    <tr>
-                        {# Unique form for every single image record #}
-                        <form id="edit-img-{{ img.id }}" action="{{ url_for('update_confocal_image', image_id=img.id) }}" method="POST">
-                            <td class="ps-4 small fw-bold">{{ group.grouper if loop.first else "" }}</td>
-                            <td class="text-center fw-bold">{{ img.frequency }}</td>
-                            <td>
-                                <select name="status" class="form-select form-select-sm border-0 bg-light"
-                                        onchange="markDirty(this)">
-                                    <option value="pending" {% if img.status == 'pending' %}selected{% endif %}>Pending</option>
-                                    <option value="need_review" {% if img.status == 'need_review' %}selected{% endif %}>Need Review</option>
-                                    <option value="analyzed" {% if img.status == 'analyzed' %}selected{% endif %}>Analyzed</option>
-                                    <option value="rejected" {% if img.status == 'rejected' %}selected{% endif %}>Rejected</option>
-                                </select>
-                            </td>
-                            <td>
-                                <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
-                                       value="{{ img.notes or '' }}" placeholder="Add observations..."
-                                       oninput="markDirty(this)">
-                            </td>
-                            <td class="pe-4 text-end">
-                                <div class="btn-group btn-group-sm">
-                                    <button type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger"
-                                            onclick="if(confirm('Delete frequency record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash-alt"></i></button>
-                                </div>
-                            </td>
-                        </form>
-                        {# Separate delete form #}
-                        <form id="del-{{ img.id }}" action="{{ url_for('delete_confocal_image', image_id=img.id) }}" method="POST" class="d-none"></form>
-                    </tr>
-                    {% endfor %}
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</main>
-        </article>
+    <div class="col-8">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase mb-0">Confocal Imaging Pipeline</h2>
+                <button onclick="openEditModal('AddConfocalImages', {{ ear.id }})" class="btn btn-sm">
+                    <i class="fas fa-camera"> +</i></button>
+            </div>
+
+            <div class="card-body table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>kHz</th>
+                            <th>Status</th>
+                            <th>Notes</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for group in ear.confocal_images|groupby('image_type.name') %}
+                            {% for img in group.list|sort(attribute='frequency') %}
+                            <tr>
+                                {# Unique form for every single image record #}
+                                <form id="edit-img-{{ img.id }}" action="{{ url_for('update_confocal_image', image_id=img.id) }}" method="POST">
+                                    <td class="ps-4 small fw-bold">{{ group.grouper if loop.first else "" }}</td>
+                                    <td class="text-center fw-bold">{{ img.frequency }}</td>
+                                    <td>
+                                        <select name="status" class="form-select form-select-sm border-0 bg-light"
+                                                onchange="markDirty(this)">
+                                            <option value="pending" {% if img.status == 'pending' %}selected{% endif %}>Pending</option>
+                                            <option value="need_review" {% if img.status == 'need_review' %}selected{% endif %}>Need Review</option>
+                                            <option value="analyzed" {% if img.status == 'analyzed' %}selected{% endif %}>Analyzed</option>
+                                            <option value="rejected" {% if img.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
+                                               value="{{ img.notes or '' }}" placeholder="Add observations..."
+                                               oninput="markDirty(this)">
+                                    </td>
+                                    <td class="pe-4 text-end">
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    onclick="if(confirm('Delete frequency record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash-alt"></i></button>
+                                        </div>
+                                    </td>
+                                </form>
+                                {# Separate delete form #}
+                                <form id="del-{{ img.id }}" action="{{ url_for('delete_confocal_image', image_id=img.id) }}" method="POST" class="d-none"></form>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+        </div>
     </div>
 </div>
 

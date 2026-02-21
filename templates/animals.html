@@ -1,12 +1,13 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Animal Overview
 {% endblock %}
 
 {% block content %}
-<article class="card border-0 shadow-sm mb-4">
-    <header class="card-header bg-white border-0 pt-3 px-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div class="d-flex align-items-center">
             <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
                 <i class="fas fa-filter me-2"></i>Filters & Sorting
@@ -19,102 +20,41 @@ Animal Overview
         <div class="d-flex align-items-center gap-3 flex-grow-1 flex-md-grow-0">
             <form action="{{ url_for('view_animals') }}" method="GET" class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
                 {# Carry over existing filters as hidden inputs so search doesn't reset them #}
-                <input type="hidden" name="status_filter" value="{{ status_filter }}">
-                <input type="hidden" name="event_status" value="{{ event_status }}">
-                <input type="hidden" name="sort_by" value="{{ sort_by }}">
-                <input type="hidden" name="age_unit" value="{{ age_unit }}">
+                {% for name, value in filters.items() %}
+                    {% if name == 'search_query' %}
+                        <input type="text" name="search_query" class="form-control border-end-0" placeholder="Search ID or Procedure..." value="{{ filters['search_query'] or '' }}">
+                        <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                    {% else %}
+                        <input type="hidden" name="{{ name }}" value="{{ value }}">
+                    {% endif %}
+                {% endfor %}
 
-                <input type="text" name="search_query" class="form-control border-end-0"
-                       placeholder="Search ID or Procedure..." value="{{ search_query or '' }}">
-                <button class="btn btn-secondary border-start-0" type="submit">
-                    <i class="fas fa-search"></i>
-                </button>
             </form>
 
             <a href="{{ url_for('view_animals') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
                 <i class="fas fa-undo-alt me-1"></i>
             </a>
         </div>
-    </header>
+    </div>
 
-    <main class="card-body py-3 px-3">
+{% set filter_options = {
+        'sort_by': [('id', 'ID'), ('age', 'Age')],
+        'status_filter': [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')],
+        'event_filter': [('all', 'All'), ('no_events', 'No Events'), ('has_events', 'Has Event'), ('due_overdue', 'Due/Overdue'), ('overdue', 'Overdue')],
+        'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
+        } %}
+
+    <div class="card-body py-3 px-3">
         <div class="row g-3">
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Status</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    {% for val, label in [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')] %}
-                    <a href="{{ url_for('view_animals', status_filter=val, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
-                       class="btn {{ 'btn-primary' if status_filter == val else 'btn-outline-secondary' }}">
-                       {{ label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Events</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    {% for val, label in [('all', 'All'), ('events', 'Has Events'), ('no_events', 'None')] %}
-                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=val, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
-                       class="btn {{ 'btn-primary' if event_filter == val else 'btn-outline-secondary' }}">
-                       {{ label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Procedure</label>
-                <select class="form-select form-select-sm shadow-sm" style="min-width: 160px;"
-                        onchange="location.href=this.value">
-                    <option value="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter='all', event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}">All Procedures</option>
-                    {% for proc in procedures %}
-                    <option value="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=proc.id, event_status=event_status, sort_by=sort_by, age_unit=age_unit) }}"
-                            {{ 'selected' if procedure_filter == proc.id|string }}>
-                        {{ proc.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Alerts</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) if event_status != 'none' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
-                        class="btn {{ 'btn-secondary text-white' if event_status == 'all' else 'btn-outline-secondary' }}">All</a>
-                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='due', sort_by=sort_by, age_unit=age_unit) if event_status != 'due' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
-                       class="btn {{ 'btn-success text-white' if event_status == 'due' else 'btn-outline-success' }}">Due</a>
-                    <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='overdue', sort_by=sort_by, age_unit=age_unit) if event_status != 'overdue' else url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status='all', sort_by=sort_by, age_unit=age_unit) }}"
-                       class="btn {{ 'btn-danger' if event_status == 'overdue' else 'btn-outline-danger' }}">Overdue</a>
-                </div>
-            </div>
-
-            <div class="col-auto ms-auto d-flex gap-3">
-                <div>
-                    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
-                    <div class="btn-group btn-group-sm shadow-sm">
-                        {% for val, label in [('id', 'ID'), ('age', 'Age')] %}
-                        <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=val, age_unit=age_unit) }}"
-                           class="btn {{ 'btn-primary' if sort_by == val else 'btn-outline-secondary' }}">{{ label }}</a>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <div>
-                    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Age Unit</label>
-                    <div class="btn-group btn-group-sm shadow-sm">
-                        {% for val, label in [('day', 'D'), ('week', 'W'), ('month', 'M')] %}
-                        <a href="{{ url_for('view_animals', status_filter=status_filter, event_filter=event_filter, procedure_filter=procedure_filter, event_status=event_status, sort_by=sort_by, age_unit=val) }}"
-                           class="btn {{ 'btn-primary' if age_unit == val else 'btn-outline-secondary' }}">{{ label }}</a>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
+            {{ macros.filter_button_group('status_filter', 'Status', filters, filter_options['status_filter']) }}
+            {{ macros.filter_button_group('event_filter', 'Events', filters, filter_options['event_filter']) }}
+            {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
+            {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
         </div>
-    </main>
-</article>
-
+    </div>
+</div>
 {% set show_cage_column = True %}
+{% set age_unit = filters['age_unit'] %}
 {% include 'partials/animal_table.html' %}
 
 {% endblock %}

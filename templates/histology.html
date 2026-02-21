@@ -1,221 +1,90 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
-Histology Pipeline
+Histology
 {% endblock %}
 
+{% set filter_options = {
+        'sort_by': [('id', 'ID'), ('euthanasia', 'Euthanasia Date')],
+        'analysis_filter': [('all', 'All'), ('pending', 'Pending'), ('needs_review', 'Needs Review'), ('done', 'Done')],
+        'immunolabel_filter': [('all', 'All'), ('pending', 'Pending'), ('labeled', 'Labeled')],
+        } %}
+
 {% block content %}
-<article class="card shadow-sm mb-4">
-    <header class="card-header bg-white border-0 pt-3 px-3">
-        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-            <i class="fas fa-filter me-2"></i>Pipeline Filters
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between border-0">
+        <h2 class="h6 fw-bold text-uppercase text-secondary">
+            <i class="fas fa-filter me-2"></i>Filters & Sorting
         </h2>
-    </header>
-
-    <main class="card-body pt-1 pb-3 px-3">
-        <div class="row g-3">
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Immunolabel Status</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    {% for val, label in [('all', 'All'), ('labeled', 'Labeled'), ('not_labeled', 'Pending')] %}
-                    <a href="{{ url_for('view_histology', labeled_filter=val, analysis_filter=analysis_filter, sort_by=sort_by) }}"
-                       class="btn {{ 'btn-primary' if labeled_filter == val else 'btn-outline-secondary' }}">
-                       {{ label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Analysis Status</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    {% for val, label in [('all', 'All'), ('pending', 'Pending'), ('need_review', 'Review'), ('analyzed', 'Done')] %}
-                    <a href="{{ url_for('view_histology', labeled_filter=labeled_filter, analysis_filter=val, sort_by=sort_by) }}"
-                       class="btn {{ 'btn-primary' if analysis_filter == val else 'btn-outline-secondary' }}">
-                       {{ label }}
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="col-auto ms-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Sort By</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    <a href="{{ url_for('view_histology', labeled_filter=labeled_filter, analysis_filter=analysis_filter, sort_by='id') }}"
-                       class="btn {{ 'btn-primary' if sort_by == 'id' else 'btn-outline-secondary' }}">Ear ID</a>
-                    <a href="{{ url_for('view_histology', labeled_filter=labeled_filter, analysis_filter=analysis_filter, sort_by='euthanasia') }}"
-                       class="btn {{ 'btn-primary' if sort_by == 'euthanasia' else 'btn-outline-secondary' }}">Euthanasia Date</a>
-                </div>
-            </div>
-        </div>
-    </main>
-</article>
-
-<main class="table-responsive">
-    <table class="table table-hover align-middle mb-0 small">
-        <thead class="bg-light text-secondary text-uppercase fw-bold">
-            <tr>
-                <th class="border-0">Note</th>
-                <th class="ps-4 border-0">Animal ID</th>
-                <th class="border-0">Ear</th>
-                <th class="border-0">Euthanasia</th>
-                <th class="border-0">Cryoprotection</th>
-                <th class="border-0">Dissection</th>
-                <th class="border-0">Immunolabel</th>
-                <th class="border-0">Panel</th>
-                <th class="pe-4 border-0 text-end">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for ear in ears %}
-            {% set form_id = "form-ear-" ~ ear.id %}
-            <form id="{{ form_id }}" action="{{ url_for('update_ear', ear_id=ear.id) }}" method="POST">
-                {{ histology_form.hidden_tag() }}
-            </form>
-
-            <tr>
-                <td class="text-center">
-                    <button type="button"
-                            class="btn btn-sm btn-{{ 'secondary' if ear.notes else 'outline-secondary' }} shadow-sm"
-                            data-bs-toggle="popover" data-bs-trigger="click" data-bs-html="true" data-bs-container="body"
-                            data-bs-content-id="#ear-notes-content-{{ ear.id }}">
-                        <i class="fas fa-sticky-note"></i>
-                    </button>
-                    {# Note Popover Content remains for quick reference #}
-                    <div id="ear-notes-content-{{ ear.id }}" class="d-none">
-                        <section class="mb-2 p-2 bg-light border-start border-primary border-3 small">
-                            <label class="d-block fw-bold text-uppercase text-primary" style="font-size: 0.6rem;">Tissue Note</label>
-                            <div>{{ ear.notes or "No notes recorded." }}</div>
-                        </section>
-                        <button class="btn btn-primary btn-sm w-100 mt-2" onclick="openEarNoteModal('{{ ear.id }}')">Edit</button>
-                    </div>
-                </td>
-                <td class="ps-4 fw-bold text-primary">{{ ear.animal.custom_id }}</td>
-                <td>
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-                        {{ ear.side }}
-                    </span>
-                </td>
-                <td class="text-muted small">
-                    {{ ear.animal.termination_date.strftime('%b %d, %Y') if ear.animal.termination_date else '---' }}
-                </td>
-
-                <td>
-                    {{ histology_form.cryoprotection_date(form=form_id,
-                       value=ear.cryoprotection_date.strftime('%Y-%m-%d') if ear.cryoprotection_date,
-                       class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
-                </td>
-                <td>
-                    {{ histology_form.dissection_date(form=form_id,
-                       value=ear.dissection_date.strftime('%Y-%m-%d') if ear.dissection_date,
-                       class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
-                </td>
-                <td>
-                    {{ histology_form.immunolabel_date(form=form_id,
-                       value=ear.immunolabel_date.strftime('%Y-%m-%d') if ear.immunolabel_date,
-                       class="form-control form-control-sm border-0 bg-light", oninput="markDirty(this)") }}
-                </td>
-                <td>
-                    <select name="panel" form="{{ form_id }}" class="form-select form-select-sm border-0 bg-light" onchange="markDirty(this)">
-                        <option value=""></option>
-                        {% for panel in panels %}
-                        <option value="{{ panel.id }}" {% if ear.panel_id == panel.id %}selected{% endif %}>{{ panel.name }}</option>
-                        {% endfor %}
-                    </select>
-                </td>
-
-<td class="pe-4 text-end">
-    <div class="d-flex justify-content-end gap-2">
-        {% if ear.immunolabel_date %}
-            {% set img_count = ear.confocal_images|length %}
-
-            <div class="btn-group shadow-sm">
-                <button type="button"
-                        class="btn btn-sm btn-{{ 'primary' if img_count > 0 else 'outline-secondary' }} px-2"
-                        data-bs-toggle="popover" data-bs-trigger="click" data-bs-container="body" data-bs-html="true"
-                        title="Imaging Summary: {{ ear.animal.custom_id }}"
-                        data-bs-content-id="#summary-popover-{{ ear.id }}">
-                    <i class="fas fa-camera me-1"></i>{{ img_count }}
-                </button>
-
-                <a href="{{ url_for('ear_detail', ear_id=ear.id) }}" class="btn btn-sm btn-{{ 'primary' if img_count > 0 else 'outline-secondary' }}" title="View Full Detail">
-                    <i class="fas fa-external-link-alt"></i>
-                </a>
-            </div>
-
-            <div id="summary-popover-{{ ear.id }}" class="d-none">
-                <div style="min-width: 220px;">
-                    {% if ear.confocal_images %}
-                        {% for group in ear.confocal_images|groupby('image_type.name') %}
-                            <p class="small fw-bold text-uppercase text-primary mb-1 mt-2 border-bottom pb-1" style="font-size: 0.6rem;">
-                                {{ group.grouper }}
-                            </p>
-                            <div class="d-flex flex-wrap gap-1 mb-2">
-                                {% for img in group.list|sort(attribute='frequency') %}
-                                    {% set status_color = 'success' if img.status == 'analyzed' else 'warning' if img.status == 'need_review' else 'secondary' %}
-                                    <span class="badge bg-{{ status_color }}-subtle text-{{ status_color }} border border-{{ status_color }}-subtle fw-normal"
-                                          title="{{ img.status|replace('_', ' ')|title }}"
-                                          style="font-size: 0.65rem; padding: 0.25em 0.5em;">
-                                        {{ img.frequency }}
-                                    </span>
-                                {% endfor %}
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <p class="small text-muted fst-italic mb-0">No images recorded.</p>
-                    {% endif %}
-                    <div class="mt-3 pt-2 border-top">
-                        <a href="{{ url_for('ear_detail', ear_id=ear.id) }}" class="btn btn-primary btn-sm w-100">
-                            Full Management <i class="fas fa-arrow-right ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        {% endif %}
-
-        <button type="submit" form="{{ form_id }}" class="btn btn-sm btn-secondary shadow-sm">
-            <i class="fas fa-save"></i>
-        </button>
+        <a href="{{ url_for('view_histology') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+            <i class="fas fa-undo-alt me-1"></i>
+        </a>
     </div>
-</td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</main>
 
-{% for ear in ears %}
-    {% include 'partials/histology_modals.html' %}
-{% endfor %}
+    <div class="card-body pt-1 pb-3 px-3">
+        <div class="row g-3">
+            {{ macros.filter_button_group('immunolabel_filter', 'Immunolabel Status', filters, filter_options['immunolabel_filter']) }}
+            {{ macros.filter_button_group('analysis_filter', 'Analysis Status', filters, filter_options['analysis_filter']) }}
+            {{ macros.filter_button_group('sort_by', 'Sort By', filters, filter_options['sort_by']) }}
+        </div>
+    </div>
+</div>
 
-<div class="modal fade" id="edit-image-status-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <form id="edit-image-form" action="" method="POST" class="modal-content border-0 shadow">
-            <header class="modal-header border-0 pt-4 px-4">
-                <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
-                    Update Image: <span id="modal-freq-display" class="text-primary"></span> kHz
-                </h3>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </header>
-            <main class="modal-body px-4">
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Analysis Status</label>
-                    <select name="status" id="edit-image-status" class="form-select form-select-sm shadow-sm">
-                        <option value="pending">Pending</option>
-                        <option value="need_review">Need Review</option>
-                        <option value="analyzed">Analyzed</option>
-                        <option value="rejected">Rejected</option>
-                    </select>
-                </div>
-                <div class="mb-0">
-                    <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Frequency Notes</label>
-                    <textarea name="notes" id="edit-image-notes" rows="4" class="form-control form-control-sm shadow-sm"></textarea>
-                </div>
-            </main>
-            <footer class="modal-footer border-0 pb-4 px-4">
-                <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">Update Record</button>
-            </footer>
-        </form>
+<div class="card shadow-sm">
+    <div class="card-body table-responsive">
+        <table class="table table-hover align-middle mb-0 small">
+            <thead>
+                <tr>
+                    <th>Note</th>
+                    <th>ID</th>
+                    <th>Euthanasia</th>
+                    <th>Cryoprotection</th>
+                    <th>Dissection</th>
+                    <th>Immunolabel</th>
+                    <th>Panel</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for ear in ears %}
+                <tr>
+                    <td>
+                        <button type="button"
+                            class="btn btn-sm btn-{{ '' if ear.notes else 'outline-' }}secondary"
+                            data-bs-toggle="popover"
+                            data-bs-container="body"
+                            data-bs-trigger="hover"
+                            data-bs-content="<dl><dt>Animal</dt><dd>{{ ear.animal.notes }}</dd><dt>Ear</dt><dd>{{ ear.notes }}</dd></dl>"
+                            onclick="openEditModal('EarNote', {{ ear.id }})"
+                        >
+                        <i class="fas fa-sticky-note"></i>
+                        </button>
+                    </td>
+                    <td><a href="{{ url_for('ear_detail', ear_id=ear.id) }}">{{ ear.animal.custom_id }} {{ ear.side }}</a></td>
+                    <td>{{ ear.animal.termination_date.strftime('%B %d, %Y') }}</td>
+                    <td>{{ macros.format_date(ear.cryoprotection_date) }}</td>
+                    <td>{{ macros.format_date(ear.dissection_date) }}</td>
+                    <td>{{ macros.format_date(ear.immunolabel_date) }}</td>
+                    <td>{{ ear.panel.name }}</td>
+                    <td>
+                        {% set img_count = ear.confocal_images|length %}
+                        <button type="button"
+                                class="ajax-popover btn btn-sm btn-{{ 'primary' if img_count > 0 else 'outline-secondary' }} px-2"
+                                data-bs-toggle="popover"
+                                data-bs-trigger="click"
+                                data-bs-html="true"
+                                data-id="{{ url_for('ajax_ear_images', ear_id=ear.id) }}"
+                                title="Images for {{ ear.animal.custom_id }}"
+                        >
+                            <i class="fas fa-camera me-1"></i>{{ img_count }}
+                        </button>
+                        <button type="button" class="btn btn-sm" onclick="openEditModal('EarHistology', {{ ear.id }})"><i class="fas fa-pencil"></i></button>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 

@@ -1,0 +1,57 @@
+{% macro filter_button_group(name, label, filters, options) %}
+<div class="col-auto">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+        {{ label }}
+    </label>
+    <div class="btn-group btn-group-sm shadow-sm">
+        {% for v, l in options %}
+            {# Create a copy of all filters and update only the one for this group #}
+            {% set url_params = filters.copy() %}
+            {% set _ = url_params.update({name: v}) %}
+            <a href="{{ url_for(request.endpoint, **url_params) }}"
+               class="btn {{ 'btn-primary' if filters[name] == v else 'btn-outline-secondary' }}">
+               {{ l }}
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+{% set class_map = {
+    'complete': 'bg-success-subtle',
+    'overdue': 'bg-danger-subtle',
+    'due': 'bg-warning-subtle',
+    '': '',
+    } %}
+
+{% macro render_event_list(animal) %}
+<div class="small" style="min-width: 220px;">
+    <ol class="list-group">
+    {% for date, events in animal.events_by_date.items() %}
+        <li class="list-group-item">
+            <h3 class="text-uppercase fw-bold h6">{{ date.strftime('%B %d, %Y') }}</h3>
+            <ol class="list-group">
+                {% for event in events %}
+                    <li class="list-group-item {{ class_map[event.status] }}">
+                        <div class="btn-group float-end">
+                            <button class="btn btn-sm" onclick="openEditModal('AnimalEvent', {{ event.id }})"><i class="fas fa-pencil"></i></button>
+                            <button class="btn btn-sm" onclick="openEditModal('DeleteAnimalEvent', {{ event.id }})"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <div>{{ event.procedure.name }}</div>
+                        <div class="small muted">{{ event.notes }}</div>
+                    </li>
+                {% endfor %}
+            </ol>
+        </li>
+    {% endfor %}
+    </ol>
+</div>
+{% endmacro %}
+
+{% macro format_date(date) %}
+    {% if date is none %}
+        &horbar;
+    {% else %}
+        {{ date.strftime('%B %d, %Y') }}
+    {% endif %}
+{% endmacro %}

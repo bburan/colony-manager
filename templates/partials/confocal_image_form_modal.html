@@ -1,0 +1,38 @@
+{% set ear = item %}
+    <form action="{{ url_for('add_confocal_images', ear_id=ear.id) }}" method="POST" class="modal-content border-0 shadow">
+        <header class="modal-header border-0 pt-4 px-4">
+            <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
+                <i class="fas fa-images me-2"></i>New Imaging Session: {{ ear.side }}
+            </h3>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </header>
+        <main class="modal-body px-4">
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Image Type</label>
+                <select name="image_type" class="form-select form-select-sm shadow-sm" required>
+                    {% for panel in panels %}
+                    <option value="{{ panel.id }}">{{ panel.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-muted text-uppercase d-block mb-2" style="font-size: 0.65rem;">Frequencies (kHz)</label>
+                <div class="row g-2">
+                    {% for f in [0.5, 1, 2, 4, 8, 16, 32, 64] %}
+                    <div class="col-3">
+                        <input type="checkbox" class="btn-check" name="frequencies" id="freq-{{ ear.id }}-{{ f }}" value="{{ f }}">
+                        <label class="btn btn-outline-secondary btn-sm w-100 py-1" for="freq-{{ ear.id }}-{{ f }}">{{ f }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="mb-0">
+                <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Batch Notes</label>
+                <textarea name="notes" rows="3" class="form-control form-control-sm shadow-sm" placeholder="Microscope settings..."></textarea>
+            </div>
+        </main>
+        <footer class="modal-footer border-0 pb-4 px-4">
+            <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">Save Batch</button>
+        </footer>
+</form>

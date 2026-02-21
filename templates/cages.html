@@ -1,53 +1,67 @@
+{% import 'macros.html' as macros %}
+
 {% extends "base.html" %}
 
-{% block content %}
-<nav class="d-flex justify-content-between align-items-center mb-4">
-    <div class="d-flex gap-3 align-items-center">
-        <a href="{{ url_for('new_cage') }}" class="btn btn-primary btn-sm">
-            <i class="fas fa-plus me-1"></i> New Cage
-        </a>
 
-        <div class="btn-group btn-group-sm">
-            {% for f in ['active', 'inactive', 'all'] %}
-            <a href="{{ url_for('view_cages', filter=f) }}"
-               class="btn {{ 'btn-primary' if filter_by == f else 'btn-outline-secondary' }}">{{ f|capitalize }}</a>
-            {% endfor %}
+
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white border-0 pt-3 px-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+                <i class="fas fa-filter me-2"></i>Filters & Sorting
+            </h2>
+            <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                {{ cages|length }} Results
+            </span>
+        </div>
+
+        <a href="{{ url_for('view_cages') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+            <i class="fas fa-undo-alt me-1"></i>
+        </a>
+    </div>
+
+    <div class="card-body py-3 px-3">
+        <div class="row g-3">
+            {{ macros.filter_button_group('status_filter', 'Status', filters,  [('active', 'Active'), ('inactive', 'Inactive'), ('all', 'All')]) }}
+            {{ macros.filter_button_group('sort_by', 'Sort By', filters,  [('custom_id', 'ID'), ('age', 'Age')]) }}
+            {{ macros.filter_button_group('age_unit', 'Age Unit', filters,  [('day', 'D'), ('week', 'W'), ('month', 'M')]) }}
         </div>
     </div>
+</div>
 
-    <div class="btn-group btn-group-sm">
-        <a href="{{ url_for('view_cages', age_unit='day') }}" class="btn {{ 'btn-primary' if age_unit == 'day' else 'btn-outline-secondary' }}">Day</a>
-        <a href="{{ url_for('view_cages', age_unit='week') }}" class="btn {{ 'btn-primary' if age_unit == 'week' else 'btn-outline-secondary' }}">Week</a>
-        <a href="{{ url_for('view_cages', age_unit='month') }}" class="btn {{ 'btn-primary' if age_unit == 'month' else 'btn-outline-secondary' }}">Month</a>
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between">
+        Cages
+        <button class="btn btn-sm" onclick="openEditModal('NewCage', 0)"><i class="fas fa-boxes"> +</i></button>
     </div>
-</nav>
-
-<main class="card shadow-sm border-0">
-    <table class="table table-hover align-middle mb-0 small">
-        <thead class="bg-light text-secondary text-uppercase fw-bold border-bottom">
-            <tr>
-                <th>Cage ID</th>
-                <th>Species</th>
-                <th>Sex</th>
-                <th>Age</th>
-                <th>Animals</th>
-                <th>Source</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for cage in cages %}
-            <tr>
-                <td><a href="{{ url_for('cage_detail', cage_id=cage.id) }}">{{ cage.custom_id }}</a></td>
-                <td>{{ cage.species.name }}</td>
-                <td>{{ cage.sex_symbol }}</td>
-                <td>{{ cage.age_display(age_unit) }}</td>
-                <td>{{ cage.animals.filter_by(termination_date=None).count() }}</td>
-                <td>{{ cage.source_display }}</td>
-                <td>{{ cage.notes }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</main>
+    <div class="card-body">
+        <table class="table table-hover align-middle mb-0 small table-striped">
+            <thead class="card-header bg-light text-secondary text-uppercase fw-bold border-bottom">
+                <tr>
+                    <th>Cage ID</th>
+                    <th>Species</th>
+                    <th>Sex</th>
+                    <th>Age</th>
+                    <th>Animals</th>
+                    <th>Source</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cage in cages %}
+                <tr>
+                    <td><a href="{{ url_for('cage_detail', cage_id=cage.id) }}">{{ cage.custom_id }}</a></td>
+                    <td>{{ cage.species.name }}</td>
+                    <td>{{ cage.sex_symbol }}</td>
+                    <td>{{ cage.age_display(filters['age_unit']) }}</td>
+                    <td>{{ cage.animals.filter_by(termination_date=None).count() }}</td>
+                    <td>{{ cage.source_display }}</td>
+                    <td>{{ cage.notes }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

@@ -5,8 +5,8 @@
     ('source', sources),
     ('confocal_image_type', confocal_image_types),
     ('termination_reason', termination_reasons),
-    ('ear_procedure', ear_procedures),
     ('animal_procedure', animal_procedures),
+    ('animal_procedure_target', animal_procedure_targets),
     ]
 %}
 
@@ -36,7 +36,7 @@
                     </form>
                     <form action="{{ url_for('delete_setting', item_type=type, item_id=item.id) }}" 
                         method="POST" onsubmit="return confirm('Delete?');">
-                        <button class="btn btn-sm text-danger"><i class="fas fa-trash-alt"></i></button>
+                        <button class="btn btn-sm"><i class="fas fa-trash-alt"></i></button>
                     </form>
                 </li>
                 {% endfor %}

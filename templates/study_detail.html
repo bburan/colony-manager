@@ -1,83 +1,40 @@
 {% extends "base.html" %}
 
 {% block header %}
-Study: {{ study.name }}
+Study {{ study.name }}
 {% endblock %}
 
 {% block content %}
 <div class="row g-4">
-    <div class="col-lg-8 order-2 order-lg-1">
-        <article class="card border-0 shadow-sm h-100">
-            <header class="card-header bg-light border-0 pt-3 px-4 d-flex justify-content-between align-items-center">
+    <div class="col-8">
+         <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
                     <i class="fas fa-paw me-2"></i>Animals in Study
                 </h2>
                 <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle">
                     {{ study.animals.count() }} Enrolled
                 </span>
-            </header>
+            </div>
 
-            {%  set animals=study.animals %}
-            {%  set show_study_column = False %}
-            {%  set show_termination_action = False %}
-            {% include "partials/animal_table.html" %}
-        </article>
+             <div class="card-body">
+                {%  set animals=study.animals %}
+                {%  set show_study_column = False %}
+                {%  set show_termination_action = False %}
+                {% include "partials/animal_table.html" %}
+             </div>
+         </div>
     </div>
 
-    <div class="col-lg-4 order-1 order-lg-2">
-        <div class="d-flex flex-column gap-4">
-
-            <article class="card border-0 shadow-sm">
-                <header class="card-header bg-white border-0 pt-3 px-4">
-                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Edit Details</h2>
-                </header>
-                <main class="card-body px-4">
-                    <form action="{{ url_for('study_detail', study_id=study.id) }}" method="POST">
-                        {{ edit_form.hidden_tag() }}
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">{{ edit_form.name.label }}</label>
-                            {{ edit_form.name(class="form-control form-control-sm", oninput="markDirty(this)") }}
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">{{ edit_form.description.label }}</label>
-                            {{ edit_form.description(rows=3, class="form-control form-control-sm", oninput="markDirty(this)") }}
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm shadow-sm">
-                            Save Changes
-                        </button>
-                    </form>
-                </main>
-            </article>
-
-            <article class="card border-0 shadow-sm">
-                <header class="card-header bg-white border-0 pt-3 px-4">
-                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Enroll Animals</h2>
-                </header>
-                <main class="card-body px-4">
-                    <form action="{{ url_for('add_to_study', study_id=study.id) }}" method="POST">
-                        {{ add_form.hidden_tag() }}
-                        <div class="border rounded-3 p-3 bg-light overflow-auto" style="max-height: 250px;">
-                            {% for subfield in add_form.animals %}
-                            <div class="form-check mb-2">
-                                {{ subfield(class="form-check-input", onchange="markDirty(this)") }}
-                                <label class="form-check-label small" for="{{ subfield.id }}">
-                                    {{ subfield.label.text }}
-                                </label>
-                            </div>
-                            {% else %}
-                            <p class="small text-muted text-center py-3">No available animals.</p>
-                            {% endfor %}
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm shadow-sm">
-                            <i class="fas fa-plus me-1"></i>Enroll Selected
-                        </button>
-                    </form>
-                </main>
-            </article>
-
-            <a href="{{ url_for('view_studies') }}" class="btn btn-link btn-sm text-secondary text-decoration-none">
-                <i class="fas fa-arrow-left me-1"></i>Back to All Studies
-            </a>
+    <div class="col-4">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Description</h2>
+                <button class="btn btn-sm" onclick="openEditModal('Study', {{ study.id }})"><i class="fas fa-pencil"></i></button>
+            </div>
+            <div class="card-body">
+                {{ study.description }}
+            </div>
         </div>
     </div>
 </div>

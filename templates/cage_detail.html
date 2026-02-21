@@ -8,12 +8,11 @@
 </nav>
 
 <div class="row g-4">
-    <main class="col-lg-8">
-        <section class="card shadow-sm border-0 mb-4">
-            <header class="card-header bg-white py-3">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header py-3 d-flex justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Cage {{ cage.custom_id }}</h2>
-            </header>
-            
+            </div>
             <div class="card-body">
                 <dl class="row mb-0 small">
                     <dt class="col-sm-3 text-muted fw-normal">Species</dt>
@@ -26,10 +25,10 @@
                     <dd class="col-sm-9">{{ cage.source_display }}</dd>
                 </dl>
             </div>
-        </section>
+        </div>
 
-        <section class="card shadow-sm border-0 mb-4">
-            <header class="card-header bg-white py-3">
+        <section class="card shadow-sm mb-4">
+            <header class="card-header py-3">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">Animals in this Cage</h2>
             </header>
             <div class="card-body">
@@ -38,19 +37,16 @@
             {% include 'partials/animal_table.html' %}
             </div>
         </section>
-    </main>
+    </div>
 
-    <aside class="col-lg-4">
-        <section class="card shadow-sm border-0">
-            <header class="card-header bg-white py-3">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Cage Notes</h2>
-            </header>
-            <form method="POST" action="{{ url_for('cage_detail', cage_id=cage.id) }}" class="card-body">
-                {{ form.hidden_tag() }}
-                {{ form.notes(class="form-control form-control-sm mb-3", rows=8, placeholder="Add notes for this cage...") }}
-                <button type="submit" class="btn btn-primary btn-sm w-100">Save Notes</button>
-            </form>
-        </section>
-    </aside>
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Notes</h2>
+                <button class="btn btn-sm" onclick="openEditModal('CageNote', {{ cage.id }})"><i class="fas fa-pencil"></i></button>
+            </div>
+            <div class="card-body">{{ cage.notes }}</div>
+        </div>
+    </div>
 </div>
 {% endblock %}

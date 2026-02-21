@@ -1,62 +1,47 @@
-<div class="card shadow-sm border-0 mb-4">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0 small">
+<div class="card shadow-sm">
+    <div class="card-body">
+        <table class="table table-hover small">
             <thead class="bg-light text-secondary text-uppercase fw-bold">
                 <tr>
-                    <th class="border-0">Note</th>
-                    <th class="ps-4 border-0">Animal ID</th>
-                    <th class="border-0">Species</th>
-                    <th class="border-0">Sex</th>
-                    <th class="border-0 text-center">Age</th>
-                    <th class="border-0">Events</th>
-                    {% if show_study_column|default(True) %}<th class="border-0">Studies</th>{% endif %}
-                    {% if show_termination_action|default(True) %}<th class="pe-4 border-0 text-end"></th>{% endif %}
+                    <th>Note</th>
+                    <th>Animal ID</th>
+                    <th>Species</th>
+                    <th>Sex</th>
+                    <th>Age</th>
+                    <th>Events</th>
+                    {% if show_study_column|default(True) %}<th>Studies</th>{% endif %}
+                    {% if show_termination_action|default(True) %}<th></th>{% endif %}
                 </tr>
             </thead>
-            <tbody class="align-middle">
+            <tbody>
                 {% for animal in animals %}
-                <tr class="align-middle {{ 'table-light' if not animal.is_active }}">
+                <tr class="{{ '' if animal.is_active else 'table-danger' }}">
                     <td>
                         <button type="button"
-                            class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary shadow"
+                            class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary"
                             data-bs-toggle="popover"
                             data-bs-container="body"
-                            data-bs-trigger="hover"
+                            data-bs-trigger="click"
                             data-bs-content="{{ animal.notes }}"
                             onclick="openEditModal('AnimalNote', {{ animal.id }})"
                         >
                         <i class="fas fa-sticky-note"></i>
                         </button>
                     </td>
-                    <td style="width: 200px">
-                        {% if not animal.is_active or animal.custom_id %}
-                            {# Display existing ID #}
-                            <div>{{ animal.custom_id }}</div>
-                        {% else %}
-                            {# "Activate" Input Field #}
-                            <form action="{{ url_for('activate_animal', animal_id=animal.id) }}" method="POST" class="m-0 p-0">
-                                <div class="input-group input-group-sm">
-                                    <input type="text"
-                                           name="custom_id"
-                                           class="form-control"
-                                           placeholder="Assign ID"
-                                           required>
-                                    <button class="btn btn-secondary btn-sm shadow-sm" type="submit">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </div>
-                            </form>
+                    <td>
+                        <a href="{{ url_for('animal_detail', animal_id=animal.id) }}">{{ animal.custom_id }}</a>
+                        {% if not animal.custom_id %}
+                            <button class="btn btn-sm" onclick="openEditModal('AnimalID', {{ animal.id }})"><i class="fas fa-tag"></i></button>
                         {% endif %}
                     </td>
                     <td>{{ animal.species.name }}</td>
                     <td>{{ animal.sex_symbol }}</td>
-                    <td class="text-center">{{ animal.age_display(age_unit|default('day')) }}</td>
-
+                    <td>{{ animal.age_display(age_unit|default('day')) }}</td>
                     <td>
                         {% if animal.event_overdue %}
                             {% set btn_class = "btn-danger" %}
                         {%  elif animal.event_due %}
-                            {% set btn_class = "btn-success" %}
+                            {% set btn_class = "btn-warning" %}
                         {% elif animal.events.count() > 0 %}
                             {% set btn_class = "btn-secondary" %}
                         {% else %}
@@ -67,7 +52,8 @@
                                 data-bs-trigger="hover click focus"
                                 data-bs-html="true"
                                 data-id="{{ url_for('ajax_animal_events', animal_id=animal.id) }}"
-                                title="Event History"
+                                title="<div class='d-flex justify-content-between align-center'>Events <button class='btn btn-sm float-right' onclick='openEditModal(&quot;NewAnimalEvent&quot;, {{ animal.id }})'><i class='fas fa-calendar'> +</i></button></div>"
+    "
                         >
                             {{  animal.events.count() }}
                         </button>

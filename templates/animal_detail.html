@@ -1,88 +1,41 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 {{ animal.species.name|capitalize }} {{ animal.custom_id }}
 {% endblock %}
 
-{% set class_map = {
-    'complete': 'bg-success-subtle',
-    'overdue': 'bg-danger-subtle',
-    'due': 'bg-warning-subtle',
-    '': '',
-    } %}
-
 {% block content %}
 <div class="row">
     <div class="col-6">
-        <div class="card shadow mb-4">
-            <div class="card-header">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between">
                 Information
-                <button class="btn float-end btn-primary btn-sm" onclick="openEditModal('Animal', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openEditModal('Animal', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
-                <dl class="row">
-                    <dt class="col-4">Cage</dt>
-                    <dd class="col-8">{{ animal.cage.custom_id }}</dd>
-                    <dt class="col-4">Species</dt>
-                    <dd class="col-8">{{ animal.species.name }}</dd>
-                    <dt class="col-4">Sex</dt>
-                    <dd class="col-8">{{ animal.sex_symbol }}</dd>
-                    <dt class="col-4">Birth</dt>
-                    <dd class="col-8">{{ animal.dob.strftime('%B %d, %Y') }}</dd>
-                    <dt class="col-4">Age</dt>
-                    <dd class="col-8">{{ animal.age_display('week') }}</dd>
-                    <dt class="col-4">Source</dt>
-                    <dd class="col-8">{{ animal.source.name }}</dd>
-                    {% if not animal.is_active %}
-                        <dt class="col-4">Termination Reason</dt>
-                        <dd class="col-8">{{ animal.termination_reason.name }}</dd>
-                        <dt class="col-4">Termination Date</dt>
-                        <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') }}</dd>
-                    {% endif %}
-                </dl>
+                {% include "partials/animal_detail_card.html" %}
             </div>
         </div>
-        <div class="card shadow">
-            <div class="card-header">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between">
                 Notes
-                <button class="btn float-end btn-primary btn-sm" onclick="openEditModal('AnimalNote', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openEditModal('AnimalNote', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ animal.notes }}</div>
         </div>
     </div>
 
     <div class="col-6">
-        <div class="card shadow">
-            <div class="card-header">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between">
                 Events
-                <button class="btn float-end btn-primary btn-sm" onclick="openEditModal('NewAnimalEvent', {{ animal.id }})"><i class="fas fa-calendar-alt"> +</i></button>
+                <button class="btn btn-sm" onclick="openEditModal('NewAnimalEvent', {{ animal.id }})"><i class="fas fa-calendar-alt"> +</i></button>
             </div>
             <div class="card-body">
-                <ol class="list-group">
-                    {% for date, events in animal.events_by_date.items() %}
-                        <li class="list-group-item">
-                            <h3 class="text-uppercase fw-bold h6">{{ date.strftime('%B %d, %Y') }}</h3>
-                            <ol class="list-group">
-                                {% for event in events %}
-                                    <li class="list-group-item {{ class_map[event.status] }}">
-                                        <div class="btn-group float-end">
-                                            <button class="btn btn-sm" onclick="openEditModal('AnimalEvent', {{ event.id }})"><i class="fas fa-pencil"></i></button>
-                                            <button class="btn btn-sm"><i class="fas fa-trash"></i></button>
-                                        </div>
-                                        <div>{{ event.procedure.name }}</div>
-                                        <div class="small muted">{{ event.notes }}</div>
-                                    </li>
-                                {% endfor %}
-                            </ol>
-                        </li>
-                    {% endfor %}
-                </ol>
+                {{ macros.render_event_list(animal) }}
             </div>
         </div>
     </div>
 </div>
-
-
-
-
 {% endblock %}

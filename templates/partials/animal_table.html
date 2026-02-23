@@ -1,4 +1,8 @@
 <div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between">
+        Animals
+        <!--<button class="btn btn-sm" onclick="openEditModal('NewCage', 0)"><i class="fas fa-boxes"> +</i></button>-->
+    </div>
     <div class="card-body">
         <table class="table table-hover small">
             <thead class="bg-light text-secondary text-uppercase fw-bold">
@@ -63,6 +67,15 @@
                     <td>
                         {# 1. The Trigger Button #}
                         <div class="btn-group shadow-sm">
+                            <button class="btn btn-{{ 'outline-' if animal.studies.count() == 0 else '' }}secondary btn-sm"
+                                    data-bs-toggle="popover"
+                                    data-bs-trigger="hover"
+                                    data-bs-html="true"
+                                    title="Studies"
+                                    data-bs-content="<ul class='list-group'>{% for s in animal.studies %}<li class='list-group-item'>{{ s.name }}{% endfor %}</ul>"
+                                    onclick="openEditModal('UpdateStudyList', {{ animal.id }})">
+                                {{ animal.studies.count() }}</button>
+                           <!--
                             <button type="button" class="btn btn-{{ 'outline-' if animal.studies.count() == 0 else '' }}secondary btn-sm px-2"
                                     data-bs-toggle="popover"
                                     data-bs-trigger="hover"
@@ -72,6 +85,7 @@
                                     data-bs-content-id="#studies-popover-{{ animal.id }}">
                                 {{ animal.studies.count() }}
                             </button>
+                            -->
                         </div>
                     </td>
                     {% endif %}

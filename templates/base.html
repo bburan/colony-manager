@@ -9,69 +9,27 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        :root {
-            --app-bg: #f8f9fa;
-        }
         body {
-            background-color: var(--app-bg);
-            display: flex;
-            flex-direction: column;
-        }
-        /* Refined Nav Hover using transparency instead of hardcoded Tailwind hex */
-        .navbar-dark .nav-link {
-            transition: all 0.2s;
-            padding: 0.5rem 1rem;
-        }
-        .navbar-dark .nav-link:hover {
-            background-color: rgba(255,255,255,0.1);
-            border-radius: 0.375rem;
-        }
-        .navbar-dark .nav-link.active {
-            background-color: rgba(255,255,255,0.15);
-            border-radius: 0.375rem;
-        }
-
-        /* Content Area Adjustments */
-        header.app-header {
-            background: #fff;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        /* Save Button Logic */
-        .save-btn {
-            opacity: 0.2;
-            transition: all 0.2s ease-in-out;
-            pointer-events: none;
-            color: var(--bs-secondary);
+            background-color: #f8f9fa;
         }
         .save-btn.is-dirty {
             opacity: 1;
-            pointer-events: auto;
             color: var(--bs-primary);
-            transform: scale(1.1);
-        }
-        .dropdown-menu {
-            min-width: 160px;
-            z-index: 1060; /* Ensure it stays above other table elements */
-        }
-        .dropdown-item:active {
-            background-color: var(--bs-success);
         }
     </style>
 </head>
-<body class="h-100">
-
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+<body>
+    <nav class="navbar navbar-expand-lg shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
-                <i class="fas fa-dna text-info me-2"></i>Colony Manager
+                <i class="fas fa-dna me-2"></i>Colony Manager
             </a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="appNav">
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                <ul class="navbar-nav mb-2 ms-auto">
                     {% set nav_items = [
                         ('index', 'Dashboard'),
                         ('calendar', 'Calendar'),
@@ -93,13 +51,13 @@
         </div>
     </nav>
 
-    <header class="app-header py-4">
+    <div class="app-header py-4">
         <div class="container">
             <h1 class="h3 mb-0 fw-bold text-dark">
                 {% block header %}{% endblock %}
             </h1>
         </div>
-    </header>
+    </div>
 
     <main class="flex-shrink-0 py-4">
         <div class="container">
@@ -121,11 +79,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // 1. Hide all popovers when a NEW popover is about to show
         document.addEventListener('show.bs.popover', function (e) {
             const allPopovers = document.querySelectorAll('[data-bs-toggle="popover"]');
             allPopovers.forEach(el => {
-                // Don't hide the one that is currently trying to open!
                 if (el !== e.target) {
                     const instance = bootstrap.Popover.getInstance(el);
                     if (instance) instance.hide();
@@ -143,16 +99,16 @@
         });
 
         document.addEventListener('DOMContentLoaded', function () {
+            // Handles loading AJAX content for popovers
             const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
 
             popoverTriggerList.forEach(element => {
                 // 1. Initialize the popover instance
                 const popover = new bootstrap.Popover(element, {
                     html: true,
-                    sanitize: false // Set to true if you don't trust the AJAX source
+                    sanitize: false
                 });
 
-                // 2. Check for the specific class before adding the AJAX logic
                 if (element.classList.contains('ajax-popover')) {
                     let isFetched = false;
 
@@ -208,14 +164,15 @@
 
             if (isDirty) {
                 saveBtn.disabled = false;
-                saveBtn.classList.toggle('is-dirty');
+                saveBtn.classList.add('is-dirty');
             } else {
                 saveBtn.disabled = true;
-                saveBtn.classList.toggle('is-dirty');
+                saveBtn.classList.remove('is-dirty');
             }
         }
 
         async function openEditModal(itemType, itemId) {
+            // Handles loading AJAX content for modals when a button is clicked
             const modalBody = document.getElementById('modalBody');
             const editModalElement = document.getElementById('editModal');
             const modalInstance = new bootstrap.Modal(editModalElement);

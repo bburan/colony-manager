@@ -1,140 +1,103 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
-Breeding Pair {{ pair.custom_id }} Details
+Breeding Pair {{ pair.custom_id }}
 {% endblock %}
 
 {% block content %}
-<div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-    <div class="px-4 py-5 sm:px-6">
-        <h3 class="text-lg leading-6 font-medium text-gray-900">Pair Information</h3>
+<div class="row">
+    <div class="col-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">Information</div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-6">Male</dt>
+                    <dd class="col-6">{{ pair.male.custom_id }}</dd>
+                    <dt class="col-6">Female</dt>
+                    <dd class="col-6">{{ pair.female.custom_id }}</dd>
+                    <dt class="col-6">Start Date</dt>
+                    <dd class="col-6">{{ pair.start_date.strftime('%B %d, %Y') }}</dd>
+                    <dt class="col-6">Litters</dt>
+                    <dd class="col-6">{{ pair.litters.count() }}</dd>
+                </dl>
+            </div>
+        </div>
     </div>
-    <div class="border-t border-gray-200">
-        <dl class="divide-y divide-gray-200">
-            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt class="text-sm font-medium text-gray-500">Male</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.male.custom_id }} ({{ pair.male.species.name }})</dd>
+    <div class="col-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between">
+                Litters
+                <button class="btn btn-sm" onclick="openEditModal('AddLitter', {{ pair.id }})"><i class="fas fa-paw"> +</i></button>
             </div>
-            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt class="text-sm font-medium text-gray-500">Female</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.female.custom_id }} ({{ pair.female.species.name }})</dd>
+            <div class="card-body">
+                <table class="table table-hover small">
+                    <thead>
+                        <th>Birth</th>
+                        <th>Count</th>
+                        <th>Age</th>
+                        <th>Weaned</th>
+                        <th>Actions</th>
+                    </thead>
+                    <tbody>
+                        {% for litter in pair.litters.all()|sort(attribute='dob', reverse=True) %}
+                            <tr>
+                                <td>{{ litter.dob.strftime('%B %d, %Y') }}</td>
+                                <td>{{ litter.pup_count }}</td>
+                                <td>{{ litter.age_in_days }}</td>
+                                <td>{{ macros.format_date(litter.wean_date) }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-sm" onclick="openEditModal('EditLitter', {{ litter.id }})"><i class="fas fa-pencil"></i></button>
+                                        <button class="btn btn-sm" onclick="openEditModal('WeanLitter', {{ litter.id }})"><i class="fas fa-sitemap"></i></button>
+                                        <button class="btn btn-sm" onclick="openEditModal('DeleteLitter', {{ litter.id }})"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt class="text-sm font-medium text-gray-500">Pair Start Date</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ pair.start_date.strftime('%Y-%m-%d') }}</dd>
-            </div>
-            <div class="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt class="text-sm font-medium text-gray-500">Status</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                    {% if pair.is_active %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
-                    {% else %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>
-                    {% endif %}
-                </dd>
-            </div>
-        </dl>
-    </div>
-</div>
-
-<!-- Litters Management Section -->
-<div class="mb-6">
-    <h3 class="text-xl font-semibold mb-4 text-gray-800">Litters Management</h3>
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th>Birth Date</th>
-                    <th>Pup Count</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for litter in pair.litters.all()|sort(attribute='birth_date', reverse=True) %}
-                <tr>
-                    <form action="{{ url_for('edit_litter', litter_id=litter.id) }}" method="POST">
-                        {{ g.litter_form.hidden_tag() }}
-                        <td class="px-6 py-4">
-                            <input type="date" name="birth_date" value="{{ litter.birth_date.strftime('%Y-%m-%d') }}" class="border-gray-300 rounded-md shadow-sm">
-                        </td>
-                        <td class="px-6 py-4">
-                            <input type="number" name="pup_count" value="{{ litter.pup_count }}" class="w-24 border-gray-300 rounded-md shadow-sm">
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            {% if litter.is_weaned %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-800">Weaned</span>
-                            {% else %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Active</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-4">
-                            <button type="submit" class="text-blue-600 hover:text-blue-900">Save Changes</button>
-                            {% if not litter.is_weaned %}
-                                <a href="{{ url_for('wean_litter', litter_id=litter.id) }}" class="text-green-600 hover:text-green-900">Wean</a>
-                            {% endif %}
-                            <button type="button" onclick="document.getElementById('delete-litter-form-{{ litter.id }}').submit();" class="text-red-600 hover:text-red-900">Cull</button>
-                        </td>
-                    </form>
-                    <form id="delete-litter-form-{{ litter.id }}" action="{{ url_for('delete_litter', litter_id=litter.id) }}" method="POST" class="hidden" onsubmit="return confirm('Are you sure you want to cull this entire litter? This cannot be undone.');">
-                    </form>
-                </tr>
-                {% else %}
-                <tr><td colspan="4" class="text-center px-6 py-4 text-gray-500">No litters recorded for this pair.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <div class="bg-gray-50 p-4">
-            <h4 class="font-semibold text-gray-700 mb-2">Add New Litter</h4>
-            <form action="{{ url_for('add_litter', pair_id=pair.id) }}" method="POST" class="flex items-center gap-4">
-                {{ g.litter_form.hidden_tag() }}
-                <div>
-                    <label for="birth_date" class="sr-only">{{ g.litter_form.birth_date.label }}</label>
-                    {{ g.litter_form.birth_date(class="border-gray-300 rounded-md shadow-sm") }}
-                </div>
-                <div>
-                    <label for="pup_count" class="sr-only">{{ g.litter_form.pup_count.label }}</label>
-                    {{ g.litter_form.pup_count(class="w-32 border-gray-300 rounded-md shadow-sm", placeholder="Pup Count") }}
-                </div>
-                {{ g.litter_form.submit(class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700") }}
-            </form>
         </div>
     </div>
 </div>
 
+<script>
+    function addCageForWeaning() {
+        const container = document.getElementById('cage-container');
+        const itemCount = container.getElementsByClassName('cage-group').length;
+        const newGroup = container.children[0].cloneNode(true);
+        newGroup.id = `cage-${itemCount}`;
+        container.appendChild(newGroup);
+        reindexCagesForWeaning();
+    };
 
-<h3 class="text-xl font-semibold mb-4 text-gray-800">Animals Produced by this Pair</h3>
-<div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-            <tr>
-                <th scope="col">Animal ID</th>
-                <th scope="col">Cage ID</th>
-                <th scope="col">Sex</th>
-                <th scope="col">Age (Days)</th>
-                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-            {% for animal in animals %}
-            <tr class="{{ 'bg-red-50 text-gray-500' if animal.is_terminated else '' }}">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ animal.full_id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}" class="text-blue-600 hover:text-blue-800">#{{ animal.cage.id }}</a>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ animal.cage.sex }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ animal.cage.age_in_days }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ 'Terminated' if animal.is_terminated else 'Active' }}
-                </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="text-center px-6 py-4">No animals have been weaned from this pair yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-<div class="mt-6">
-    <a href="{{ url_for('view_breeding_pairs') }}" class="text-blue-600 hover:text-blue-800">&larr; Back to Breeding Pairs</a>
-</div>
+    function removeCageForWeaning(button) {
+        const container = button.closest('.cage-group')
+        console.log(container);
+        const containers = document.getElementById('cage-container').getElementsByClassName('cage-group');
+        if (containers.length > 1) {
+            container.remove()
+            reindexCagesForWeaning();
+        };
+    };
+
+    function reindexCagesForWeaning() {
+        console.log('here');
+        const containers = document.getElementById('cage-container').getElementsByClassName('cage-group');
+        console.log(containers);
+        Array.from(containers).forEach((group, index) => {
+            group.id = `cages-${index}`;
+            const elements = group.querySelectorAll('input, select');
+            console.log(elements);
+            elements.forEach(el => {
+                const idRegex = /cages-\d+-/;
+                const replacement = `cages-${index}-`;
+                if (el.id) el.id = el.id.replace(idRegex, replacement);
+                if (el.name) el.name = el.name.replace(idRegex, replacement);
+            });
+        });
+    };
+
+</script>
 {% endblock %}

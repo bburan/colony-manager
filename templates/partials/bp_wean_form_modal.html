@@ -1,0 +1,38 @@
+{% extends "partials/form_modal.html" %}
+{% block main %}
+{{ form.hidden_tag() }}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <label class="col-4 form-label small fw-bold text-muted">Wean Date</label>
+        {{ form.wean_date(class="form-control form-control-sm mb-2") }}
+    </div>
+</div>
+
+<div class="row mb-4">
+    <label class="col-4 form-label small fw-bold text-muted">Cage ID</label>
+    <label class="col-3 form-label small fw-bold text-muted">Sex</label>
+    <label class="col-3 form-label small fw-bold text-muted">Pups</label>
+    <div class="col-2">
+    <button type="button" onclick="addCageForWeaning()" class="btn btn-sm btn-primary float-right" id="add-cage"><i class="fas fa-box"></i> +</button>
+    </div>
+</div>
+<div id="cage-container">
+    {% for cage in form.cages %}
+        <div id="cage-{{ loop.index0 }}" class="row cage-group">
+            <div class="col-4">
+                {{ cage.custom_id(class="form-control form-control-sm mb-2") }}
+            </div>
+            <div class="col-3">
+                {{ cage.sex(class="form-control form-control-sm mb-2") }}
+            </div>
+            <div class="col-3">
+                {{ cage.count(class="form-control form-control-sm mb-2") }}
+            </div>
+            <div class="col-2">
+                <button type="button" onclick="removeCageForWeaning(this)" class="btn btn-sm btn-primary"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

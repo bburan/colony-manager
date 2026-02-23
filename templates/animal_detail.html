@@ -17,6 +17,22 @@
                 {% include "partials/animal_detail_card.html" %}
             </div>
         </div>
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between">
+            Ears
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                {% for ear in animal.ears %}
+                    <a href="{{ url_for('ear_detail', ear_id=ear.id) }}">
+                        <li class="d-flex justify-content-between list-group-item">{{ ear.side }}
+                            <button class="btn btn-sm btn-secondary"><i class="fas fa-camera"></i> {{ ear.confocal_images|length }}</button>
+                        </li>
+                    </a>
+                {% endfor %}
+                </ul>
+                </div>
+        </div>
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Notes

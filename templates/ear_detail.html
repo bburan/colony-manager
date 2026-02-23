@@ -44,7 +44,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
 
         <div class="card shadow-sm mb-4">
             <div class="card-header">
-                <h2 class="h6 fw-bold text-uppercase">Animal</h2>
+                <h2 class="h6 fw-bold text-uppercase"><a href="{{ url_for('animal_detail', animal_id=ear.animal.id) }}">Animal</a></h2>
             </div>
             <div class="card-body">
                 {% set animal = ear.animal %}
@@ -56,7 +56,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
     <div class="col-8">
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h2 class="h6 fw-bold text-uppercase mb-0">Confocal Imaging Pipeline</h2>
+                <h2 class="h6 fw-bold text-uppercase mb-0">Images</h2>
                 <button onclick="openEditModal('AddConfocalImages', {{ ear.id }})" class="btn btn-sm">
                     <i class="fas fa-camera"> +</i></button>
             </div>
@@ -78,11 +78,10 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                             <tr>
                                 {# Unique form for every single image record #}
                                 <form id="edit-img-{{ img.id }}" action="{{ url_for('update_confocal_image', image_id=img.id) }}" method="POST">
-                                    <td class="ps-4 small fw-bold">{{ group.grouper if loop.first else "" }}</td>
-                                    <td class="text-center fw-bold">{{ img.frequency }}</td>
+                                    <td>{{ group.grouper if loop.first else "" }}</td>
+                                    <td>{{ img.frequency }}</td>
                                     <td>
-                                        <select name="status" class="form-select form-select-sm border-0 bg-light"
-                                                onchange="markDirty(this)">
+                                        <select name="status" class="border-0 bg-light" onchange="markDirty(this)">
                                             <option value="pending" {% if img.status == 'pending' %}selected{% endif %}>Pending</option>
                                             <option value="need_review" {% if img.status == 'need_review' %}selected{% endif %}>Need Review</option>
                                             <option value="analyzed" {% if img.status == 'analyzed' %}selected{% endif %}>Analyzed</option>
@@ -90,7 +89,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                         </select>
                                     </td>
                                     <td>
-                                        <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
+                                        <input type="text" name="notes" class="border-0 bg-light"
                                                value="{{ img.notes or '' }}" placeholder="Add observations..."
                                                oninput="markDirty(this)">
                                     </td>

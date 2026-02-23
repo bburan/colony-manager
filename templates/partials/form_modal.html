@@ -3,6 +3,7 @@
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
     </header>
     <main class="modal-body">
+        {% block main %}
         {{ form.hidden_tag() }}
         <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
         {%  for field in form if field.widget.input_type != 'hidden' %}
@@ -11,6 +12,7 @@
                 {{ field(class="form-control form-control-sm mb-2") }}
             </div>
         {% endfor %}
+        {% endblock %}
     </main>
     <footer class="modal-footer border-top-0 pb-4 px-4">
         <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>

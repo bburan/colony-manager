@@ -1,221 +1,62 @@
 {% extends "base.html" %}
-{% from 'partials/_form_macros.html' import render_field, render_field_full %}
 
 {% block header %}
 Breeding Management
 {% endblock %}
 
 {% block content %}
-{% set select_classes = "mt-1 block w-full border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500" %}
+<div class="card hsadow-sm">
+    <div class="card-header d-flex justify-content-between">
+        Breeding Pairs
+            <button class="btn btn-sm" onclick="openEditModal('NewBP', 0)"><i class="fas fa-heart"> +</i></button>
+    </div>
 
-<!-- Add Breeding Pair Form Section -->
-<div class="mb-8 p-6 bg-white rounded-lg shadow">
-    <h2 class="text-xl font-semibold mb-4 text-gray-800">Create New Breeding Pair</h2>
-    <form action="{{ url_for('add_breeding_pair') }}" method="POST" class="space-y-4">
-        {{ form.hidden_tag() }}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-                {{ render_field_full(form.custom_id, placeholder='e.g., Pair-01') }}
-            </div>
-            <div>
-                <label for="{{ form.male_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.male_animal.label }}</label>
-                <div class="flex items-center gap-2">
-                    {{ form.male_animal(class=select_classes) }}
-                    <button type="button" onclick="openNewAnimalModal('Male')" class="mt-1 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600" title="Add New Male Animal">+</button>
-                </div>
-            </div>
-            <div>
-                <label for="{{ form.female_animal.id }}" class="block text-sm font-medium text-gray-700">{{ form.female_animal.label }}</label>
-                 <div class="flex items-center gap-2">
-                    {{ form.female_animal(class=select_classes) }}
-                    <button type="button" onclick="openNewAnimalModal('Female')" class="mt-1 px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600" title="Add New Female Animal">+</button>
-                </div>
-            </div>
-             <div>
-                {{ render_field_full(form.start_date) }}
-            </div>
-        </div>
-        <div class="pt-2">
-            {{ form.submit(class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700 cursor-pointer") }}
-        </div>
-    </form>
-</div>
-
-<!-- All Breeding Pairs Table -->
-<h2 class="text-xl font-semibold mb-4 text-gray-800">All Breeding Pairs</h2>
-<div class="bg-white shadow overflow-hidden sm:rounded-lg">
-    <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
+    <div class="card-body table-responsive">
+        <table class="table table-hover align-middle mb-0 small">
+            <thead>
             <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pair ID</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Male</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Female</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Litters</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th>ID</th>
+                <th>Male</th>
+                <th>Female</th>
+                <th>Start Date</th>
+                <th>Total Litters</th>
+                <th>To Wean</th>
             </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+            </thead>
+            <tbody>
             {% for pair in pairs %}
-            <tr class="{{ 'bg-gray-100' if not pair.is_active else '' }}">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}" class="text-blue-600 hover:text-blue-800">{{ pair.custom_id }}</a>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.male.custom_id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.female.custom_id }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ pair.start_date.strftime('%Y-%m-%d') }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    {% if pair.is_active %}
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
-                    {% else %}
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>
-                    {% endif %}
-                </td>
-                <td class="px-6 py-4 whitespace-normal text-sm text-gray-500">
-                    {% for litter in pair.litters %}
-                    <div>
-                        Litter of {{ litter.pup_count }} on {{ litter.birth_date.strftime('%Y-%m-%d') }}
-                        {% if not litter.is_weaned and pair.is_active %}
-                        - <a href="{{ url_for('wean_litter', litter_id=litter.id) }}" class="font-medium text-blue-600 hover:text-blue-800">Wean</a>
-                        {% elif litter.is_weaned %}
-                        <span class="text-xs text-gray-400">(Weaned)</span>
-                        {% endif %}
-                    </div>
-                    {% else %}
-                    No litters recorded.
-                    {% endfor %}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {% if pair.is_active %}
-                    <button onclick="toggleModal('litter-modal-{{ pair.id }}')" class="text-indigo-600 hover:text-indigo-900">Record Litter</button>
-                    <form action="{{ url_for('deactivate_pair', pair_id=pair.id) }}" method="POST" class="inline-block ml-4">
-                        <button type="submit" class="text-red-600 hover:text-red-900">Deactivate</button>
-                    </form>
-                    {% else %}
-                    <form action="{{ url_for('reactivate_pair', pair_id=pair.id) }}" method="POST" class="inline-block">
-                        <button type="submit" class="text-green-600 hover:text-green-900">Re-activate</button>
-                    </form>
-                    {% endif %}
-                </td>
+            <tr>
+                <td><a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}">{{ pair.custom_id }}</a></td>
+                <td><a href="{{ url_for('animal_detail', animal_id=pair.male.id) }}">{{ pair.male.custom_id }}</a></td>
+                <td><a href="{{ url_for('animal_detail', animal_id=pair.female.id) }}">{{ pair.female.custom_id }}</a></td>
+                <td>{{ pair.start_date.strftime('%B %d, %Y') }}</td>
+                <td>{{ pair.litters.count() }}</td>
+                <td>{{ pair.litters.filter(wean_date == None).count() }}</td>
             </tr>
-            {% if pair.is_active %}
-                {% include 'partials/_litter_modal.html' %}
-            {% endif %}
-            {% else %}
-            <tr><td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">No breeding pairs found.</td></tr>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<!-- Add New Animal Modal -->
-<div id="new-animal-modal" class="modal hidden fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg m-4">
-        <h3 class="text-lg font-medium text-gray-900">Add New Uncaged Animal</h3>
-        <p class="text-sm text-gray-500">This animal will be added to the database but not assigned to a specific cage.</p>
-        <form id="new-animal-form" class="mt-4 space-y-4">
-            {{ g.new_animal_form.hidden_tag() }}
-            <input type="hidden" name="sex" id="new_animal_sex_value">
-            
-            {{ render_field(g.new_animal_form.custom_id, id="new_animal_custom_id") }}
-            
-            <div class="flex items-center justify-between">
-                <label class="block text-sm font-medium text-gray-700">Sex</label>
-                <input type="text" id="new_animal_sex_display" readonly class="mt-1 block w-2/3 bg-gray-100 border-gray-300 rounded-md shadow-sm py-2 px-3">
-            </div>
-            
-            {{ render_field(g.new_animal_form.species) }}
-            {{ render_field(g.new_animal_form.source) }}
-            {{ render_field(g.new_animal_form.date_of_birth) }}
-
-            <div class="flex justify-end gap-3 mt-4 pt-4 border-t">
-                <button type="button" onclick="toggleModal('new-animal-modal')" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
-                <button type="button" onclick="submitNewAnimalForm()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer">Add Animal</button>
-            </div>
-        </form>
+            </tbody>
+        </table>
     </div>
 </div>
 
 <script>
-    function toggleModal(modalID) {
-        const modal = document.getElementById(modalID);
-        if (modal) {
-            modal.classList.toggle('hidden');
-            modal.classList.toggle('is-active');
-        }
-    }
-
-    function openNewAnimalModal(sex) {
-        const modal = document.getElementById('new-animal-modal');
-        const sexValueField = document.getElementById('new_animal_sex_value');
-        const sexDisplayField = document.getElementById('new_animal_sex_display');
-        const animalIdField = document.getElementById('new_animal_custom_id');
-        const pairIdField = document.getElementById('custom_id');
-
-        if (modal && sexValueField && sexDisplayField && animalIdField && pairIdField) {
-            sexValueField.value = sex;
-            sexDisplayField.value = sex;
-
-            const pairId = pairIdField.value;
-            const sexSuffix = (sex === 'Male') ? '-M' : '-F';
-            if (pairId) {
-                animalIdField.value = pairId + sexSuffix;
-            } else {
-                animalIdField.value = '';
-            }
-
-            modal.classList.remove('hidden');
-            modal.classList.add('is-active');
-        }
-    }
-
-    async function submitNewAnimalForm() {
-        const form = document.getElementById('new-animal-form');
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
-
-        // WTForms-SQLAlchemy expects the ID, not the value, for QuerySelectFields
-        data.species = form.querySelector('[name="species"]').value;
-        data.source = form.querySelector('[name="source"]').value;
-        
-        const response = await fetch("{{ url_for('api_add_new_animal') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            const animal = result.animal;
-            const newOption = new Option(animal.custom_id, animal.id, true, true);
-            
-            let targetSelect;
-            if (animal.sex === 'Male') {
-                targetSelect = document.getElementById('male_animal');
-            } else {
-                targetSelect = document.getElementById('female_animal');
-            }
-
-            if (targetSelect) {
-                targetSelect.add(newOption);
-                targetSelect.value = animal.id;
-            }
-            
-            toggleModal('new-animal-modal');
-            // Optionally, show a success message without a page reload
+    function toggleFields(selectElement, sectionElement) {
+        console.log(selectElement.value)
+        if (selectElement.value === "__None" || selectElement.value === "") {
+            sectionElement.removeAttribute("hidden");
         } else {
-            // Handle errors - for now, we'll just alert them
-            let errorString = 'Please correct the following errors:\n';
-            for (const field in result.errors) {
-                errorString += `- ${field}: ${result.errors[field]}\n`;
-            }
-            alert(errorString);
+            sectionElement.setAttribute("hidden", "hidden");
         }
     }
-</script>
 
+    document.addEventListener("change", function(event) {
+        if (event.target && event.target.id === 'male-existing') {
+            toggleFields(event.target, document.getElementById('male-new-section'));
+        }
+        if (event.target && event.target.id === 'female-existing') {
+            toggleFields(event.target, document.getElementById('female-new-section'));
+        }
+    })
+
+</script>
 {% endblock %}

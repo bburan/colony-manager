@@ -5,36 +5,37 @@ Dashboard
 {% endblock %}
 
 {% set buttons = [
-        ('view_breeding_pairs', 'fa-heart', 'Breeding Pairs', active_pairs),
-        ('view_cages', 'fa-box', 'Cages', active_cages),
-        ('view_animals', 'fa-paw', 'Animals', active_animals),
-        ('view_histology', 'fa-microscope', 'Ears', ears_to_process),
+        ('view_breeding_pairs', 'fa-heart', 'Active Breeding Pairs', active_pairs),
+        ('view_cages', 'fa-box', 'Active Cages', active_cages),
+        ('view_animals', 'fa-paw', 'Active Animals', active_animals),
+        ('view_histology', 'fa-microscope', 'Unlabeled Ears', ears_to_process),
         ]
 %}
 
 {% block content %}
-<div class="row g-4 mb-4">
+<div class="row mb-4">
 
-{% for (url, icon, label, number) in buttons %}
-<div class="col-md-6 col-lg-3">
-    <div class="card shadow-sm">
-        <a href="{{ url_for(url) }}" class="stretched-link"></a>
-        <div class="card-body p-4">
-            <div class="d-flex align-items-center">
-                <i class="fas {{ icon }} fa-2x"></i>
-                <div class="ms-4">
-                    <h3 class="small fw-bold text-uppercase mb-1">
-                        {{ label }}
-                    </h3>
-                    <div class="h4">{{ number }}</div>
+    {% for (url, icon, label, number) in buttons %}
+    <div class="col-md-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+            <a href="{{ url_for(url) }}" class="stretched-link"></a>
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center">
+                    <i class="fas {{ icon }} fa-2x"></i>
+                    <div class="ms-4">
+                        <h3 class="small fw-bold text-uppercase mb-1">
+                            {{ label }}
+                        </h3>
+                        <div class="h4">{{ number }}</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+    {% endfor %}
 </div>
-{% endfor %}
 
-<div class="row g-4">
+<div class="row mb-4">
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header">
@@ -61,9 +62,6 @@ Dashboard
                             <td>{{ event.procedure.name }}</td>
                             <td>
                                 {{ event.scheduled_date.strftime('%b %d') }}
-                                {% if event.scheduled_date == today %}
-                                    <span class="badge bg-success-subtle text-success ms-1">Today</span>
-                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge {{ 'bg-danger' if event.scheduled_date < today else 'bg-secondary-subtle text-secondary' }} rounded-pill" style="padding: 0.35em 0.65em;">
@@ -83,6 +81,104 @@ Dashboard
             </div>
         </div>
     </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-4">
+        <div class="card shadow-sm">
+            <div class="card-header">Upcoming Litters</div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for litter in upcoming_litters %}
+                    <li class="list-group-item">
+                        {{ litter.pup_count }} pups {{  litter.age_in_days }} days old from {{ litter.breeding_pair.custom_id }}
+                        <a class="stretched-link" href="{{ url_for('breeding_pair_detail', pair_id=litter.breeding_pair.id) }}"></a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-4">
+        <div class="card shadow-sm">
+            <div class="card-header">Animals Without a Study</div>
+            <div class="card-body">
+                <div>{{ available_animals_n }} animals available for testing</div>
+                <ul class="list-group">
+                    {% for animal in unassigned_animals %}
+                        <li class="list-group-item">
+                            {{ animal.custom_id }}
+                            <a class="stretched-link" href="{{ url_for('animal_detail', animal_id=animal.id) }}"></a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-4">
+        <div class="card shadow-sm">
+            <div class="card-header">Recently Terminated</div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for animal in recent_terminations %}
+                        <li class="list-group-item">
+                        {{ animal.custom_id }} on {{ animal.termination_date.strftime('%B %d, %Y') }}
+                        <a class="stretched-link" href="{{ url_for('animal_detail', animal_id=animal.id) }}"></a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-6">
+        <div class="card shadow-sm">
+            <div class="card-header">Images pending analysis</div>
+            <div class="card-body">
+                <ul class="list-group small">
+                    {% for ear_group in image_analysis_pending|groupby('ear') %}
+                        {% for type_group in ear_group.list|groupby('image_type.name') %}
+                            <li class="list-group-item">
+                            <a class="stretched-link" href="{{ url_for('ear_detail', ear_id=ear_group.grouper.id) }}"></a>
+                            {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
+                            <ul class="list-group list-group-horizontal small">
+                            {% for image in type_group.list %}
+                                <li class="list-group-item">{{ image.frequency }}</li>
+                            {% endfor %}
+                            </ul>
+                        {% endfor %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6">
+        <div class="card shadow-sm">
+            <div class="card-header">Images pending review</div>
+            <div class="card-body">
+                <ul class="list-group small">
+                    {% for ear_group in image_analysis_review|groupby('ear') %}
+                        {% for type_group in ear_group.list|groupby('image_type.name') %}
+                            <li class="list-group-item">
+                            <a class="stretched-link" href="{{ url_for('ear_detail', ear_id=ear_group.grouper.id) }}"></a>
+                            {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
+                            <ul class="list-group list-group-horizontal small">
+                                {% for image in type_group.list %}
+                                    <li class="list-group-item">{{ image.frequency }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endfor %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

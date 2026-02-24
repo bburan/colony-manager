@@ -3,7 +3,7 @@ import os
 from markupsafe import Markup
 from flask import Flask, render_template, request, redirect, url_for, flash, g
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData, desc, func
+from sqlalchemy import MetaData, func
 from flask_migrate import Migrate
 from flask_wtf import FlaskForm
 from wtforms import StringField, IntegerField, DateField, SelectField, SelectMultipleField, TextAreaField
@@ -38,40 +38,46 @@ study_animals = db.Table('study_animals',
 )
 
 # --- Models ---
-class Species(db.Model):
+class TimestampModel(db.Model):
+    """Base model that automatically adds created and updated timestamps."""
+    __abstract__ = True  # Prevents SQLAlchemy from creating a 'timestamp_model' table
+    created_at = db.Column(db.DateTime(timezone=True), default=func.now())
+    updated_at = db.Column(db.DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+class Species(TimestampModel):
     # Species available
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='species', lazy=True)
     cages = db.relationship('Cage', backref='species', lazy=True)
 
-class Source(db.Model):
+class Source(TimestampModel):
     # Source for a particular animal
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='source', lazy=True)
 
-class AnimalProcedure(db.Model):
+class AnimalProcedure(TimestampModel):
     # Any sort of procedure that might be performed on an animal in a systemic fashion (e.g., noise-exposure, injection, etc.).
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
 
-class AnimalProcedureTarget(db.Model):
+class AnimalProcedureTarget(TimestampModel):
     # Any sort of target for a procedure (e.g., right ear, left ear, animal, etc.)
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     events = db.relationship('AnimalEvent', backref='procedure_target', lazy=True)
 
-class TerminationReason(db.Model):
+class TerminationReason(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     animals = db.relationship('Animal', backref='termination_reason', lazy=True)
 
-class Cage(db.Model):
+class Cage(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -116,7 +122,7 @@ class Cage(db.Model):
             return 'N/A'
         return ', '.join(sorted(sources))
 
-class Animal(db.Model):
+class Animal(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=True)
     cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
@@ -200,7 +206,7 @@ class Animal(db.Model):
         age = getattr(self, f'age_in_{unit}s')
         return f'{age:.1f} {unit}s'
 
-class BreedingPair(db.Model):
+class BreedingPair(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
@@ -217,7 +223,7 @@ class BreedingPair(db.Model):
         foreign_keys='Animal.breeding_pair_id'
     )
 
-class Litter(db.Model):
+class Litter(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=False)
     dob = db.Column(db.Date, nullable=False)
@@ -229,7 +235,7 @@ class Litter(db.Model):
         return (date.today() - self.dob).days
 
 
-class AnimalEvent(db.Model):
+class AnimalEvent(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     procedure_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id'), nullable=False)
@@ -254,19 +260,19 @@ class AnimalEvent(db.Model):
             return self.scheduled_date
         return self.completion_date
 
-class ImmunolabelingPanel(db.Model):
+class ImmunolabelingPanel(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     reagents = db.relationship('Reagent', backref='panel', lazy='dynamic', cascade="all, delete-orphan")
     ears = db.relationship('Ear', backref='panel', lazy=True)
 
-class Reagent(db.Model):
+class Reagent(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=False)
 
-class Ear(db.Model):
+class Ear(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
     side = db.Column(db.String(5), nullable=False)
@@ -277,21 +283,38 @@ class Ear(db.Model):
     notes = db.Column(db.Text, nullable=True)
     confocal_images = db.relationship('ConfocalImage', backref='ear', lazy=True)
 
-class ConfocalImageType(db.Model):
+    @property
+    def full_display(self):
+        return f'{self.animal.custom_id} {self.side}'
+
+    def __eq__(self, other):
+        if not isinstance(other, Ear):
+            return NotImplemented
+        return self.id == other.id
+
+    def __lt__(self, other):
+        if not isinstance(other, Ear):
+            return NotImplemented
+        return (self.animal.custom_id, self.side) < (other.animal.custom_id, other.side)
+
+class ConfocalImageType(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     confocal_images = db.relationship('ConfocalImage', backref='image_type', lazy=True)
 
-class ConfocalImage(db.Model):
+class ConfocalImage(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     ear_id = db.Column(db.Integer, db.ForeignKey('ear.id'), nullable=False)
-    #ear = db.relationship('Ear')
     frequency = db.Column(db.Integer, nullable=False)
     image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id'), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(150), nullable=True)
 
-class Study(db.Model):
+    @property
+    def full_display(self):
+        return f'{self.ear.full_display} {self.image_type.name} {self.frequency}'
+
+class Study(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -501,19 +524,12 @@ class ConfocalImageForm(FlaskForm):
 @app.route('/')
 def index():
     today = date.today()
-    thirty_days_ago = today - timedelta(days=30)
 
     # 1. Metrics for Top Cards
-    # Using .filter instead of list comprehension for performance
     active_cages_count = Cage.query.filter(Cage.animals.any()).count()
-
-    # Active animals (assuming active means not yet terminated)
     active_animals_count = Animal.query.filter(Animal.termination_date == None).count()
-
     active_breeding_pairs_count = BreedingPair.query.filter_by(is_active=True).count()
-
-    # Ears for processing (those not yet dissected)
-    ears_for_processing_count = Ear.query.filter(Ear.dissection_date == None).count()
+    ears_for_processing_count = Ear.query.filter(Ear.immunolabel_date == None).count()
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
     upcoming_events = AnimalEvent.query.filter(
@@ -521,35 +537,48 @@ def index():
         AnimalEvent.scheduled_date <= today + timedelta(days=7)
     ).order_by(AnimalEvent.scheduled_date.asc()).all()
 
-    # 3. Action Required & Summary Logic
-    overdue_events_count = AnimalEvent.query.filter(
-        AnimalEvent.completion_date == None,
-        AnimalEvent.scheduled_date <= today,
-    ).count()
-
-    active_studies_count = Study.query.count()
-
     # Animals terminated in the last 30 days
     recent_terminations = Animal.query.filter(
-        Animal.termination_date >= thirty_days_ago
-    ).count()
+        Animal.termination_date >= (date.today() - timedelta(days=30))
+    )
 
-    return render_template('index.html',
-                           # Card Metrics
-                           active_cages=active_cages_count,
-                           active_animals=active_animals_count,
-                           active_pairs=active_breeding_pairs_count,
-                           ears_to_process=ears_for_processing_count,
+    upcoming_litters = Litter.query.filter(Litter.wean_date == None).order_by(Litter.dob).all()
 
-                           # Schedule & Alerts
-                           upcoming_events=upcoming_events,
-                           overdue_events_count=overdue_events_count,
-                           today=today,
+    active_males = db.session.query(BreedingPair.male_animal_id).filter_by(is_active=True)
+    active_females = db.session.query(BreedingPair.female_animal_id).filter_by(is_active=True)
+    active_parent_ids = active_males.union(active_females)
+    unassigned_animals = Animal.query.filter(
+        Animal.termination_date == None,
+        ~Animal.studies.any(),
+        Animal.custom_id != None,
+        ~Animal.id.in_(active_parent_ids),
+    )
 
-                           # Summary Stats
-                           active_studies_count=active_studies_count,
-                           recent_terminations=recent_terminations
-                           )
+    available_animals_n = Animal.query.filter(Animal.custom_id == None).count()
+
+    image_analysis_pending = ConfocalImage.query.filter_by(status='pending')
+    image_analysis_review = ConfocalImage.query.filter_by(status='need_review')
+
+    return render_template(
+        'index.html',
+        # Card Metrics
+        active_cages=active_cages_count,
+        active_animals=active_animals_count,
+        active_pairs=active_breeding_pairs_count,
+        ears_to_process=ears_for_processing_count,
+
+        # Schedule & Alerts
+        upcoming_events=upcoming_events,
+
+        # Additional information
+        recent_terminations=recent_terminations,
+        upcoming_litters=upcoming_litters,
+        unassigned_animals=unassigned_animals,
+        available_animals_n=available_animals_n,
+        image_analysis_pending=image_analysis_pending,
+        image_analysis_review=image_analysis_review,
+        today=today,
+   )
     
 @app.route('/calendar')
 def calendar():
@@ -1061,8 +1090,10 @@ def add_confocal_images(ear_id):
 
         db.session.commit()
         flash(f'Images added for {ear.animal.custom_id} {ear.side}', 'success')
+    else:
+        flash(f'Error adding images for {ear.animal.custom_id} {ear.side}', 'danger')
 
-    return redirect(url_for('view_histology'))
+    return redirect(request.referrer or url_for('view_histology'))
 
 @app.route('/update_confocal_image/<int:image_id>', methods=['POST'])
 def update_confocal_image(image_id):

@@ -4,135 +4,68 @@
 Dashboard
 {% endblock %}
 
+{% set buttons = [
+        ('view_breeding_pairs', 'fa-heart', 'Breeding Pairs', active_pairs),
+        ('view_cages', 'fa-box', 'Cages', active_cages),
+        ('view_animals', 'fa-paw', 'Animals', active_animals),
+        ('view_histology', 'fa-microscope', 'Ears', ears_to_process),
+        ]
+%}
+
 {% block content %}
-<div class="row g-4 mb-5">
-    <div class="col-md-6 col-lg-3">
-        <article class="card border-0 shadow-sm h-100">
-            <div class="card-body p-4">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0 bg-pink-subtle p-3 rounded-3">
-                        <i class="fas fa-heart fa-2x text-pink"></i>
-                    </div>
-                    <div class="ms-4">
-                        <h3 class="small fw-bold text-uppercase text-secondary mb-1" style="font-size: 0.65rem;">
-                            Breeding Pairs
-                        </h3>
-                        <div class="h4 fw-bold mb-0 text-dark">{{ active_pairs }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer bg-light border-0 py-2 px-4 text-end">
-                <a href="{{ url_for('view_breeding_pairs') }}" class="small text-decoration-none fw-bold text-pink">
-                    Manage <i class="fas fa-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </article>
-    </div>
+<div class="row g-4 mb-4">
 
+    {% for (url, icon, label, number) in buttons %}
     <div class="col-md-6 col-lg-3">
-        <article class="card border-0 shadow-sm h-100">
+        <div class="card shadow-sm">
+            <a href="{{ url_for(url) }}" class="stretched-link"></a>
             <div class="card-body p-4">
                 <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0 bg-primary-subtle p-3 rounded-3">
-                        <i class="fas fa-box fa-2x text-primary"></i>
-                    </div>
+                    <i class="fas {{ icon }} fa-2x"></i>
                     <div class="ms-4">
-                        <h3 class="small fw-bold text-uppercase text-secondary mb-1" style="font-size: 0.65rem;">
-                            Active Cages
+                        <h3 class="small fw-bold text-uppercase mb-1">
+                            {{ label }}
                         </h3>
-                        <div class="h4 fw-bold mb-0 text-dark">{{ active_cages }}</div>
+                        <div class="h4">{{ number }}</div>
                     </div>
                 </div>
             </div>
-            <div class="card-footer bg-light border-0 py-2 px-4 text-end">
-                <a href="{{ url_for('view_cages') }}" class="small text-decoration-none fw-bold text-primary">
-                    View All <i class="fas fa-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </article>
+        </div>
     </div>
-
-    <div class="col-md-6 col-lg-3">
-        <article class="card border-0 shadow-sm h-100">
-            <div class="card-body p-4">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0 bg-success-subtle p-3 rounded-3">
-                        <i class="fas fa-paw fa-2x text-success"></i>
-                    </div>
-                    <div class="ms-4">
-                        <h3 class="small fw-bold text-uppercase text-secondary mb-1" style="font-size: 0.65rem;">
-                            Active Animals
-                        </h3>
-                        <div class="h4 fw-bold mb-0 text-dark">{{ active_animals }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer bg-light border-0 py-2 px-4 text-end">
-                <a href="{{ url_for('view_animals') }}" class="small text-decoration-none fw-bold text-success">
-                    Overview <i class="fas fa-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </article>
-    </div>
-
-    <div class="col-md-6 col-lg-3">
-        <article class="card border-0 shadow-sm h-100">
-            <div class="card-body p-4">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0 bg-purple-subtle p-3 rounded-3">
-                        <i class="fas fa-vial-circle-check fa-2x text-purple"></i>
-                    </div>
-                    <div class="ms-4">
-                        <h3 class="small fw-bold text-uppercase text-secondary mb-1" style="font-size: 0.65rem;">
-                            Tissue Queue
-                        </h3>
-                        <div class="h4 fw-bold mb-0 text-dark">{{ ears_to_process }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer bg-light border-0 py-2 px-4 text-end">
-                <a href="{{ url_for('view_histology') }}" class="small text-decoration-none fw-bold text-purple">
-                    Pipeline <i class="fas fa-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </article>
-    </div>
-</div>
+    {% endfor %}
 
 <div class="row g-4">
-    <div class="col-lg-12">
-        <article class="card border-0 shadow-sm h-100">
-            <header class="card-header bg-white border-0 pt-3 px-4 d-flex justify-content-between align-items-center">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-                    <i class="fas fa-calendar-alt me-2"></i>Upcoming Schedule (overdue and next 7 days)
-                </h2>
-            </header>
-            <main class="table-responsive">
-                <table class="table table-hover align-middle mb-0 small">
-                    <thead class="bg-light text-secondary text-uppercase fw-bold" style="font-size: 0.65rem;">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <i class="fas fa-calendar me-2"></i>Upcoming Schedule (overdue and next 7 days)
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover small">
+                    <thead>
                         <tr>
-                            <th class="ps-4 border-0">Animal ID</th>
-                            <th class="border-0">Procedure</th>
-                            <th class="border-0">Date</th>
-                            <th class="pe-4 border-0 text-end">Status</th>
+                            <th>Animal ID</th>
+                            <th>Procedure</th>
+                            <th>Date</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for event in upcoming_events %}
                         <tr>
-                            <td class="ps-4 fw-bold">
+                            <td>
                                 <a href="{{ url_for('animal_detail', animal_id=event.animal_id) }}" class="text-decoration-none text-primary">
                                     {{ event.animal.custom_id }}
                                 </a>
                             </td>
                             <td>{{ event.procedure.name }}</td>
-                            <td class="text-muted">
+                            <td>
                                 {{ event.scheduled_date.strftime('%b %d') }}
                                 {% if event.scheduled_date == today %}
                                     <span class="badge bg-success-subtle text-success ms-1">Today</span>
                                 {% endif %}
                             </td>
-                            <td class="pe-4 text-end">
+                            <td>
                                 <span class="badge {{ 'bg-danger' if event.scheduled_date < today else 'bg-secondary-subtle text-secondary' }} rounded-pill" style="padding: 0.35em 0.65em;">
                                     {{ 'Overdue' if event.scheduled_date < today else 'Pending' }}
                                 </span>
@@ -140,7 +73,7 @@ Dashboard
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="4" class="text-center py-5 text-muted fst-italic">
+                            <td colspan="4">
                                 <i class="fas fa-check-circle d-block mb-2 fs-4 opacity-25"></i>
                                 No upcoming events for the next 7 days.
                             </td>
@@ -148,8 +81,8 @@ Dashboard
                         {% endfor %}
                     </tbody>
                 </table>
-            </main>
-        </article>
+            </div>
+        </div>
     </div>
     </div>
 </div>

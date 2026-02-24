@@ -1416,7 +1416,7 @@ def modal_form(item_type, item_id):
 def ajax_animal_events(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     return render_template(
-        'event_popover.html',
+        'partials/event_popover.html',
         animal=animal,
     )
 
@@ -1424,7 +1424,7 @@ def ajax_animal_events(animal_id):
 def ajax_ear_images(ear_id):
     ear = Ear.query.get_or_404(ear_id)
     return render_template(
-        'ear_images_popover.html',
+        'partials/ear_images_popover.html',
         ear=ear,
     )
 

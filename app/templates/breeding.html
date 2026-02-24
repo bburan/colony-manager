@@ -8,7 +8,8 @@ Breeding Management
 <div class="card hsadow-sm">
     <div class="card-header d-flex justify-content-between">
         Breeding Pairs
-            <button class="btn btn-sm" onclick="openEditModal('NewBP', 0)"><i class="fas fa-heart"> +</i></button>
+            <button class="btn btn-sm"
+                    onclick="openModal('{{ url_for('breeding.create_breeding_pair_modal') }}')"><i class="fas fa-heart"> +</i></button>
     </div>
 
     <div class="card-body table-responsive">
@@ -26,9 +27,9 @@ Breeding Management
             <tbody>
             {% for pair in pairs %}
             <tr>
-                <td><a href="{{ url_for('breeding_pair_detail', pair_id=pair.id) }}">{{ pair.custom_id }}</a></td>
-                <td><a href="{{ url_for('animal_detail', animal_id=pair.male.id) }}">{{ pair.male.custom_id }}</a></td>
-                <td><a href="{{ url_for('animal_detail', animal_id=pair.female.id) }}">{{ pair.female.custom_id }}</a></td>
+                <td><a href="{{ url_for('breeding.view_breeding_pair', breeding_pair_id=pair.id) }}">{{ pair.custom_id }}</a></td>
+                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.male.id) }}">{{ pair.male.custom_id }}</a></td>
+                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.female.id) }}">{{ pair.female.custom_id }}</a></td>
                 <td>{{ pair.start_date.strftime('%B %d, %Y') }}</td>
                 <td>{{ pair.litters.count() }}</td>
                 <td>{{ pair.litters.filter(wean_date == None).count() }}</td>

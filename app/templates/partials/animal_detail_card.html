@@ -1,7 +1,7 @@
 <dl class="row">
     <dt class="col-4">Cage</dt>
     <dd class="col-8">
-        <a href="{{ url_for('cage_detail', cage_id=animal.cage.id) }}">
+        <a href="{{ url_for('cages.view_cage', cage_id=animal.cage.id) }}">
             {{ animal.cage.custom_id }}
         </a>
     </dd>

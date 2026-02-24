@@ -30,7 +30,7 @@ Study {{ study.name }}
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Description</h2>
-                <button class="btn btn-sm" onclick="openEditModal('Study', {{ study.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('studies.edit_study_modal', study_id=study.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 {{ study.description }}

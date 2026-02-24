@@ -11,7 +11,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase">Notes</h2>
-                <button class="btn btn-sm" onclick="openEditModal('EarNote', {{ ear.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 <dl>
@@ -22,11 +22,13 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                 </dl>
             </div>
         </div>
+    </div>
 
+    <div class="col-4">
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase">Ear</h2>
-                <button class="btn btn-sm" onclick="openEditModal('EarHistology', {{ ear.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
@@ -41,10 +43,12 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                 </dl>
             </div>
         </div>
+    </div>
 
+    <div class="col-4">
         <div class="card shadow-sm mb-4">
             <div class="card-header">
-                <h2 class="h6 fw-bold text-uppercase"><a href="{{ url_for('animal_detail', animal_id=ear.animal.id) }}">Animal</a></h2>
+                <h2 class="h6 fw-bold text-uppercase"><a href="{{ url_for('animals.view_animal', animal_id=ear.animal.id) }}">Animal</a></h2>
             </div>
             <div class="card-body">
                 {% set animal = ear.animal %}
@@ -52,12 +56,14 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
             </div>
         </div>
     </div>
+</div>
 
-    <div class="col-8">
+<div class="row">
+    <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase mb-0">Images</h2>
-                <button onclick="openEditModal('AddConfocalImages', {{ ear.id }})" class="btn btn-sm">
+                <button onclick="openModal('{{ url_for('histology.create_confocal_images_modal', ear_id=ear.id) }}')" class="btn btn-sm">
                     <i class="fas fa-camera"> +</i></button>
             </div>
 
@@ -77,7 +83,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                             {% for img in group.list|sort(attribute='frequency') %}
                             <tr>
                                 {# Unique form for every single image record #}
-                                <form id="edit-img-{{ img.id }}" action="{{ url_for('update_confocal_image', image_id=img.id) }}" method="POST">
+                                <form id="edit-img-{{ img.id }}" action="{{ url_for('histology.update_confocal_image', image_id=img.id) }}" method="POST">
                                     <td>{{ group.grouper if loop.first else "" }}</td>
                                     <td>{{ img.frequency }}</td>
                                     <td>
@@ -102,7 +108,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     </td>
                                 </form>
                                 {# Separate delete form #}
-                                <form id="del-{{ img.id }}" action="{{ url_for('delete_confocal_image', image_id=img.id) }}" method="POST" class="d-none"></form>
+                                <form id="del-{{ img.id }}" action="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}" method="POST" class="d-none"></form>
                             </tr>
                             {% endfor %}
                         {% endfor %}

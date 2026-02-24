@@ -21,7 +21,7 @@
 <body>
     <nav class="navbar navbar-expand-lg shadow-sm">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+            <a class="navbar-brand fw-bold" href="{{ url_for('main.view_dashboard') }}">
                 <i class="fas fa-dna me-2"></i>Colony Manager
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
@@ -31,14 +31,14 @@
             <div class="collapse navbar-collapse" id="appNav">
                 <ul class="navbar-nav mb-2 ms-auto">
                     {% set nav_items = [
-                        ('index', 'Dashboard'),
-                        ('calendar', 'Calendar'),
-                        ('view_breeding_pairs', 'Breeding'),
-                        ('view_cages', 'Cages'),
-                        ('view_animals', 'Animals'),
-                        ('view_studies', 'Studies'),
-                        ('view_histology', 'Histology'),
-                        ('settings', 'Settings')
+                        ('main.view_dashboard', 'Dashboard'),
+                        ('main.view_calendar', 'Calendar'),
+                        ('breeding.list_breeding_pairs', 'Breeding'),
+                        ('cages.list_cages', 'Cages'),
+                        ('animals.list_animals', 'Animals'),
+                        ('studies.list_studies', 'Studies'),
+                        ('histology.list_histology', 'Histology'),
+                        ('main.list_settings', 'Settings')
                     ] %}
                     {% for endpoint, label in nav_items %}
                     <li class="nav-item">
@@ -171,7 +171,9 @@
             }
         }
 
-        async function openEditModal(itemType, itemId) {
+        async function openModal(url) {
+            console.log('Loading');
+            console.log(url);
             // Handles loading AJAX content for modals when a button is clicked
             const modalBody = document.getElementById('modalBody');
             const editModalElement = document.getElementById('editModal');
@@ -184,7 +186,7 @@
                 </div>`;
             modalInstance.show();
             try {
-                const response = await fetch(`/ajax/form/${itemType}/${itemId}`);
+                const response = await fetch(url);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const html = await response.text();
 

@@ -28,7 +28,7 @@ Breeding Pair {{ pair.custom_id }}
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between">
                 Litters
-                <button class="btn btn-sm" onclick="openEditModal('AddLitter', {{ pair.id }})"><i class="fas fa-paw"> +</i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('breeding.create_litter_modal', breeding_pair_id=pair.id) }}')"><i class="fas fa-paw"> +</i></button>
             </div>
             <div class="card-body">
                 <table class="table table-hover small">
@@ -48,9 +48,9 @@ Breeding Pair {{ pair.custom_id }}
                                 <td>{{ macros.format_date(litter.wean_date) }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-sm" onclick="openEditModal('EditLitter', {{ litter.id }})"><i class="fas fa-pencil"></i></button>
-                                        <button class="btn btn-sm" onclick="openEditModal('WeanLitter', {{ litter.id }})"><i class="fas fa-sitemap"></i></button>
-                                        <button class="btn btn-sm" onclick="openEditModal('DeleteLitter', {{ litter.id }})"><i class="fas fa-trash"></i></button>
+                                        <button class="btn btn-sm" onclick="openModal('{{ url_for('breeding.edit_litter_modal', litter_id=litter.id) }}')"><i class="fas fa-pencil"></i></button>
+                                        <button class="btn btn-sm" onclick="openModal('{{ url_for('breeding.wean_litter_modal', litter_id=litter.id) }}')"><i class="fas fa-sitemap"></i></button>
+                                        <button class="btn btn-sm" onclick="openModal('{{ url_for('breeding.delete_litter_modal', litter_id=litter.id) }}')"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </td>
                             </tr>

@@ -1,6 +1,6 @@
 <div class="modal fade" id="image-modal-{{ ear.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form action="{{ url_for('add_confocal_images', ear_id=ear.id) }}" method="POST" class="modal-content border-0 shadow">
+        <form action="{{ url_for('histology.create_confocal_image', ear_id=ear.id) }}" method="POST" class="modal-content border-0 shadow">
             <header class="modal-header border-0 pt-4 px-4">
                 <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
                     <i class="fas fa-images me-2"></i>New Imaging Session: {{ ear.side }}

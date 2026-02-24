@@ -34,8 +34,8 @@
                 {% for event in events %}
                     <li class="list-group-item {{ class_map[event.status] }}">
                         <div class="btn-group float-end">
-                            <button class="btn btn-sm" onclick="openEditModal('AnimalEvent', {{ event.id }})"><i class="fas fa-pencil"></i></button>
-                            <button class="btn btn-sm" onclick="openEditModal('DeleteAnimalEvent', {{ event.id }})"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-pencil"></i></button>
+                            <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-trash"></i></button>
                         </div>
                         <div>{{ event.procedure.name }}</div>
                         <div class="small muted">{{ event.notes }}</div>

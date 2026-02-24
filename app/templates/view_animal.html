@@ -11,12 +11,14 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between">
                 Information
-                <button class="btn btn-sm" onclick="openEditModal('Animal', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 {% include "partials/animal_detail_card.html" %}
             </div>
         </div>
+
+        {% if animal.ears.count() > 0 %}
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between">
             Ears
@@ -24,7 +26,7 @@
             <div class="card-body">
                 <ul class="list-group">
                 {% for ear in animal.ears %}
-                    <a href="{{ url_for('ear_detail', ear_id=ear.id) }}">
+                    <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">
                         <li class="d-flex justify-content-between list-group-item">{{ ear.side }}
                             <button class="btn btn-sm btn-secondary"><i class="fas fa-camera"></i> {{ ear.confocal_images|length }}</button>
                         </li>
@@ -33,10 +35,12 @@
                 </ul>
                 </div>
         </div>
+        {% endif %}
+
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Notes
-                <button class="btn btn-sm" onclick="openEditModal('AnimalNote', {{ animal.id }})"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ animal.notes }}</div>
         </div>
@@ -46,7 +50,7 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Events
-                <button class="btn btn-sm" onclick="openEditModal('NewAnimalEvent', {{ animal.id }})"><i class="fas fa-calendar-alt"> +</i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')"><i class="fas fa-calendar"> +</i></button>
             </div>
             <div class="card-body">
                 {{ macros.render_event_list(animal) }}

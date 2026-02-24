@@ -1,8 +1,12 @@
 {% extends "base.html" %}
 
+{% block header %}
+    Cage {{ cage.custom_id }}
+{% endblock %}
+
 {% block content %}
 <nav class="mb-4">
-    <a href="{{ url_for('view_cages') }}" class="text-decoration-none small text-muted">
+    <a href="{{ url_for('cages.list_cages') }}" class="text-decoration-none small text-muted">
         &larr; Back to Cages
     </a>
 </nav>
@@ -10,8 +14,8 @@
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
-            <div class="card-header py-3 d-flex justify-content-between">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Cage {{ cage.custom_id }}</h2>
+            <div class="card-header">
+                Details
             </div>
             <div class="card-body">
                 <dl class="row mb-0 small">
@@ -28,8 +32,8 @@
         </div>
 
         <section class="card shadow-sm mb-4">
-            <header class="card-header py-3">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">Animals in this Cage</h2>
+            <header class="card-header">
+                Animals in this Cage
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
@@ -41,9 +45,9 @@
 
     <div class="col-lg-4">
         <div class="card shadow-sm">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Notes</h2>
-                <button class="btn btn-sm" onclick="openEditModal('CageNote', {{ cage.id }})"><i class="fas fa-pencil"></i></button>
+            <div class="card-header d-flex justify-content-between">
+                Notes
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('cages.update_cage_note_modal', cage_id=cage.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ cage.notes }}</div>
         </div>

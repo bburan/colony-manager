@@ -48,7 +48,7 @@ class Cage(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
-    species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey('species.id', use_alter=True), nullable=False)
     animals = db.relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
 
     @property
@@ -90,15 +90,15 @@ class Cage(TimestampModel):
 class Animal(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=True)
-    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id'), nullable=False)
-    species_id = db.Column(db.Integer, db.ForeignKey('species.id'), nullable=False)
+    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id', use_alter=True), nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey('species.id', use_alter=True), nullable=False)
     sex = db.Column(db.String(10), nullable=False)
     dob = db.Column(db.Date, nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), nullable=True)
+    source_id = db.Column(db.Integer, db.ForeignKey('source.id', use_alter=True), nullable=True)
     breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     termination_date = db.Column(db.Date, nullable=True)
-    termination_reason_id = db.Column(db.Integer, db.ForeignKey('termination_reason.id'), nullable=True)
+    termination_reason_id = db.Column(db.Integer, db.ForeignKey('termination_reason.id', use_alter=True), nullable=True)
     events = db.relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     ears = db.relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     breeding_pair = db.relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
@@ -170,9 +170,9 @@ class BreedingPair(TimestampModel):
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
     notes = db.Column(db.Text, nullable=True)
-    male_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    male_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
     male = db.relationship('Animal', foreign_keys=[male_animal_id])
-    female_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    female_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
     female = db.relationship('Animal', foreign_keys=[female_animal_id])
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     litters = db.relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
@@ -180,7 +180,7 @@ class BreedingPair(TimestampModel):
 
 class Litter(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
-    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=False)
+    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id', use_alter=True), nullable=False)
     dob = db.Column(db.Date, nullable=False)
     pup_count = db.Column(db.Integer, nullable=False)
     wean_date = db.Column(db.Date, nullable=True)
@@ -191,9 +191,9 @@ class Litter(TimestampModel):
 
 class AnimalEvent(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    procedure_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id'), nullable=False)
-    procedure_target_id = db.Column(db.Integer, db.ForeignKey('animal_procedure_target.id'), nullable=False)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
+    procedure_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
+    procedure_target_id = db.Column(db.Integer, db.ForeignKey('animal_procedure_target.id', use_alter=True), nullable=False)
     scheduled_date = db.Column(db.Date, nullable=False)
     completion_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text, nullable=True)
@@ -223,12 +223,12 @@ class Reagent(TimestampModel):
 
 class Ear(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
     side = db.Column(db.String(5), nullable=False)
     cryoprotection_date = db.Column(db.Date, nullable=True)
     dissection_date = db.Column(db.Date, nullable=True)
     immunolabel_date = db.Column(db.Date, nullable=True)
-    panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=True)
+    panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id', use_alter=True), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     confocal_images = db.relationship('ConfocalImage', backref='ear', lazy=True)
 
@@ -251,9 +251,9 @@ class ConfocalImageType(TimestampModel):
 
 class ConfocalImage(TimestampModel):
     id = db.Column(db.Integer, primary_key=True)
-    ear_id = db.Column(db.Integer, db.ForeignKey('ear.id'), nullable=False)
+    ear_id = db.Column(db.Integer, db.ForeignKey('ear.id', use_alter=True), nullable=False)
     frequency = db.Column(db.Integer, nullable=False)
-    image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id'), nullable=False)
+    image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id', use_alter=True), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(150), nullable=True)
 

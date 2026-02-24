@@ -5,4 +5,4 @@ app = create_app()
 
 if __name__ == '__main__':
     # Run the application in debug mode (turn off for production!)
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=9001, debug=True)

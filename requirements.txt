@@ -4,3 +4,5 @@ Flask-Migrate>=3.0
 Flask-WTF>=1.0
 python-dotenv>=0.19
 WTForms[email]>=3.0
+wtforms-sqlalchemy
+psycopg2-binary

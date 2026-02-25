@@ -1,8 +1,9 @@
 from datetime import date
-from sqlalchemy import func
+from sqlalchemy import func, orm
 from app import db
-from flask_login import UserMixin
+from flask_login import current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+
 
 # --- Association Tables ---
 study_animals = db.Table('study_animals',
@@ -15,11 +16,16 @@ user_roles = db.Table('user_roles',
     db.Column('role_id', db.Integer, db.ForeignKey('user_role.id'), primary_key=True)
 )
 
-class UserRole(db.Model):
+class VersionedModel(db.Model):
+    """Base model that automatically adds created and updated timestamps."""
+    __abstract__ = True
+    __versioned__ = {}
+
+class UserRole(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
 
-class User(UserMixin, db.Model):
+class User(UserMixin, VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(150), unique=False, nullable=False)
     last_name = db.Column(db.String(150), unique=False, nullable=False)
@@ -47,42 +53,36 @@ class User(UserMixin, db.Model):
     def display_name(self):
         return f'{self.first_name} {self.last_name}'
 
-class TimestampModel(db.Model):
-    """Base model that automatically adds created and updated timestamps."""
-    __abstract__ = True
-    created_at = db.Column(db.DateTime(timezone=True), default=func.now())
-    updated_at = db.Column(db.DateTime(timezone=True), default=func.now(), onupdate=func.now())
-
-class Species(TimestampModel):
+class Species(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='species', lazy=True)
     cages = db.relationship('Cage', backref='species', lazy=True)
 
-class Source(TimestampModel):
+class Source(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='source', lazy=True)
 
-class AnimalProcedure(TimestampModel):
+class AnimalProcedure(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
 
-class AnimalProcedureTarget(TimestampModel):
+class AnimalProcedureTarget(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     events = db.relationship('AnimalEvent', backref='procedure_target', lazy=True)
 
-class TerminationReason(TimestampModel):
+class TerminationReason(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     animals = db.relationship('Animal', backref='termination_reason', lazy=True)
 
-class Cage(TimestampModel):
+class Cage(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     notes = db.Column(db.Text, nullable=True)
@@ -125,7 +125,7 @@ class Cage(TimestampModel):
             return 'N/A'
         return ', '.join(sorted(sources))
 
-class Animal(TimestampModel):
+class Animal(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=True)
     cage_id = db.Column(db.Integer, db.ForeignKey('cage.id', use_alter=True), nullable=False)
@@ -203,7 +203,7 @@ class Animal(TimestampModel):
         age = getattr(self, f'age_in_{unit}s')
         return f'{age:.1f} {unit}s'
 
-class BreedingPair(TimestampModel):
+class BreedingPair(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
     start_date = db.Column(db.Date, nullable=False)
@@ -216,7 +216,7 @@ class BreedingPair(TimestampModel):
     litters = db.relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
     offspring = db.relationship('Animal', back_populates='breeding_pair', foreign_keys='Animal.breeding_pair_id')
 
-class Litter(TimestampModel):
+class Litter(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id', use_alter=True), nullable=False)
     dob = db.Column(db.Date, nullable=False)
@@ -227,7 +227,7 @@ class Litter(TimestampModel):
     def age_in_days(self):
         return (date.today() - self.dob).days
 
-class AnimalEvent(TimestampModel):
+class AnimalEvent(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
     procedure_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
@@ -247,19 +247,19 @@ class AnimalEvent(TimestampModel):
     def date(self):
         return self.scheduled_date if self.completion_date is None else self.completion_date
 
-class ImmunolabelingPanel(TimestampModel):
+class ImmunolabelingPanel(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     reagents = db.relationship('Reagent', backref='panel', lazy='dynamic', cascade="all, delete-orphan")
     ears = db.relationship('Ear', backref='panel', lazy=True)
 
-class Reagent(TimestampModel):
+class Reagent(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=False)
 
-class Ear(TimestampModel):
+class Ear(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
     side = db.Column(db.String(5), nullable=False)
@@ -282,12 +282,12 @@ class Ear(TimestampModel):
         if not isinstance(other, Ear): return NotImplemented
         return (self.animal.custom_id, self.side) < (other.animal.custom_id, other.side)
 
-class ConfocalImageType(TimestampModel):
+class ConfocalImageType(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     confocal_images = db.relationship('ConfocalImage', backref='image_type', lazy=True)
 
-class ConfocalImage(TimestampModel):
+class ConfocalImage(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     ear_id = db.Column(db.Integer, db.ForeignKey('ear.id', use_alter=True), nullable=False)
     frequency = db.Column(db.Integer, nullable=False)
@@ -299,8 +299,11 @@ class ConfocalImage(TimestampModel):
     def full_display(self):
         return f'{self.ear.full_display} {self.image_type.name} {self.frequency}'
 
-class Study(TimestampModel):
+class Study(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     animals = db.relationship('Animal', secondary=study_animals, lazy='dynamic', backref=db.backref('studies', lazy='dynamic'))
+
+
+orm.configure_mappers()

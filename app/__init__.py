@@ -4,6 +4,8 @@ from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
 from flask_migrate import Migrate
+from sqlalchemy_continuum import make_versioned
+from sqlalchemy_continuum.plugins import FlaskPlugin
 
 # --- Naming Convention for Constraints ---
 naming_convention = {
@@ -14,18 +16,18 @@ naming_convention = {
     "pk": "pk_%(table_name)s"
 }
 
+
+make_versioned(user_cls='User', plugins=[FlaskPlugin()])
 db = SQLAlchemy(metadata=MetaData(naming_convention=naming_convention))
 migrate = Migrate()
-
+login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
+
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-is-long-and-secure')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///colony.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-    db.init_app(app)
-    migrate.init_app(app, db, render_as_batch=True)
 
     # Register Blueprints
     from app.routes.main import main_bp
@@ -44,7 +46,8 @@ def create_app():
     app.register_blueprint(histology_bp, url_prefix='/histology')
     app.register_blueprint(studies_bp, url_prefix='/studies')
 
-    login_manager = LoginManager()
+    db.init_app(app)
+    migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
     @login_manager.user_loader
@@ -61,6 +64,5 @@ def create_app():
         if request.endpoint in ('auth.login_user', 'auth.add_user'):
             return
         return redirect(url_for('auth.login_user', next=request.url))
-
 
     return app

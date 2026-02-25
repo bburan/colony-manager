@@ -1,6 +1,8 @@
 from datetime import date
 from sqlalchemy import func
 from app import db
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- Association Tables ---
 study_animals = db.Table('study_animals',
@@ -8,7 +10,43 @@ study_animals = db.Table('study_animals',
     db.Column('animal_id', db.Integer, db.ForeignKey('animal.id'), primary_key=True)
 )
 
-# --- Models ---
+user_roles = db.Table('user_roles',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('user_role.id'), primary_key=True)
+)
+
+class UserRole(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(150), unique=False, nullable=False)
+    last_name = db.Column(db.String(150), unique=False, nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    roles = db.relationship('UserRole', secondary=user_roles, backref=db.backref('users', lazy='dynamic'))
+    active = db.Column(db.Boolean, default=False, nullable=False)
+    admin = db.Column(db.Boolean, default=False, nullable=False)
+
+    def is_admin(self):
+        return self.admin
+
+    def is_active(self):
+        return self.active
+
+    def set_password(self, password):
+        """Creates a hashed version of the password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Checks the provided password against the stored hash."""
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def display_name(self):
+        return f'{self.first_name} {self.last_name}'
+
 class TimestampModel(db.Model):
     """Base model that automatically adds created and updated timestamps."""
     __abstract__ = True

@@ -1,10 +1,12 @@
+from urllib.parse import urlparse, urljoin
 import sqlalchemy
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import current_user, login_user
 from datetime import date, timedelta
 from app import db
 from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, ConfocalImage,
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
-                        TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType)
+                        TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
 from app.forms import SimpleAddForm, SimpleAddWithDescriptionForm
 from app.routes.util import flash_form_errors
 

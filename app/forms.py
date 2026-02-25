@@ -1,7 +1,8 @@
+import re
 from datetime import date
 from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, DateField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField
-from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length
+from wtforms import BooleanField, StringField, IntegerField, DateField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
+from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length, Email, EqualTo
 from wtforms.widgets import ListWidget, CheckboxInput
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 from markupsafe import Markup
@@ -23,7 +24,7 @@ def panel_factory(): return ImmunolabelingPanel.query.order_by('name')
 def termination_reason_factory(): return TerminationReason.query.order_by(TerminationReason.name)
 def male_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='male').order_by(Animal.id)
 def female_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='female').order_by(Animal.id)
-def active_animal_factory(): return Animal.query.filter_by(termination_date=None) # Note: Changed from is_terminated=False which didn't match model
+def active_animal_factory(): return Animal.query.filter_by(termination_date=None)
 def confocal_image_type_factory(): return ConfocalImageType.query.order_by('name')
 
 # --- Widgets ---
@@ -191,3 +192,37 @@ class ConfocalImageForm(FlaskForm):
     )
     image_type = QuerySelectField('Image Type', query_factory=confocal_image_type_factory, get_label='name', validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
+
+class UserLoginForm(FlaskForm):
+    email = StringField('Email')
+    password = PasswordField('Password')
+
+# Example custom validator for Flask-WTF
+def validate_password_complexity(form, field):
+    password = field.data
+    # Enforce min length, upper/lower case, numbers, and special characters
+    if len(password) < 8 or \
+       not re.search(r'[A-Z]', password) or \
+       not re.search(r'[a-z]', password) or \
+       not re.search(r'\d', password) or \
+       not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        raise ValidationError('Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.')
+
+
+class UserCreateForm(FlaskForm):
+    first_name = StringField('First Name', validators=[DataRequired()])
+    last_name = StringField('Last Name', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[
+        DataRequired(),
+        Length(min=8),
+        validate_password_complexity
+    ])
+    confirm_passwod = PasswordField('Password (repeat)', validators=[EqualTo('password', message='Passwords must match')])
+
+
+class UserEditForm(FlaskForm):
+    first_name = StringField('First Name', validators=[DataRequired()])
+    last_name = StringField('Last Name', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    active = BooleanField('Active')

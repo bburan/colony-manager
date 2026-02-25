@@ -7,10 +7,16 @@
         {{ form.hidden_tag() }}
         <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
         {%  for field in form if field.widget.input_type != 'hidden' %}
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
-                {{ field(class="form-control form-control-sm mb-2") }}
-            </div>
+            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
+            {% if field.type == 'BooleanField' %}
+                <div class="form-check form-switch">
+                    {{ field(class="form-check-input") }}
+                </div>
+            {% else %}
+                <div>
+                    {{ field(class="form-control form-control-sm mb-2") }}
+                </div>
+            {% endif %}
         {% endfor %}
         {% endblock %}
     </main>

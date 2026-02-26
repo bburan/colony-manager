@@ -16,20 +16,18 @@
         <tr class="{{ '' if animal.is_active else 'table-danger' }}">
             <td>
                 <button type="button"
-                    class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary"
-                    data-bs-toggle="popover"
-                    data-bs-container="body"
-                    data-bs-trigger="hover"
-                    data-bs-content="{{ animal.notes }}"
-                    onclick="openEditModal('AnimalNote', {{ animal.id }})"
-                >
-                <i class="fas fa-sticky-note"></i>
+                    class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary" 
+                    data-bs-toggle="popover" 
+                    data-bs-container="body" 
+                    data-bs-trigger="hover" 
+                    data-bs-content="<dl><dt>Cage</dt><dd>{{ animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ animal.notes or 'No notes' }}</dd></dl>"
+                    onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')" > <i class="fas fa-sticky-note"></i>
                 </button>
             </td>
             <td>
                 <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}">{{ animal.custom_id }}</a>
                 {% if not animal.custom_id %}
-                    <button class="btn btn-sm" onclick="openEditModal('AnimalID', {{ animal.id }})"><i class="fas fa-tag"></i></button>
+                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.assign_animal_id_modal', animal_id=animal.id) }}')"><i class="fas fa-tag"></i></button>
                 {% endif %}
             </td>
             <td>{{ animal.species.name }}</td>
@@ -75,7 +73,7 @@
 
             {% if show_termination_action|default(True) %}
                 <td>
-                    {% if animal.is_active and animal.custom_id %}
+                    {% if animal.is_active %}
                         <button type="button" onclick="openModal('{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}')"
                                 class="btn btn-secondary btn-sm shadow"
                                 title="Terminate">

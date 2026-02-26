@@ -1,3 +1,4 @@
+from sqlalchemy import exists
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
 from app.models import Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType
@@ -13,26 +14,27 @@ def list_histology():
     immunolabel_filter = request.args.get('immunolabel_filter', 'all')
     if immunolabel_filter == 'labeled':
         query = query.filter(Ear.immunolabel_date != None)
-    elif immunolabel_filter == 'not_labeled':
+    elif immunolabel_filter == 'pending':
         query = query.filter(Ear.immunolabel_date == None)
 
     sort_by = request.args.get('sort_by', 'id')
     if sort_by == 'euthanasia':
-        query = query.order_by(Animal.termination_date.desc().nulls_last())
+        query = query.add_columns(Animal.termination_date).order_by(Animal.termination_date.desc().nulls_last())
     else:
-        query = query.order_by(Ear.id.desc())
+        query = query.add_columns(Animal.custom_id).order_by(Animal.custom_id)
 
     analysis_filter = request.args.get('analysis_filter', 'all')
     if analysis_filter != 'all':
-        query = query.join(ConfocalImage).filter(ConfocalImage.status == analysis_filter)
-
-    ears = query.distinct().all()
-    panels = ImmunolabelingPanel.query.all()
+        subquery = exists().where(
+            (ConfocalImage.ear_id == Ear.id) & \
+            (ConfocalImage.status == analysis_filter)
+        )
+        query = query.filter(subquery)
+    ears = [row[0] for row in query.distinct().all()]
 
     return render_template(
         'histology.html',
         ears=ears,
-        #panels=panels,
         filters={
             'immunolabel_filter': immunolabel_filter,
             'sort_by': sort_by,

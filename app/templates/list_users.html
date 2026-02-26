@@ -26,7 +26,7 @@ User Accounts
                     <td>{{ user.email }}</td>
                     <td>{% if user.active %}<i class="fas fa-check"></i>{% endif %}</td>
                     <td>{% if user.admin %}<i class="fas fa-check"></i>{% endif %}</td>
-                    <td>{% if user.id != 1 %}<button class="btn btn-sm" onclick="openModal('{{ url_for('auth.edit_user_modal', user_id=user.id) }}')"><i class="fas fa-pencil"></i></button>{% endif %}
+                    <td>{% if (user.id != 1) and (user.admin) %}<button class="btn btn-sm" onclick="openModal('{{ url_for('auth.edit_user_modal', user_id=user.id) }}')"><i class="fas fa-pencil"></i></button>{% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

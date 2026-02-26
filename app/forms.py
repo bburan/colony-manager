@@ -90,6 +90,7 @@ class AnimalCustomIDForm(FlaskForm):
                 raise ValidationError(f'Animal ID "{field.data}" already exists.')
 
 class AnimalForm(AnimalCustomIDForm):
+    custom_id = StringField('Animal ID', validators=[Optional()])
     cage = QuerySelectField('Cage', query_factory=cage_factory, get_label='custom_id')
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name')
     sex = SelectField('Sex', choices=[('male', 'male'), ('female', 'female')], validators=[DataRequired()])

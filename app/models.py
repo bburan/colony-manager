@@ -30,7 +30,7 @@ class User(UserMixin, VersionedModel):
     first_name = db.Column(db.String(150), unique=False, nullable=False)
     last_name = db.Column(db.String(150), unique=False, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
+    password_hash = db.Column(db.String(512))
     roles = db.relationship('UserRole', secondary=user_roles, backref=db.backref('users', lazy='dynamic'))
     active = db.Column(db.Boolean, default=False, nullable=False)
     admin = db.Column(db.Boolean, default=False, nullable=False)
@@ -202,6 +202,13 @@ class Animal(VersionedModel):
     def age_display(self, unit='day'):
         age = getattr(self, f'age_in_{unit}s')
         return f'{age:.1f} {unit}s'
+
+    @property
+    def display_id(self):
+        if self.custom_id:
+            return self.custom_id
+        else:
+            return f'Animal from {self.cage.custom_id}'
 
 class BreedingPair(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)

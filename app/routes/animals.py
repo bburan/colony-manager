@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
-from app.models import Animal, AnimalEvent, AnimalProcedure, Study, Ear
-from app.forms import AnimalForm, AnimalEventForm, AnimalEventDeleteForm, NoteForm, TerminationForm, QuickAddToStudyForm
+from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear
+from app.forms import AnimalForm, AnimalEventForm, AnimalEventDeleteForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm
 
 from app.routes.util import flash_form_errors
 
@@ -83,7 +83,7 @@ def create_animal():
         form.populate_obj(animal)
         db.session.add(animal)
         db.session.commit()
-        flash(f'Successfully created {animal.custom_id}', 'success')
+        flash(f'Successfully created {animal.display_id}', 'success')
     else:
         flash_form_errors(form, 'Error creating animal')
     return redirect(request.referrer or url_for('animals.list_animals'))
@@ -95,10 +95,12 @@ def update_animal(animal_id):
     form = AnimalForm(obj=animal)
     if form.validate_on_submit():
         form.populate_obj(animal)
+        if not form.custom_id.data:
+            animal.custom_id = None
         db.session.commit()
-        flash(f'Successfully updated {animal.custom_id}', 'success')
+        flash(f'Successfully updated {animal.display_id}', 'success')
     else:
-        flash_form_errors(form, f'Error updating {animal.custom_id}')
+        flash_form_errors(form, f'Error updating {animal.display_id}')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
 
@@ -106,11 +108,11 @@ def update_animal(animal_id):
 def delete_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     if animal.breeding_pair_male or animal.breeding_pair_female:
-        flash(f'Cannot delete animal {animal.custom_id} because it is part of a breeding pair.', 'danger')
+        flash(f'Cannot delete animal {animal.display_id} because it is part of a breeding pair.', 'danger')
         return redirect(request.referrer or url_for('animals.list_animals'))
     db.session.delete(animal)
     db.session.commit()
-    flash(f'Animal {animal.custom_id} has been deleted.', 'success')
+    flash(f'Animal {animal.display_id} has been deleted.', 'success')
     return redirect(request.referrer or url_for('animals.list_animals'))
 
 
@@ -127,9 +129,9 @@ def terminate_animal(animal_id):
         if animal.ears_extracted in ['Right', 'Both']:
             db.session.add(Ear(animal_id=animal.id, side='Right'))
         db.session.commit()
-        flash(f'Animal {animal.custom_id} has been marked as terminated.', 'success')
+        flash(f'Animal {animal.display_id} has been marked as terminated.', 'success')
     else:
-        flash_form_errors(form, f'Error terminating {animal.custom_id}')
+        flash_form_errors(form, f'Error terminating {animal.display_id}')
     return redirect(request.referrer or url_for('animals.list_animals'))
 
 
@@ -171,9 +173,15 @@ def delete_animal_event(event_id):
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
 # --- Modal Routes ---
-@animals_bp.route('/create_modal')
-def create_animal_modal():
-    form = AnimalForm()
+@animals_bp.route('/create_modal/<int:cage_id>')
+def create_animal_modal(cage_id):
+    cage = Cage.query.get_or_404(cage_id)
+    animal = cage.animals.first()
+    form = AnimalForm(
+        cage=cage,
+        dob=animal.dob,
+        sex=animal.sex,
+    )
     return render_template('partials/form_modal.html', form=form, item=None,
                            label='Create new animal', submit_url=url_for('animals.create_animal'))
 
@@ -182,28 +190,29 @@ def edit_animal_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalForm(obj=animal)
     return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Edit {animal.custom_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+                           label=f'Edit {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
 
 @animals_bp.route('/<int:animal_id>/assign_id_modal')
-def assign_id_animal_modal(animal_id):
+def assign_animal_id_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalCustomIDForm(custom_id=f'{animal.cage.custom_id}-')
     return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Assign id for {animal.custom_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+                           label=f'Assign ID for {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
 
 @animals_bp.route('/<int:animal_id>/edit_note_modal')
 def edit_animal_note_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = NoteForm(obj=animal)
     return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Edit note for {animal.custom_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+                           label=f'Edit note for {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
 
 @animals_bp.route('/<int:animal_id>/terminate_modal')
 def terminate_animal_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = TerminationForm(obj=animal)
-    return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Remove {animal.custom_id}', submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
+    return render_template(
+        'partials/form_modal.html', form=form, item=animal,
+                           label=f'Remove {animal.display_id}', submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
 
 @animals_bp.route('/<int:animal_id>/quick_add_study_modal')
 def add_study_modal(animal_id):
@@ -213,7 +222,7 @@ def add_study_modal(animal_id):
         'partials/form_modal.html',
         form=form,
         item=animal,
-        label=f'Add study for {animal.custom_id}',
+        label=f'Add study for {animal.display_id}',
         submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
 
 # --- Animal Event Modals ---
@@ -222,21 +231,21 @@ def create_animal_event_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalEventForm(animal=animal)
     return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Create event for {animal.custom_id}', submit_url=url_for('animals.create_animal_event', animal_id=animal.id))
+                           label=f'Create event for {animal.display_id}', submit_url=url_for('animals.create_animal_event', animal_id=animal.id))
 
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
     form = AnimalEventForm(obj=event)
     return render_template('partials/form_modal.html', form=form, item=event,
-                           label=f'Edit event for {event.animal.custom_id}', submit_url=url_for('animals.update_animal_event', event_id=event.id))
+                           label=f'Edit event for {event.animal.display_id}', submit_url=url_for('animals.update_animal_event', event_id=event.id))
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
     form = AnimalEventDeleteForm(obj=event)
     return render_template('partials/form_modal.html', form=form, item=event,
-                           label=f'Remove event for {event.animal.custom_id}', submit_url=url_for('animals.delete_animal_event', event_id=event.id))
+                           label=f'Remove event for {event.animal.display_id}', submit_url=url_for('animals.delete_animal_event', event_id=event.id))
 
 # --- AJAX Popover Routes ---
 @animals_bp.route('/<int:animal_id>/events_popover')

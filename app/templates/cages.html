@@ -32,19 +32,23 @@ Cages
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between">
         Cages
-        <button class="btn btn-sm" onclick="openEditModal('NewCage', 0)"><i class="fas fa-boxes"> +</i></button>
+        <button class="btn btn-sm" onclick="openModal('{{ url_for('cages.create_cage_modal') }}')"><i class="fas fa-boxes"> +</i></button>
     </div>
     <div class="card-body">
         <table class="table table-hover align-middle mb-0 small table-striped">
             <thead class="card-header bg-light text-secondary text-uppercase fw-bold border-bottom">
                 <tr>
-                    <th>Cage ID</th>
-                    <th>Species</th>
-                    <th>Sex</th>
-                    <th>Age</th>
-                    <th>Animals</th>
-                    <th>Source</th>
-                    <th>Notes</th>
+                    <th rowspan=2>Cage ID</th>
+                    <th rowspan=2>Species</th>
+                    <th rowspan=2>Sex</th>
+                    <th rowspan=2>Age</th>
+                    <th rowspan=1 colspan=2 class="text-center">Animals</th>
+                    <th rowspan=2>Source</th>
+                    <th rowspan=2>Notes</th>
+                </tr>
+                <tr>
+                    <th>Original</th>
+                    <th>Remaining</th>
                 </tr>
             </thead>
             <tbody>
@@ -54,6 +58,7 @@ Cages
                     <td>{{ cage.species.name }}</td>
                     <td>{{ cage.sex_symbol }}</td>
                     <td>{{ cage.age_display(filters['age_unit']) }}</td>
+                    <td>{{ cage.animals.count() }}</td>
                     <td>{{ cage.animals.filter_by(termination_date=None).count() }}</td>
                     <td>{{ cage.source_display }}</td>
                     <td>{{ cage.notes }}</td>

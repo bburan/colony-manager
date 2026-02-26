@@ -29,7 +29,7 @@ def view_dashboard():
     today = date.today()
 
     # 1. Metrics for Top Cards
-    active_cages_count = Cage.query.filter(Cage.animals.any()).count()
+    active_cages_count = Cage.query.filter(Cage.animals.any(Animal.termination_date.is_(None))).count()
     active_animals_count = Animal.query.filter(Animal.termination_date == None).count()
     active_breeding_pairs_count = BreedingPair.query.filter_by(is_active=True).count()
     ears_for_processing_count = Ear.query.filter(Ear.immunolabel_date == None).count()
@@ -43,7 +43,7 @@ def view_dashboard():
     # Animals terminated in the last 30 days
     recent_terminations = Animal.query.filter(
         Animal.termination_date >= (date.today() - timedelta(days=30))
-    )
+    ).order_by(Animal.termination_date.desc())
 
     upcoming_litters = Litter.query.filter(Litter.wean_date == None).order_by(Litter.dob).all()
 
@@ -55,7 +55,7 @@ def view_dashboard():
         ~Animal.studies.any(),
         Animal.custom_id != None,
         ~Animal.id.in_(active_parent_ids),
-    )
+    ).order_by(Animal.custom_id)
 
     available_animals_n = Animal.query.filter(Animal.custom_id == None).count()
 

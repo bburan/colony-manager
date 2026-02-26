@@ -124,7 +124,7 @@ Dashboard
                 <ul class="list-group">
                     {% for animal in recent_terminations %}
                         <li class="list-group-item">
-                        {{ animal.custom_id }} on {{ animal.termination_date.strftime('%B %d, %Y') }}
+                        {{ animal.display_id }} on {{ animal.termination_date.strftime('%B %d, %Y') }}
                         <a class="stretched-link" href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"></a>
                         </li>
                     {% endfor %}

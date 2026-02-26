@@ -32,12 +32,13 @@
         </div>
 
         <section class="card shadow-sm mb-4">
-            <header class="card-header">
-                Animals in this Cage
+            <header class="card-header d-flex justify-content-between align-items-center">
+                Animals in this cage
+                <button class="btn btn-small" onclick="openModal('{{ url_for('animals.create_animal_modal', cage_id=cage.id) }}')"><i class="fas fa-paw"> +</i></button>
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
-            {% set animals = cage.animals %}
+            {% set animals = cage.animals.order_by('custom_id') %}
             {% include 'partials/animal_table.html' %}
             </div>
         </section>

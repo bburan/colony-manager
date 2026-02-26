@@ -16,6 +16,9 @@ Histology
     <div class="card-header d-flex justify-content-between">
         <div>
             <i class="fas fa-filter me-2"></i>Filters & Sorting
+            <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                {{ ears|length }} Results
+            </span>
         </div>
         <a href="{{ url_for('histology.list_histology') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
             <i class="fas fa-undo-alt me-1"></i>
@@ -58,7 +61,7 @@ Histology
                             data-bs-toggle="popover"
                             data-bs-container="body"
                             data-bs-trigger="hover"
-                            data-bs-content="<dl><dt>Animal</dt><dd>{{ ear.animal.notes }}</dd><dt>Ear</dt><dd>{{ ear.notes }}</dd></dl>"
+                            data-bs-content="<dl><dt>Cage</dt><dd>{{ ear.animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ ear.animal.notes or 'No notes' }}</dd><dt>Ear</dt><dd>{{ ear.notes or 'No notes' }}</dd></dl>"
                             onclick="openModal('{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}')"
                         >
                         <i class="fas fa-sticky-note"></i>

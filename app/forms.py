@@ -1,7 +1,7 @@
 import re
 from datetime import date
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, StringField, IntegerField, DateField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
+from wtforms import HiddenField, BooleanField, StringField, IntegerField, DateField, FloatField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length, Email, EqualTo
 from wtforms.widgets import ListWidget, CheckboxInput
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
@@ -219,7 +219,7 @@ class UserCreateForm(FlaskForm):
         Length(min=8),
         validate_password_complexity
     ])
-    confirm_passwod = PasswordField('Password (repeat)', validators=[EqualTo('password', message='Passwords must match')])
+    confirm_password = PasswordField('Password (repeat)', validators=[EqualTo('password', message='Passwords must match')])
 
 
 class UserEditForm(FlaskForm):
@@ -227,3 +227,38 @@ class UserEditForm(FlaskForm):
     last_name = StringField('Last Name', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     active = BooleanField('Active')
+
+class FeedForm(FlaskForm):
+    name = StringField('Feed Name', validators=[DataRequired()])
+    weight = FloatField('Feed Weight', validators=[DataRequired()])
+
+# This represents one row in your feeding log (e.g., "Small Pellet: 10")
+class FeedEntryForm(FlaskForm):
+    feed_id = HiddenField()
+    feed_name = StringField('Feed Type', render_kw={'readonly': True})
+    feed_weight = HiddenField('Feed Weight')
+    quantity = FloatField('Quantity', default=0, validators=[Optional()])
+
+# The main form for the animal's daily check-in
+class DailyLogForm(FlaskForm):
+    date = DateField('Date', format='%Y-%m-%d', validators=[Optional()], default=date.today())
+    weight = FloatField('Weight', validators=[DataRequired()])
+    notes = StringField('Notes', validators=[Optional()])
+    feedings = FieldList(FormField(FeedEntryForm))
+
+def mark_disabled(form, field_name=None):
+    if field_name is not None:
+        field = getattr(form, field_name)
+        if field.render_kw is None:
+            field.render_kw = {}
+        field.render_kw['disabled'] = True
+        return
+
+    for field in form:
+        if field.type not in ['CSRFTokenField', 'SubmitField']:
+            if field.render_kw is None:
+                field.render_kw = {}
+            field.render_kw['disabled'] = True
+        if field.type == 'FieldList':
+            for item in field:
+                mark_disabled(item)

@@ -55,3 +55,24 @@
         {{ date.strftime('%B %d, %Y') }}
     {% endif %}
 {% endmacro %}
+
+{% macro render_field(field, label=True, style="", class="") %}
+    {% if label %}
+        <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
+    {% endif %}
+    {% if field.type == 'BooleanField' %}
+        <div class="form-check form-switch">
+            {{ field(class="form-check-input") }}
+        </div>
+    {%  elif field.type == 'FieldList' %}
+        {% for subfield in field %}
+            <div>
+                {{ subfield(class="form-control form-control-sm mb-2 " + class, style=style) }}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div>
+            {{ field(class="form-control form-control-sm mb-2 " + class, style=style) }}
+        </div>
+    {% endif %}
+{% endmacro %}

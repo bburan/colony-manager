@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import func, orm
+from sqlalchemy import func, orm, UniqueConstraint
 from app import db
 from flask_login import current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -233,6 +233,39 @@ class Litter(VersionedModel):
     @property
     def age_in_days(self):
         return (date.today() - self.dob).days
+
+class Feed(VersionedModel):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    weight = db.Column(db.Float, nullable=False)
+
+class WeightLog(VersionedModel):
+    id = db.Column(db.Integer, primary_key=True)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    date = db.Column(db.Date)
+    weight = db.Column(db.Float, nullable=False)
+    notes = db.Column(db.Text)
+    animal = db.relationship('Animal')
+
+    __table_args__ = (
+        UniqueConstraint('animal_id', 'date'),
+    )
+
+class FeedLog(VersionedModel):
+    id = db.Column(db.Integer, primary_key=True)
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+    feed_id = db.Column(db.Integer, db.ForeignKey('feed.id'), nullable=False)
+    date = db.Column(db.Date)
+    quantity = db.Column(db.Integer, nullable=False)  # Number of pellets
+    feed_type = db.relationship('Feed')
+
+    @property
+    def total_grams(self):
+        return self.amount * self.feed_type.weight
+
+    __table_args__ = (
+        UniqueConstraint('animal_id', 'feed_id', 'date'),
+    )
 
 class AnimalEvent(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)

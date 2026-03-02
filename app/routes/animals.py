@@ -1,8 +1,8 @@
+import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
-from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear
-from app.forms import AnimalForm, AnimalEventForm, AnimalEventDeleteForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm
-
+from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
+from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled
 from app.routes.util import flash_form_errors
 
 animals_bp = Blueprint('animals', __name__)
@@ -72,7 +72,18 @@ def list_animals():
 @animals_bp.route('/<int:animal_id>')
 def view_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    return render_template('view_animal.html', animal=animal)
+    feed = Feed.query.order_by(Feed.weight).all()
+    weights = WeightLog.query.filter_by(animal_id=animal_id).order_by(WeightLog.date.desc()).all()
+    feedings = FeedLog.query.filter_by(animal_id=animal_id).all()
+    history = {}
+    for w in weights:
+        history.setdefault(w.date, {'weight': w.weight, 'notes': w.notes, 'feed': {}, 'total_feed': 0})
+    for f in feedings:
+        day = history.setdefault(f.date, {'weight': '&emdash;', 'note': '', 'feed': {}, 'total_feed': 0})
+        day['feed'][f.feed_id] = f.quantity
+        day['total_feed'] += (f.quantity * f.feed_type.weight)
+    history = dict(sorted(history.items(), key=lambda item: item[0], reverse=True))
+    return render_template('view_animal.html', animal=animal, weight_history=history, feeds=feed)
 
 
 @animals_bp.route('/create', methods=['POST'])
@@ -172,6 +183,67 @@ def delete_animal_event(event_id):
     flash("Event deleted successfully.", "success")
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
+@animals_bp.route('/<int:animal_id>/weight-feed/create', methods=['POST'])
+def create_animal_daily_log(animal_id):
+    animal = Animal.query.get_or_404(animal_id)
+    form = DailyLogForm()
+    logs = WeightLog.query.filter_by(animal_id=animal.id, date=form.date.data).all()
+    if len(logs) != 0:
+        flash(f'Log for {animal.display_id} already exists for {form.date.data.strftime("%B %d, %Y")}.', 'danger')
+        return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
+    if form.validate_on_submit():
+        weight = WeightLog(
+            animal_id=animal.id,
+            weight=form.weight.data,
+            notes=form.notes.data,
+            date=form.date.data,
+        )
+        db.session.add(weight)
+
+        for feed_form in form.feedings:
+            if feed_form.quantity.data and feed_form.quantity.data > 0:
+                new_feeding = FeedLog(
+                    animal_id=animal.id,
+                    feed_id=feed_form.feed_id.data,
+                    quantity=feed_form.quantity.data,
+                    date=form.date.data,
+                )
+                db.session.add(new_feeding)
+        db.session.commit()
+    else:
+        flash_form_errors(form, f'Error creating daily log')
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
+@animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete', methods=['POST'])
+def delete_animal_daily_log(animal_id, date):
+    animal = Animal.query.get_or_404(animal_id)
+    weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
+    db.session.delete(weight)
+    for entry in FeedLog.query.filter_by(animal_id=animal.id, date=date):
+        db.session.delete(entry)
+    db.session.commit()
+    flash('Daily log deleted successfully.', 'success')
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
+@animals_bp.route('/<int:animal_id>/<date>/weight-feed/update', methods=['POST'])
+def update_animal_daily_log(animal_id, date):
+    animal = Animal.query.get_or_404(animal_id)
+    form = DailyLogForm()
+    if form.validate_on_submit():
+        weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
+        weight.weight = form.weight.data
+        weight.notes = form.notes.data
+        for feed_form in form.feedings:
+            feeding = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=feed_form.feed_id.data).one_or_none()
+            feeding.quantity = feed_form.quantity.data
+        db.session.commit()
+        flash('Daily log updated successfully.', 'success')
+    else:
+        flash_form_errors(form, f'Error creating daily log')
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
+
 # --- Modal Routes ---
 @animals_bp.route('/create_modal/<int:cage_id>')
 def create_animal_modal(cage_id):
@@ -243,9 +315,76 @@ def edit_animal_event_modal(event_id):
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
-    form = AnimalEventDeleteForm(obj=event)
+    form = AnimalEventForm(obj=event)
+    mark_disabled(form)
     return render_template('partials/form_modal.html', form=form, item=event,
                            label=f'Remove event for {event.animal.display_id}', submit_url=url_for('animals.delete_animal_event', event_id=event.id))
+
+
+# --- Animal Weight/Feed Modals ---
+@animals_bp.route('/<int:animal_id>/weight-feed/create_modal')
+def create_animal_daily_log_modal(animal_id):
+    animal = Animal.query.get_or_404(animal_id)
+    feed = Feed.query.order_by(Feed.weight).all()
+    feed_data = [{'feed_id': f.id, 'feed_name': f.name, 'feed_weight': f.weight, 'amount': 0} for f in feed]
+    form = DailyLogForm(feedings=feed_data)
+    return render_template(
+        'partials/form_daily_log_modal.html',
+        form=form,
+        item=animal,
+        label=f'Add entry for {animal.display_id}',
+        submit_url=url_for('animals.create_animal_daily_log', animal_id=animal.id)
+    )
+
+def _generate_daily_log_form(animal_id, date):
+    date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+    animal = Animal.query.get_or_404(animal_id)
+    weight_log = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
+    feed = Feed.query.order_by(Feed.weight).all()
+    feed_data = []
+    for f in feed:
+        entry = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=f.id).one_or_none()
+        feed_data.append({
+            'feed_id': f.id,
+            'feed_name': f.name,
+            'feed_weight': f.weight,
+            'quantity': entry.quantity if entry else 0,
+        })
+    return animal, DailyLogForm(
+        feedings=feed_data,
+        date=date,
+        weight=weight_log.weight,
+        notes=weight_log.notes,
+    )
+
+@animals_bp.route('/<int:animal_id>/<date>/weight-feed/update_modal')
+def update_animal_daily_log_modal(animal_id, date):
+    animal, form = _generate_daily_log_form(animal_id, date)
+    mark_disabled(form, 'date')
+    return render_template(
+        'partials/form_daily_log_modal.html',
+        form=form,
+        item=animal,
+        label=f'Update entry for {animal.display_id}',
+        submit_url=url_for('animals.update_animal_daily_log',
+                           animal_id=animal.id,
+                           date=date)
+    )
+
+@animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete_modal')
+def delete_animal_daily_log_modal(animal_id, date):
+    animal, form = _generate_daily_log_form(animal_id, date)
+    mark_disabled(form)
+    return render_template(
+        'partials/form_daily_log_modal.html',
+        form=form,
+        item=animal,
+        label=f'Delete entry for {animal.display_id}',
+        submit_url=url_for('animals.delete_animal_daily_log',
+                           animal_id=animal.id,
+                           date=date)
+    )
+
 
 # --- AJAX Popover Routes ---
 @animals_bp.route('/<int:animal_id>/events_popover')

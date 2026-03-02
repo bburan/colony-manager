@@ -4,10 +4,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 from app import db
-from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, ConfocalImage,
+from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Feed, ConfocalImage,
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
                         TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
-from app.forms import SimpleAddForm, SimpleAddWithDescriptionForm
+from app.forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
 from app.routes.util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
@@ -16,6 +16,7 @@ main_bp = Blueprint('main', __name__)
 SETTINGS_MAP = {
     'species': {'model': Species, 'form': SimpleAddForm},
     'source': {'model': Source, 'form': SimpleAddForm},
+    'feed': {'model': Feed, 'form': FeedForm},
     'animal_procedure': {'model': AnimalProcedure, 'form': SimpleAddWithDescriptionForm},
     'animal_procedure_target': {'model': AnimalProcedureTarget, 'form': SimpleAddWithDescriptionForm},
     'termination_reason': {'model': TerminationReason, 'form': SimpleAddWithDescriptionForm},
@@ -103,15 +104,38 @@ def view_calendar():
 def list_settings():
     return render_template(
         'settings.html',
-        species=Species.query.all(),
-        sources=Source.query.all(),
-        animal_procedures=AnimalProcedure.query.all(),
-        animal_procedure_targets=AnimalProcedureTarget.query.all(),
-        termination_reasons=TerminationReason.query.all(),
-        confocal_image_types=ConfocalImageType.query.all(),
         panels=ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
-        simple_add_with_description_form=SimpleAddWithDescriptionForm(),
+        settings={
+            'species': {
+                'items': Species.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'source': {
+                'items': Source.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'confocal_image_type': {
+                'items': ConfocalImageType.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'termination_reason': {
+                'items': TerminationReason.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'animal_procedure': {
+                'items': AnimalProcedure.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'animal_procedure_target': {
+                'items': AnimalProcedureTarget.query.all(),
+                'form': SimpleAddForm(),
+            },
+            'feed': {
+                'items': Feed.query.all(),
+                'form': FeedForm(),
+            },
+        }
     )
 
 
@@ -183,3 +207,16 @@ def add_reagent(panel_id):
     else:
         flash('Could not add reagent. Please check the form.', 'danger')
     return redirect(url_for('settings'))
+
+@main_bp.route('/settings/feed/create', methods=['POST'])
+def create_feed():
+    form = FeedForm()
+    if form.validate_on_submit():
+        feed = Feed()
+        form.populate_obj(feed)
+        db.session.add(feed)
+        db.session.commit()
+        flash(f'Feed "{feed.name}" added.', 'success')
+    else:
+        flash_form_errors(form, title="Could not create feed")
+    return redirect(request.referrer or url_for('list_settings'))

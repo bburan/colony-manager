@@ -1,3 +1,4 @@
+{% import "macros.html" as macros %}
 <form action="{{ submit_url }}" method="POST">
     <header class="modal-header">
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
@@ -7,16 +8,7 @@
         {{ form.hidden_tag() }}
         <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
         {%  for field in form if field.widget.input_type != 'hidden' %}
-            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
-            {% if field.type == 'BooleanField' %}
-                <div class="form-check form-switch">
-                    {{ field(class="form-check-input") }}
-                </div>
-            {% else %}
-                <div>
-                    {{ field(class="form-control form-control-sm mb-2") }}
-                </div>
-            {% endif %}
+            {{ macros.render_field(field) }}
         {% endfor %}
         {% endblock %}
     </main>

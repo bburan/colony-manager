@@ -1,61 +1,30 @@
 {% extends "partials/form_modal.html" %}
+{% import "macros.html" as macros %}
+
 {% block main %}
 {{ form.hidden_tag() }}
 <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
-<div>
-    <label class="form-label small fw-bold text-muted">{{ form.custom_id.label }}</label>
-    {{ form.custom_id(class="form-control form-control-sm mb-2") }}
-</div>
-<div>
-    <label class="form-label small fw-bold text-muted">{{ form.start_date.label }}</label>
-    {{ form.start_date(class="form-control form-control-sm mb-2") }}
-</div>
-<div>
-    <label class="form-label small fw-bold text-muted">{{ form.notes.label }}</label>
-    {{ form.notes(class="form-control form-control-sm mb-2") }}
-</div>
+{{ macros.render_field(form.custom_id) }}
+{{ macros.render_field(form.start_date) }}
+{{ macros.render_field(form.notes) }}
 <div class="row">
     <div class="col-6">
         <h3 class="form-label small fw-bold text-muted h6">Male</h3>
         {{ form.male_animal(id="male-existing", class="form-control form-control-sm mb-2") }}
         <div id="male-new-section">
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.male_species.label }}</label>
-                {{ form.male_species(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.male_source.label }}</label>
-                {{ form.male_source(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.male_dob.label }}</label>
-                {{ form.male_dob(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.male_notes.label }}</label>
-                {{ form.male_notes(class="form-control form-control-sm mb-2") }}
-            </div>
+            {{ macros.render_field(form.male_species) }}
+            {{ macros.render_field(form.male_source) }}
+            {{ macros.render_field(form.male_dob) }}
+            {{ macros.render_field(form.male_notes) }}
         </div>
     </div>
     <div class="col-6"><h3 class="form-label small fw-bold text-muted h6">Female</h3>
         {{ form.female_animal(id="female-existing", class="form-control form-control-sm mb-2") }}
         <div id="female-new-section">
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.female_species.label }}</label>
-                {{ form.female_species(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.female_source.label }}</label>
-                {{ form.female_source(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.female_dob.label }}</label>
-                {{ form.female_dob(class="form-control form-control-sm mb-2") }}
-            </div>
-            <div>
-                <label class="form-label small fw-bold text-muted">{{ form.female_notes.label }}</label>
-                {{ form.female_notes(class="form-control form-control-sm mb-2") }}
-            </div>
+            {{ macros.render_field(form.female_species) }}
+            {{ macros.render_field(form.female_source) }}
+            {{ macros.render_field(form.female_dob) }}
+            {{ macros.render_field(form.female_notes) }}
         </div>
     </div>
 </div>

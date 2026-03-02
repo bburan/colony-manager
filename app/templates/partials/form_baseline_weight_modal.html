@@ -1,0 +1,24 @@
+{% extends "partials/form_modal.html" %}
+{% import "macros.html" as macros %}
+
+{% block main %}
+{{ form.hidden_tag() }}
+<input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
+<div class="row g-4">
+    <div class="col-6">Date</div>
+    <div class="col-6">Weight</div>
+</div>
+<fieldset>
+{% for entry in form.weights %}
+    {{ entry.hidden_tag() }}
+    <div class="row g-4">
+        <div class="col-6">
+            {{ macros.render_field(entry.date, False) }}
+        </div>
+        <div class="col-6 d-flex">
+            {{ macros.render_field(entry.weight, False) }}
+        </div>
+    </div>
+{% endfor %}
+</fieldset>
+{% endblock %}

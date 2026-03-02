@@ -20,14 +20,17 @@
                     data-bs-toggle="popover" 
                     data-bs-container="body" 
                     data-bs-trigger="hover" 
-                    data-bs-content="<dl><dt>Cage</dt><dd>{{ animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ animal.notes or 'No notes' }}</dd></dl>"
+                    data-bs-content="<dl><dt>Cage</dt><dd>{{ animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ animal.notes or 'No notes' }}</dd></dl> (click icon to edit)"
                     onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')" > <i class="fas fa-sticky-note"></i>
                 </button>
             </td>
             <td>
                 <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}">{{ animal.custom_id }}</a>
                 {% if not animal.custom_id %}
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.assign_animal_id_modal', animal_id=animal.id) }}')"><i class="fas fa-tag"></i></button>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        title="Assign ID to animal"
+                        onclick="openModal('{{ url_for('animals.assign_animal_id_modal', animal_id=animal.id) }}')"><i class="fas fa-tag"></i></button>
                 {% endif %}
             </td>
             <td>{{ animal.species.name }}</td>

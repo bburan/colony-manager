@@ -245,6 +245,7 @@ class WeightLog(VersionedModel):
     date = db.Column(db.Date)
     weight = db.Column(db.Float, nullable=False)
     notes = db.Column(db.Text)
+    baseline = db.Column(db.Boolean, nullable=False, default=False)
     animal = db.relationship('Animal')
 
     __table_args__ = (

@@ -32,7 +32,11 @@ Cages
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between">
         Cages
-        <button class="btn btn-sm" onclick="openModal('{{ url_for('cages.create_cage_modal') }}')"><i class="fas fa-boxes"> +</i></button>
+        <button class="btn btn-sm"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Add new cage"
+                onclick="openModal('{{ url_for('cages.create_cage_modal') }}')"><i class="fas fa-boxes"> +</i></button>
     </div>
     <div class="card-body">
         <table class="table table-hover align-middle mb-0 small table-striped">

@@ -5,6 +5,8 @@ from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, F
 from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled
 from app.routes.util import flash_form_errors
 
+from app import forms
+
 animals_bp = Blueprint('animals', __name__)
 
 
@@ -145,7 +147,6 @@ def terminate_animal(animal_id):
         flash_form_errors(form, f'Error terminating {animal.display_id}')
     return redirect(request.referrer or url_for('animals.list_animals'))
 
-
 # Nested Event Routes
 @animals_bp.route('/<int:animal_id>/events/create', methods=['POST'])
 def create_animal_event(animal_id):
@@ -183,6 +184,28 @@ def delete_animal_event(event_id):
     flash("Event deleted successfully.", "success")
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
+@animals_bp.route('/<int:animal_id>/weight-baseline/create', methods=['POST'])
+def create_animal_baseline_weight(animal_id):
+    animal = Animal.query.get_or_404(animal_id)
+    form = forms.BaselineWeightLogForm()
+    if form.validate_on_submit():
+        for entry in form.weights:
+            if WeightLog.query.filter_by(animal_id=animal.id, date=entry.date.data).count() > 0:
+                flash(f'Entry for {animal.display_id} already exists for {entry.date.data.strftime("%B %d, %Y")}.', 'danger')
+                db.session.rollback()
+                return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+            weight = WeightLog(
+                animal_id=animal.id,
+                weight=entry.weight.data,
+                date=entry.date.data,
+                baseline=True,
+            )
+            db.session.add(weight)
+            flash('Added new baseline', 'success')
+    else:
+        flash_form_errors(form, f'Error creating baseline')
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
 @animals_bp.route('/<int:animal_id>/weight-feed/create', methods=['POST'])
 def create_animal_daily_log(animal_id):
     animal = Animal.query.get_or_404(animal_id)
@@ -211,6 +234,7 @@ def create_animal_daily_log(animal_id):
                 )
                 db.session.add(new_feeding)
         db.session.commit()
+        flash('Added new log', 'success')
     else:
         flash_form_errors(form, f'Error creating daily log')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
@@ -322,6 +346,22 @@ def delete_animal_event_modal(event_id):
 
 
 # --- Animal Weight/Feed Modals ---
+@animals_bp.route('/<int:animal_id>/weight-baseline/create_modal')
+def create_animal_baseline_weight_modal(animal_id):
+    animal = Animal.query.get_or_404(animal_id)
+    today = datetime.date.today()
+    weights = []
+    for i in range(3)[::-1]:
+        weights.append({'date': today-datetime.timedelta(days=i)})
+    form = forms.BaselineWeightLogForm(weights=weights)
+    return render_template(
+        'partials/form_baseline_weight_modal.html',
+        form=form,
+        item=animal,
+        label=f'Add baseline weight entry for {animal.display_id}',
+        submit_url=url_for('animals.create_animal_baseline_weight', animal_id=animal.id)
+    )
+
 @animals_bp.route('/<int:animal_id>/weight-feed/create_modal')
 def create_animal_daily_log_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)

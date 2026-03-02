@@ -241,10 +241,17 @@ class FeedEntryForm(FlaskForm):
 
 # The main form for the animal's daily check-in
 class DailyLogForm(FlaskForm):
-    date = DateField('Date', format='%Y-%m-%d', validators=[Optional()], default=date.today())
+    date = DateField('Date', format='%Y-%m-%d', validators=[DataRequired()], default=date.today())
     weight = FloatField('Weight', validators=[DataRequired()])
     notes = StringField('Notes', validators=[Optional()])
     feedings = FieldList(FormField(FeedEntryForm))
+
+class BaselineWeightEntryForm(FlaskForm):
+    date = DateField('Date', format='%Y-%m-%d', validators=[DataRequired()], default=date.today())
+    weight = FloatField('Weight', validators=[DataRequired()])
+
+class BaselineWeightLogForm(FlaskForm):
+    weights = FieldList(FormField(BaselineWeightEntryForm))
 
 def mark_disabled(form, field_name=None):
     if field_name is not None:

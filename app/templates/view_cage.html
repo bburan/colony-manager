@@ -34,7 +34,10 @@
         <section class="card shadow-sm mb-4">
             <header class="card-header d-flex justify-content-between align-items-center">
                 Animals in this cage
-                <button class="btn btn-small" onclick="openModal('{{ url_for('animals.create_animal_modal', cage_id=cage.id) }}')"><i class="fas fa-paw"> +</i></button>
+                <button class="btn btn-small"
+                        data-bs-toggle="tooltip"
+                        title="Create new animal in cage"
+                        onclick="openModal('{{ url_for('animals.create_animal_modal', cage_id=cage.id) }}')"><i class="fas fa-paw"> +</i></button>
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
@@ -48,7 +51,10 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Notes
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('cages.update_cage_note_modal', cage_id=cage.id) }}')"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        title="Edit notes"
+                        onclick="openModal('{{ url_for('cages.update_cage_note_modal', cage_id=cage.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ cage.notes }}</div>
         </div>

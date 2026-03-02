@@ -11,7 +11,11 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between">
                 Information
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Edit animal information"
+                        onclick="openModal('{{ url_for('animals.edit_animal_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 {% include "partials/animal_detail_card.html" %}
@@ -40,7 +44,11 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Notes
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Edit animal notes"
+                        onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ animal.notes }}</div>
         </div>
@@ -50,7 +58,11 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Events
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')"><i class="fas fa-calendar"> +</i></button>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Add event"
+                        onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')"><i class="fas fa-calendar"> +</i></button>
             </div>
             <div class="card-body">
                 {{ macros.render_event_list(animal) }}
@@ -64,7 +76,18 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between">
                 Weight & Feed
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')"><i class="fas fa-plus"></i></button>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-sm"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="Add baseline weight entry"
+                            onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')"><i class="fas fa-clipboard-check"></i></button>
+                    <button class="btn btn-sm"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="Add weight/feed entry"
+                            onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')"><i class="fas fa-plus"></i></button>
+                </div>
             </div>
             <div class="card-body">
                 <table class="table table-responsive small">
@@ -85,8 +108,18 @@
                             <td>{{ data.total_feed|round(1) }}</td>
                             <td>{{ data.notes }}</td>
                             <td>
-                                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
-                                <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-sm"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Edit weight/feed entry"
+                                            onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
+                                    <button class="btn btn-sm"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Delete weight/feed entry"
+                                            onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}

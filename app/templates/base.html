@@ -120,6 +120,12 @@
         });
 
         document.addEventListener('DOMContentLoaded', function () {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+            console.log(tooltipTriggerList);
+
             // Handles loading AJAX content for popovers
             const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
 

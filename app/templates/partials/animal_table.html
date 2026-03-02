@@ -76,7 +76,8 @@
                     {% if animal.is_active %}
                         <button type="button" onclick="openModal('{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}')"
                                 class="btn btn-secondary btn-sm shadow"
-                                title="Terminate">
+                                data-bs-toggle="tooltip"
+                                title="Terminate animal">
                             <i class="fas fa-crosshairs fa-sm"></i>
                         </button>
                     {% endif %}

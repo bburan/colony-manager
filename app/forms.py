@@ -58,7 +58,7 @@ class NoteForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
 
 class CageForm(FlaskForm):
-    custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=4)])
+    custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=10)])
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name', allow_blank=False, validators=[DataRequired()])
     source = QuerySelectField('Source', query_factory=source_factory, get_label='name', allow_blank=True)
     sex = SelectField('Sex', choices=[('male', 'male'), ('female', 'female')], validators=[DataRequired()])

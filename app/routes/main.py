@@ -106,6 +106,7 @@ def list_settings():
         'settings.html',
         panels=ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
+        simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings={
             'species': {
                 'items': Species.query.all(),

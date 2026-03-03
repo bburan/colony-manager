@@ -61,43 +61,4 @@ Breeding Pair {{ pair.custom_id }}
         </div>
     </div>
 </div>
-
-<script>
-    function addCageForWeaning() {
-        const container = document.getElementById('cage-container');
-        const itemCount = container.getElementsByClassName('cage-group').length;
-        const newGroup = container.children[0].cloneNode(true);
-        newGroup.id = `cage-${itemCount}`;
-        container.appendChild(newGroup);
-        reindexCagesForWeaning();
-    };
-
-    function removeCageForWeaning(button) {
-        const container = button.closest('.cage-group')
-        console.log(container);
-        const containers = document.getElementById('cage-container').getElementsByClassName('cage-group');
-        if (containers.length > 1) {
-            container.remove()
-            reindexCagesForWeaning();
-        };
-    };
-
-    function reindexCagesForWeaning() {
-        console.log('here');
-        const containers = document.getElementById('cage-container').getElementsByClassName('cage-group');
-        console.log(containers);
-        Array.from(containers).forEach((group, index) => {
-            group.id = `cages-${index}`;
-            const elements = group.querySelectorAll('input, select');
-            console.log(elements);
-            elements.forEach(el => {
-                const idRegex = /cages-\d+-/;
-                const replacement = `cages-${index}-`;
-                if (el.id) el.id = el.id.replace(idRegex, replacement);
-                if (el.name) el.name = el.name.replace(idRegex, replacement);
-            });
-        });
-    };
-
-</script>
 {% endblock %}

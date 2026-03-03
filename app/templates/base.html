@@ -226,6 +226,40 @@
                     </div>`;
             }
         }
+
+        function addField(fieldsetName) {
+            const container = document.getElementById(`${fieldsetName}-container`);
+            const fieldsets = container.getElementsByClassName(`${fieldsetName}-group`);
+            const newGroup = fieldsets[0].cloneNode(true);
+            const itemCount = fieldsets.length;
+            newGroup.id = `${fieldsetName}-{itemCount}`;
+            container.appendChild(newGroup);
+            reindexFields(fieldsetName);
+        };
+
+        function removeField(fieldsetName, button) {
+            const fieldset = button.closest(`.${fieldsetName}-group`);
+            const containers = document.getElementById(`${fieldsetName}-container`).getElementsByClassName(`${fieldsetName}-group`);
+            if (containers.length > 1) {
+                fieldset.remove();
+                reindexFields(fieldsetName);
+            };
+        };
+
+        function reindexFields(fieldsetName) {
+            const containers = document.getElementById(fieldsetName + '-container').getElementsByClassName(`${fieldsetName}-group`);
+            Array.from(containers).forEach((group, index) => {
+                group.id = fieldsetName + `${index}`;
+                const elements = group.querySelectorAll('input, select');
+                elements.forEach(el => {
+                    const idRegex = new RegExp(`${fieldsetName}-\\d+-`);
+                    const replacement = `${fieldsetName}-${index}-`;
+                    if (el.id) el.id = el.id.replace(idRegex, replacement);
+                    if (el.name) el.name = el.name.replace(idRegex, replacement);
+                });
+            });
+        };
+
     </script>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">

@@ -7,6 +7,8 @@
 {{ macros.render_field(form.date) }}
 {{ macros.render_field(form.weight) }}
 {{ macros.render_field(form.notes) }}
+{{ macros.render_field(form.baseline) }}
+<p>If this is a baseline, add details of calculation to notes.</p>
 <fieldset>
 {% set ns = namespace(total=0) %}
 {% for feeding in form.feedings %}

@@ -15,7 +15,7 @@
     <label class="col-3 form-label small fw-bold text-muted">Sex</label>
     <label class="col-3 form-label small fw-bold text-muted">Pups</label>
     <div class="col-2">
-    <button type="button" onclick="addCageForWeaning()" class="btn btn-sm btn-primary float-right" id="add-cage"><i class="fas fa-box"></i> +</button>
+    <button type="button" onclick="addField('cage')" class="btn btn-sm"><i class="fas fa-box"></i> +</button>
     </div>
 </div>
 <div id="cage-container">
@@ -31,7 +31,7 @@
                 {{ cage.count(class="form-control form-control-sm mb-2") }}
             </div>
             <div class="col-2">
-                <button type="button" onclick="removeCageForWeaning(this)" class="btn btn-sm btn-primary"><i class="fas fa-trash"></i></button>
+                <button type="button" onclick="removeField('cage', this)" class="btn btn-sm"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     {% endfor %}

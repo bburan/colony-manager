@@ -80,11 +80,6 @@
                     <button class="btn btn-sm"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
-                            title="Add baseline weight entry"
-                            onclick="openModal('{{ url_for('animals.create_animal_baseline_weight_modal', animal_id=animal.id) }}')"><i class="fas fa-clipboard-check"></i></button>
-                    <button class="btn btn-sm"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
                             title="Add weight/feed entry"
                             onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')"><i class="fas fa-plus"></i></button>
                 </div>
@@ -95,6 +90,7 @@
                         <tr>
                             <th>Date</th>
                             <th>Weight (g)</th>
+                            <th>Weight (%)</th>
                             <th>Feed (g)</th>
                             <th>Notes</th>
                             <th></th>
@@ -102,9 +98,10 @@
                     </thead>
                     <tbody>
                         {% for date, data in weight_history.items() %}
-                        <tr>
+                        <tr {% if data['baseline'] %}class="table-primary"{% endif %}>
                             <td>{{ date.strftime('%B %d, %Y') }}</td>
                             <td>{{ data.weight|int }}</td>
+                            <td>{% if data.baseline_pct %}{{ data.baseline_pct }}{% else %}—{% endif %}</td>
                             <td>{{ data.total_feed|round(1) }}</td>
                             <td>{{ data.notes }}</td>
                             <td>

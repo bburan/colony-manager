@@ -75,11 +75,26 @@ def list_animals():
 def view_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     feed = Feed.query.order_by(Feed.weight).all()
-    weights = WeightLog.query.filter_by(animal_id=animal_id).order_by(WeightLog.date.desc()).all()
+    weights = WeightLog.query.filter_by(animal_id=animal_id).order_by(WeightLog.date.asc()).all()
     feedings = FeedLog.query.filter_by(animal_id=animal_id).all()
     history = {}
+    last_baseline = None
     for w in weights:
-        history.setdefault(w.date, {'weight': w.weight, 'notes': w.notes, 'feed': {}, 'total_feed': 0})
+        if w.baseline:
+            last_baseline = w.weight
+            baseline_pct = None
+        elif last_baseline is None:
+            baseline_pct = None
+        else:
+            baseline_pct = int(round((w.weight / last_baseline) * 100))
+        history[w.date] = {
+            'weight': w.weight,
+            'baseline_pct': baseline_pct,
+            'notes': w.notes,
+            'feed': {},
+            'total_feed': 0,
+            'baseline': w.baseline
+        }
     for f in feedings:
         day = history.setdefault(f.date, {'weight': '&emdash;', 'note': '', 'feed': {}, 'total_feed': 0})
         day['feed'][f.feed_id] = f.quantity
@@ -184,28 +199,6 @@ def delete_animal_event(event_id):
     flash("Event deleted successfully.", "success")
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
-@animals_bp.route('/<int:animal_id>/weight-baseline/create', methods=['POST'])
-def create_animal_baseline_weight(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
-    form = forms.BaselineWeightLogForm()
-    if form.validate_on_submit():
-        for entry in form.weights:
-            if WeightLog.query.filter_by(animal_id=animal.id, date=entry.date.data).count() > 0:
-                flash(f'Entry for {animal.display_id} already exists for {entry.date.data.strftime("%B %d, %Y")}.', 'danger')
-                db.session.rollback()
-                return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
-            weight = WeightLog(
-                animal_id=animal.id,
-                weight=entry.weight.data,
-                date=entry.date.data,
-                baseline=True,
-            )
-            db.session.add(weight)
-            flash('Added new baseline', 'success')
-    else:
-        flash_form_errors(form, f'Error creating baseline')
-    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
-
 @animals_bp.route('/<int:animal_id>/weight-feed/create', methods=['POST'])
 def create_animal_daily_log(animal_id):
     animal = Animal.query.get_or_404(animal_id)
@@ -221,6 +214,7 @@ def create_animal_daily_log(animal_id):
             weight=form.weight.data,
             notes=form.notes.data,
             date=form.date.data,
+            baseline=form.baseline.data,
         )
         db.session.add(weight)
 
@@ -258,6 +252,7 @@ def update_animal_daily_log(animal_id, date):
         weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
         weight.weight = form.weight.data
         weight.notes = form.notes.data
+        weight.baseline = form.baseline.data
         for feed_form in form.feedings:
             feeding = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=feed_form.feed_id.data).one_or_none()
             feeding.quantity = feed_form.quantity.data
@@ -346,22 +341,6 @@ def delete_animal_event_modal(event_id):
 
 
 # --- Animal Weight/Feed Modals ---
-@animals_bp.route('/<int:animal_id>/weight-baseline/create_modal')
-def create_animal_baseline_weight_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
-    today = datetime.date.today()
-    weights = []
-    for i in range(3)[::-1]:
-        weights.append({'date': today-datetime.timedelta(days=i)})
-    form = forms.BaselineWeightLogForm(weights=weights)
-    return render_template(
-        'partials/form_baseline_weight_modal.html',
-        form=form,
-        item=animal,
-        label=f'Add baseline weight entry for {animal.display_id}',
-        submit_url=url_for('animals.create_animal_baseline_weight', animal_id=animal.id)
-    )
-
 @animals_bp.route('/<int:animal_id>/weight-feed/create_modal')
 def create_animal_daily_log_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
@@ -395,6 +374,7 @@ def _generate_daily_log_form(animal_id, date):
         date=date,
         weight=weight_log.weight,
         notes=weight_log.notes,
+        baseline=weight_log.baseline,
     )
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update_modal')

@@ -74,8 +74,13 @@
 <div class="row">
     <div class="col-6">
         <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 Weight & Feed
+                <span>
+                    <span class="badge rounded-pill bg-primary">Baseline: {{ baseline|int }}g</span>
+                    <span class="badge rounded-pill bg-warning">80%: {{ (baseline*0.8)|int }}g</span>
+                    <span class="badge rounded-pill bg-danger">75%: {{ (baseline*0.75)|int }}g</span>
+                </span>
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-sm"
                             data-bs-toggle="tooltip"
@@ -98,7 +103,13 @@
                     </thead>
                     <tbody>
                         {% for date, data in weight_history.items() %}
-                        <tr {% if data['baseline'] %}class="table-primary"{% endif %}>
+                        <tr {% if data['baseline'] %}
+                                class="table-primary"
+                            {% elif data['baseline_pct'] < 75 %}
+                                class="table-danger"
+                            {% elif data['baseline_pct'] < 80 %}
+                                class="table-warning"
+                            {% endif %}>
                             <td>{{ date.strftime('%B %d, %Y') }}</td>
                             <td>{{ data.weight|int }}</td>
                             <td>{% if data.baseline_pct %}{{ data.baseline_pct }}{% else %}—{% endif %}</td>

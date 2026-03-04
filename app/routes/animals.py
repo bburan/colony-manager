@@ -85,15 +85,18 @@ def view_animal(animal_id):
     current_baseline = None
     history = {}
     for w in weights:
-        if w.baseline:
-            current_baseline = None
-            baselines.append(w)
-            baseline_pct = None
+        if w.weight is not None:
+            if w.baseline:
+                current_baseline = None
+                baselines.append(w)
+                baseline_pct = None
+            else:
+                if current_baseline is None:
+                    current_baseline = mean(w.weight for w in baselines)
+                    baselines = []
+                baseline_pct = int(round((w.weight / current_baseline) * 100))
         else:
-            if current_baseline is None:
-                current_baseline = mean(w.weight for w in baselines)
-                baselines = []
-            baseline_pct = int(round((w.weight / current_baseline) * 100))
+            baseline_pct = None
         history[w.date] = {
             'weight': w.weight,
             'baseline_pct': baseline_pct,

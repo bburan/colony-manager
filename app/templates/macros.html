@@ -56,6 +56,14 @@
     {% endif %}
 {% endmacro %}
 
+{% macro format_int(number) %}
+{% if number is none %}
+&horbar;
+{% else %}
+{{ number|round|int }}
+{% endif %}
+{% endmacro %}
+
 {% macro render_field(field, label=True, style="", class="") %}
     {% if label %}
         <label class="form-label small fw-bold text-muted">{{ field.label }}</label>

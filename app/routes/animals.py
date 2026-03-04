@@ -271,7 +271,20 @@ def update_animal_daily_log(animal_id, date):
         weight.baseline = form.baseline.data
         for feed_form in form.feedings:
             feeding = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=feed_form.feed_id.data).one_or_none()
-            feeding.quantity = feed_form.quantity.data
+            if feeding is None:
+                if feed_form.quantity.data > 0:
+                    new_feeding = FeedLog(
+                        animal_id=animal.id,
+                        feed_id=feed_form.feed_id.data,
+                        quantity=feed_form.quantity.data,
+                        date=form.date.data,
+                    )
+                    db.session.add(new_feeding)
+            else:
+                if feed_form.quantity.data == 0:
+                    db.session.delete(feeding)
+                else:
+                    feeding.quantity = feed_form.quantity.data
         db.session.commit()
         flash('Daily log updated successfully.', 'success')
     else:

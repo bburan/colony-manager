@@ -242,7 +242,7 @@ class FeedEntryForm(FlaskForm):
 # The main form for the animal's daily check-in
 class DailyLogForm(FlaskForm):
     date = DateField('Date', format='%Y-%m-%d', validators=[DataRequired()], default=date.today())
-    weight = FloatField('Weight', validators=[DataRequired()])
+    weight = FloatField('Weight', validators=[Optional()])
     notes = StringField('Notes', validators=[Optional()])
     feedings = FieldList(FormField(FeedEntryForm))
     baseline = BooleanField('Baseline Weight?')

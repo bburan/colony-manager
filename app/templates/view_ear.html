@@ -11,7 +11,11 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase">Notes</h2>
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" 
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Edit ear notes"
+                    onclick="openModal('{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 <dl>
@@ -28,7 +32,11 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase">Ear</h2>
-                <button class="btn btn-sm" onclick="openModal('{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
+                <button class="btn btn-sm" 
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Edit ear information"
+                    onclick="openModal('{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 <dl class="row mb-0">
@@ -58,12 +66,27 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
     </div>
 </div>
 
+{% set image_options = {
+    'pending': 'Pending',
+    'imaged': 'Imaged',
+    'analyzed': 'Analyzed',
+    'region_missing': 'Region Missing',
+    'region_bad': 'Poor histology',
+    'need_review': 'Needs review',
+    }
+    %}
+
+
 <div class="row">
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase mb-0">Images</h2>
-                <button onclick="openModal('{{ url_for('histology.create_confocal_images_modal', ear_id=ear.id) }}')" class="btn btn-sm">
+                <button 
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Add images"
+                    onclick="openModal('{{ url_for('histology.create_confocal_images_modal', ear_id=ear.id) }}')" class="btn btn-sm">
                     <i class="fas fa-camera"> +</i></button>
             </div>
 
@@ -88,10 +111,9 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     <td>{{ img.frequency }}</td>
                                     <td>
                                         <select name="status" class="border-0 bg-light" onchange="markDirty(this)">
-                                            <option value="pending" {% if img.status == 'pending' %}selected{% endif %}>Pending</option>
-                                            <option value="need_review" {% if img.status == 'need_review' %}selected{% endif %}>Need Review</option>
-                                            <option value="analyzed" {% if img.status == 'analyzed' %}selected{% endif %}>Analyzed</option>
-                                            <option value="rejected" {% if img.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                                        {% for value, label in image_options.items() %}
+                                            <option value="{{ value }}" {% if img.status == '{{ value}}' %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
                                         </select>
                                     </td>
                                     <td>
@@ -101,9 +123,17 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     </td>
                                     <td class="pe-4 text-end">
                                         <div class="btn-group btn-group-sm">
-                                            <button type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
-                                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                                    onclick="if(confirm('Delete frequency record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash-alt"></i></button>
+                                            <button 
+                                                data-bs-toggle="tooltip"
+                                                data-bs-placement="top"
+                                                title="Save changes to image"
+                                                type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
+                                            <button 
+                                                data-bs-toggle="tooltip"
+                                                data-bs-placement="top"
+                                                title="Remove image"
+                                                type="button" class="btn btn-sm btn-outline-danger"
+                                                onclick="if(confirm('Delete frequency record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash-alt"></i></button>
                                         </div>
                                     </td>
                                 </form>

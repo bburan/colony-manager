@@ -1,0 +1,25 @@
+<table class="table table-responsive small">
+    <thead>
+    <td>Animal</td>
+    {% for i in range(7)[::-1] %}
+    <td>{{ (datetime.date.today() - datetime.timedelta(days=i)).strftime('%a') }}</td>
+    {% endfor %}
+    </thead>
+    <tbody>
+    {% for animal, logs in weights.items() %}
+    <tr>
+        <td><a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}" class="text-decoration-none">{{ animal.display_id }}</a></td>
+        {% for log in logs %}
+        {% if log is none %}
+        <td>—</td>
+        {% else %}
+        {% set baseline_pct = (log.weight/animal.baseline_weight*100)|round(0)|int %}
+        <td class="{{ macros.get_weight_color(baseline_pct, 'table-') }}">
+            {{ baseline_pct }}
+        </td>
+        {% endif %}
+        {% endfor %}
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>

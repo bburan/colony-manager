@@ -1,4 +1,6 @@
-from datetime import date
+from datetime import date, timedelta
+from statistics import mean
+
 from sqlalchemy import func, orm, UniqueConstraint
 from app import db
 from flask_login import current_user, UserMixin
@@ -140,6 +142,8 @@ class Animal(VersionedModel):
     events = db.relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     ears = db.relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     breeding_pair = db.relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
+    weights = db.relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    feedings = db.relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
 
     @property
     def events_by_date(self):
@@ -210,6 +214,83 @@ class Animal(VersionedModel):
         else:
             return f'Animal from {self.cage.custom_id}'
 
+    @property
+    def baseline_weight(self):
+        '''
+        Get the most recent baseline weight as the average of all weights consecutively marked as baseline.
+        '''
+        baselines = []
+        for w in self.weights.filter(WeightLog.weight != None).order_by(WeightLog.date.desc()).all():
+            if w.baseline:
+                baselines.append(w)
+            elif len(baselines) > 0:
+                break
+        if len(baselines) > 0:
+            return mean(w.weight for w in baselines)
+        else:
+            return None
+
+    def weight_feed_history(self):
+        # When current_baseline is None, we are in accumulation mode. When we get to the first non-baseline weight, then we calculate the mean baseline weight and set that to current_baselinmean baseline weight and set that to current_baseline
+        baselines = []
+        current_baseline = None
+        history = {}
+        for w in self.weights.order_by(WeightLog.date).all():
+            if w.weight is not None:
+                if w.baseline:
+                    current_baseline = None
+                    baselines.append(w)
+                    baseline_pct = None
+                else:
+                    if current_baseline is None:
+                        current_baseline = mean(w.weight for w in baselines)
+                        baselines = []
+                    baseline_pct = int(round((w.weight / current_baseline) * 100))
+            else:
+                baseline_pct = None
+            history[w.date] = {
+                'weight': w.weight,
+                'baseline_pct': baseline_pct,
+                'notes': w.notes,
+                'feed': {},
+                'total_feed': 0,
+                'baseline': w.baseline
+            }
+
+        for f in self.feedings.all():
+            day = history.setdefault(f.date, {'weight': '&emdash;', 'note': '', 'feed': {}, 'total_feed': 0})
+            day['feed'][f.feed_id] = f.quantity
+            day['total_feed'] += (f.quantity * f.feed_type.weight)
+
+        return dict(sorted(history.items(), key=lambda item: item[0], reverse=True))
+
+    @classmethod
+    def get_recent_weights(cls, days=7, tabulate=True):
+        """Returns animals paired with their weight logs from the last X days."""
+        today = date.today()
+
+        results = db.session.query(cls, WeightLog).join(WeightLog) \
+            .filter(
+            WeightLog.date > (today - timedelta(days)),
+            WeightLog.weight.is_not(None),
+            WeightLog.baseline == False
+        ) \
+            .order_by(WeightLog.date.desc()) \
+            .all()
+
+        if not tabulate:
+            return results
+
+        animals, logs = zip(*results)
+        animals = sorted(set(animals), key=lambda x: x.display_id)
+        results = {a: [None] * days for a in animals}
+        for log in logs:
+            ix = (today - log.date).days
+            results[log.animal][ix] = log
+        results = {k: v[::-1] for k, v in results.items()}
+        return results
+
+
 class BreedingPair(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)
@@ -246,7 +327,6 @@ class WeightLog(VersionedModel):
     weight = db.Column(db.Float, nullable=True)
     notes = db.Column(db.Text)
     baseline = db.Column(db.Boolean, nullable=False, default=False)
-    animal = db.relationship('Animal')
 
     __table_args__ = (
         UniqueConstraint('animal_id', 'date'),

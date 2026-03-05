@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Dashboard
@@ -14,7 +15,6 @@ Dashboard
 
 {% block content %}
 <div class="row mb-4">
-
     {% for (url, icon, label, number) in buttons %}
     <div class="col-md-6 col-lg-3">
         <div class="card shadow-sm h-100">
@@ -36,48 +36,22 @@ Dashboard
 </div>
 
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-6">
         <div class="card shadow-sm">
             <div class="card-header">
                 <i class="fas fa-calendar me-2"></i>Upcoming Schedule (overdue and next 7 days)
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover small">
-                    <thead>
-                        <tr>
-                            <th>Animal ID</th>
-                            <th>Procedure</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for event in upcoming_events %}
-                        <tr>
-                            <td>
-                                <a href="{{ url_for('animals.view_animal', animal_id=event.animal_id) }}" class="text-decoration-none text-primary">
-                                    {{ event.animal.custom_id }}
-                                </a>
-                            </td>
-                            <td>{{ event.procedure.name }}</td>
-                            <td>
-                                {{ event.scheduled_date.strftime('%b %d') }}
-                            </td>
-                            <td>
-                                <span class="badge {{ 'bg-danger' if event.scheduled_date < today else 'bg-secondary-subtle text-secondary' }} rounded-pill" style="padding: 0.35em 0.65em;">
-                                    {{ 'Overdue' if event.scheduled_date < today else 'Pending' }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4">
-                                No upcoming events for the next 7 days.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="card-body">
+                {% include "partials/upcoming_schedule.html" %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-6">
+        <div class="card shadow-sm">
+            <div class="card-header"><i class="fas fa-calendar me-2"></i>Weights</div>
+            <div class="card-body">
+            {% include "partials/weight_table.html" %}
             </div>
         </div>
     </div>

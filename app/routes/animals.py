@@ -1,5 +1,4 @@
 import datetime
-from statistics import mean
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
@@ -77,46 +76,12 @@ def list_animals():
 def view_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     feed = Feed.query.order_by(Feed.weight).all()
-    weights = WeightLog.query.filter_by(animal_id=animal_id).order_by(WeightLog.date.asc()).all()
-    feedings = FeedLog.query.filter_by(animal_id=animal_id).all()
 
-    # When current_baseline is None, we are in accumulation mode. When we get to the first non-baseline weight, then we calculate the mean baseline weight and set that to current_baselinmean baseline weight and set that to current_baseline
-    baselines = []
-    current_baseline = None
-    history = {}
-    for w in weights:
-        if w.weight is not None:
-            if w.baseline:
-                current_baseline = None
-                baselines.append(w)
-                baseline_pct = None
-            else:
-                if current_baseline is None:
-                    current_baseline = mean(w.weight for w in baselines)
-                    baselines = []
-                baseline_pct = int(round((w.weight / current_baseline) * 100))
-        else:
-            baseline_pct = None
-        history[w.date] = {
-            'weight': w.weight,
-            'baseline_pct': baseline_pct,
-            'notes': w.notes,
-            'feed': {},
-            'total_feed': 0,
-            'baseline': w.baseline
-        }
-    for f in feedings:
-        day = history.setdefault(f.date, {'weight': '&emdash;', 'note': '', 'feed': {}, 'total_feed': 0})
-        day['feed'][f.feed_id] = f.quantity
-        day['total_feed'] += (f.quantity * f.feed_type.weight)
-
-    history = dict(sorted(history.items(), key=lambda item: item[0], reverse=True))
     return render_template(
         'view_animal.html',
         animal=animal,
-        weight_history=history,
+        weight_history=animal.weight_feed_history(),
         feeds=feed,
-        baseline=current_baseline,
     )
 
 @animals_bp.route('/create', methods=['POST'])

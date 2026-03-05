@@ -55,6 +55,10 @@ def create_app():
         from app.models import User
         return User.query.get(user_id)
 
+    @app.context_processor
+    def datetime_processor():
+        return dict(datetime=datetime)
+
     @app.before_request
     def check_login():
         from flask_login import current_user

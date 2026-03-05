@@ -84,3 +84,7 @@
         </div>
     {% endif %}
 {% endmacro %}
+
+{% macro get_weight_color(baseline_pct, prefix='') %}
+{% if baseline_pct is none %}{% elif baseline_pct < 75 %}{{ prefix}}danger{% elif baseline_pct < 80 %}{{ prefix }}warning{% endif %}
+{% endmacro %}

@@ -43,7 +43,7 @@ def view_dashboard():
 
     # Animals terminated in the last 30 days
     recent_terminations = Animal.query.filter(
-        Animal.termination_date >= (date.today() - timedelta(days=30))
+        Animal.termination_date >= (date.today() - timedelta(days=7))
     ).order_by(Animal.termination_date.desc())
 
     upcoming_litters = Litter.query.filter(Litter.wean_date == None).order_by(Litter.dob).all()
@@ -82,6 +82,9 @@ def view_dashboard():
         image_analysis_pending=image_analysis_pending,
         image_analysis_review=image_analysis_review,
         today=today,
+
+        # Table of weights for past week
+        weights=Animal.get_recent_weights(7),
     )
 
 

@@ -260,6 +260,35 @@
             });
         };
 
+        // For the weight/daily log
+        document.addEventListener('input', function(event) {
+            if (event.target.classList.contains('feed-quantity')) {
+                const weight = document.getElementById(event.target.id.replace('quantity', 'feed_weight'));
+                const total = document.getElementById(event.target.id.replace('quantity', 'total'));
+                total.textContent = (weight.value * event.target.value).toFixed(1) + 'g';
+
+                let total_food = 0;
+                const quantities = document.querySelectorAll('.feed-quantity');
+                quantities.forEach(el => {
+                    const weight = document.getElementById(el.id.replace('quantity', 'feed_weight'));
+                    total_food += (el.value * weight.value);
+                });
+                document.getElementById('feedings-all-total').textContent = total_food.toFixed(1) + 'g';
+            };
+        });
+
+        document.addEventListener('input', function(event) {
+            if (event.target.classList.contains('current-weight')) {
+                const current_weight = event.target.value;
+                const current_baseline = document.getElementById('current_baseline').value;
+                const current_baseline_pct = document.getElementById('current_baseline_pct');
+                console.log(current_weight);
+                console.log(current_baseline);
+                console.log(current_baseline_pct);
+                current_baseline_pct.value = Math.round(current_weight / current_baseline * 100);
+            }
+        })
+
     </script>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">

@@ -59,12 +59,15 @@
 {% macro format_int(number) %}
 {% if number is none %}
 &horbar;
-{% else %}
-{{ number|round|int }}
+{%  else %}
+{{ number|int or number }}
 {% endif %}
 {% endmacro %}
 
-{% macro render_field(field, label=True, style="", class="") %}
+{% macro render_field(field, label=True, style="", class="", field_id="") %}
+    {% set kwargs = {'class': "form-control form-control-sm mb-2 " + class} %}
+    {% if style %}{% set _ = kwargs.update({'style': style}) %}{% endif %}
+    {% if style %}{% set _ = kwargs.update({'id': id}) %}{% endif %}
     {% if label %}
         <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
     {% endif %}
@@ -74,17 +77,19 @@
         </div>
     {%  elif field.type == 'FieldList' %}
         {% for subfield in field %}
-            <div>
-                {{ subfield(class="form-control form-control-sm mb-2 " + class, style=style) }}
-            </div>
+            <div>{{ subfield(**kwargs) }}</div>
         {% endfor %}
     {% else %}
-        <div>
-            {{ field(class="form-control form-control-sm mb-2 " + class, style=style) }}
-        </div>
+        <div>{{ field(**kwargs) }}</div>
     {% endif %}
 {% endmacro %}
 
-{% macro get_weight_color(baseline_pct, prefix='') %}
-{% if baseline_pct is none %}{% elif baseline_pct < 75 %}{{ prefix}}danger{% elif baseline_pct < 80 %}{{ prefix }}warning{% endif %}
+{% macro get_weight_color(baseline_pct, baseline=False, prefix='') %}
+    {% if baseline %}
+        {{ prefix }}primary
+    {% elif baseline_pct is none %}
+    {% elif baseline_pct < 75 %}
+        {{ prefix}}danger
+    {% elif baseline_pct < 80 %}{{ prefix }}warning
+    {% endif %}
 {% endmacro %}

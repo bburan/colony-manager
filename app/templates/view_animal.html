@@ -104,15 +104,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for date, data in weight_history.items() %}
-                        <tr {% if data['baseline'] %}
-                                class="table-primary"
-                            {% elif data.get('baseline_pct', none) is none %}
-                            {% elif data['baseline_pct'] < 75 %}
-                                class="table-danger"
-                            {% elif data['baseline_pct'] < 80 %}
-                                class="table-warning"
-                            {% endif %}>
+                        {% for date, data in animal.weight_feed_history().items() %}
+                        <tr class="{{ macros.get_weight_color(data['baseline_pct'], data['baseline'], 'table-') }} align-items-center">
                             <td>{{ date.strftime('%B %d, %Y') }}</td>
                             <td>{{ macros.format_int(data.weight) }}</td>
                             <td>{{ macros.format_int(data.baseline_pct) }}</td>
@@ -141,23 +134,4 @@
 
     </div>
 </div>
-
-<script>
-    document.addEventListener('input', function(event) {
-        if (event.target.classList.contains('feed-quantity')) {
-            const weight = document.getElementById(event.target.id.replace('quantity', 'feed_weight'));
-            const total = document.getElementById(event.target.id.replace('quantity', 'total'));
-            total.textContent = (weight.value * event.target.value).toFixed(1) + 'g';
-
-            let total_food = 0;
-            const quantities = document.querySelectorAll('.feed-quantity');
-            quantities.forEach(el => {
-                const weight = document.getElementById(el.id.replace('quantity', 'feed_weight'));
-                total_food += (el.value * weight.value);
-            });
-            document.getElementById('feedings-all-total').textContent = total_food.toFixed(1) + 'g';
-
-        };
-    });
-</script>
 {% endblock %}

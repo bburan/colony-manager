@@ -246,6 +246,8 @@ class DailyLogForm(FlaskForm):
     notes = StringField('Notes', validators=[Optional()])
     feedings = FieldList(FormField(FeedEntryForm))
     baseline = BooleanField('Baseline Weight?')
+    current_baseline = HiddenField()
+    current_baseline_pct = FloatField('% Baseline', render_kw={'disabled': True}, validators=[Optional()])
 
 def mark_disabled(form, field_name=None):
     if field_name is not None:

@@ -5,9 +5,13 @@
 {{ form.hidden_tag() }}
 <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
 {{ macros.render_field(form.date) }}
-{{ macros.render_field(form.weight) }}
+<span class="row">
+<span class="col-6">{{ macros.render_field(form.weight, class="current-weight") }}</span>
+<span class="col-6" id="animal-current-baseline-pct">{{ macros.render_field(form.current_baseline_pct) }}</span>
+</span>
 {{ macros.render_field(form.notes) }}
 {{ macros.render_field(form.baseline) }}
+{{ form.current_baseline }}
 <p>If this is a baseline, add details of calculation to notes.</p>
 <fieldset>
 {% set ns = namespace(total=0) %}

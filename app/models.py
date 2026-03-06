@@ -258,7 +258,7 @@ class Animal(VersionedModel):
             }
 
         for f in self.feedings.all():
-            day = history.setdefault(f.date, {'weight': '&emdash;', 'note': '', 'feed': {}, 'total_feed': 0})
+            day = history.setdefault(f.date, {'weight': None, 'note': '', 'feed': {}, 'total_feed': 0, 'baseline_pct': None})
             day['feed'][f.feed_id] = f.quantity
             day['total_feed'] += (f.quantity * f.feed_type.weight)
 
@@ -286,7 +286,8 @@ class Animal(VersionedModel):
         results = {a: [None] * days for a in animals}
         for log in logs:
             ix = (today - log.date).days
-            results[log.animal][ix] = log
+            if ix >= 0:
+                results[log.animal][ix] = log
         results = {k: v[::-1] for k, v in results.items()}
         return results
 

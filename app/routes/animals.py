@@ -76,11 +76,9 @@ def list_animals():
 def view_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     feed = Feed.query.order_by(Feed.weight).all()
-
     return render_template(
         'view_animal.html',
         animal=animal,
-        weight_history=animal.weight_feed_history(),
         feeds=feed,
     )
 
@@ -336,11 +334,19 @@ def delete_animal_event_modal(event_id):
 
 # --- Animal Weight/Feed Modals ---
 @animals_bp.route('/<int:animal_id>/weight-feed/create_modal')
-def create_animal_daily_log_modal(animal_id):
+@animals_bp.route('/<int:animal_id>/<date>/weight-feed/create_modal')
+def create_animal_daily_log_modal(animal_id, date=None):
+    disable_date = date is not None
+    if date is not None:
+        date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+    else:
+        date = datetime.date.today()
     animal = Animal.query.get_or_404(animal_id)
     feed = Feed.query.order_by(Feed.weight).all()
     feed_data = [{'feed_id': f.id, 'feed_name': f.name, 'feed_weight': f.weight, 'amount': 0} for f in feed]
-    form = DailyLogForm(feedings=feed_data)
+    form = DailyLogForm(feedings=feed_data, date=date, current_baseline=animal.baseline_weight)
+    if disable_date:
+        mark_disabled(form, 'date')
     return render_template(
         'partials/form_daily_log_modal.html',
         form=form,
@@ -363,12 +369,20 @@ def _generate_daily_log_form(animal_id, date):
             'feed_weight': f.weight,
             'quantity': entry.quantity if entry else 0,
         })
+
+    if weight_log.weight is not None:
+        current_baseline_pct = int(round(weight_log.weight / animal.baseline_weight * 100))
+    else:
+        current_baseline_pct = None
+
     return animal, DailyLogForm(
         feedings=feed_data,
         date=date,
         weight=weight_log.weight,
         notes=weight_log.notes,
         baseline=weight_log.baseline,
+        current_baseline=animal.baseline_weight,
+        current_baseline_pct=current_baseline_pct,
     )
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update_modal')

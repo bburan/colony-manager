@@ -11,11 +11,22 @@
         <td><a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}" class="text-decoration-none">{{ animal.display_id }}</a></td>
         {% for log in logs %}
         {% if log is none %}
-        <td>—</td>
+        <td>
+            {% set date = datetime.date.today() - datetime.timedelta(days=6-loop.index0) %}
+            <button class="btn btn-sm"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Add weight/feed entry"
+                    onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')">—</button>
+        </td>
         {% else %}
         {% set baseline_pct = (log.weight/animal.baseline_weight*100)|round(0)|int %}
-        <td class="{{ macros.get_weight_color(baseline_pct, 'table-') }}">
-            {{ baseline_pct }}
+        <td class="{{ macros.get_weight_color(baseline_pct, log.baseline, 'table-') }}">
+            <button class="btn btn-sm"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Edit weight/feed entry"
+                    onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log.date.strftime('%Y-%m-%d')) }}')">{{ baseline_pct }}</button>
         </td>
         {% endif %}
         {% endfor %}

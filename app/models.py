@@ -296,7 +296,7 @@ class Animal(VersionedModel):
         w_animals, weights = zip(*weights)
         f_animals, feeds = zip(*feeds)
         animals = sorted(set(w_animals) | set(f_animals), key=lambda x: x.display_id)
-        results = {a: [{'date': start_date + timedelta(days=i), 'weight': None, 'feeds': []} \
+        results = {a: [{'date': start_date + timedelta(days=i), 'weight': None, 'feeds': [], 'total_feed': 0} \
                        for i in range(total_days)] for a in animals}
 
         for weight in weights:
@@ -304,10 +304,11 @@ class Animal(VersionedModel):
             if 0 <= ix < total_days:
                 results[weight.animal][ix]['weight'] = weight
 
-        for feed in feeds:
-            ix = (feed.date - start_date).days
+        for feed_log in feeds:
+            ix = (feed_log.date - start_date).days
             if 0 <= ix < total_days:
-                results[feed.animal][ix]['feeds'].append(feed)
+                results[feed_log.animal][ix]['total_feed'] += (feed_log.feed_type.weight * feed_log.quantity)
+                results[feed_log.animal][ix]['feeds'].append(feed_log)
 
         return results
 

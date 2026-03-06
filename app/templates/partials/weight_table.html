@@ -28,11 +28,16 @@
                         {% set baseline_pct = None %}
                     {% endif %}
                     <td class="{{ macros.get_weight_color(baseline_pct, baseline, 'table-') }}">
-                        <button class="btn btn-sm"
+                        <button class="btn btn-sm position-relative"
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Edit weight/feed entry"
-                                onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')">{{ baseline_pct or "—" }}</button>
+                                onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')">
+                                    {{ baseline_pct or "—" }}
+                            {% if log['total_feed'] > 0 %}
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-dark">{{ log['total_feed']|round(1) }}g</span>
+                            {% endif %}
+                        </button>
                     </td>
                 {% endif %}
             {% endfor %}

@@ -3,7 +3,7 @@ import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
 from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
-from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled
+from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
 from app.routes.util import flash_form_errors
 
 from app import forms
@@ -182,12 +182,13 @@ def delete_animal_event(event_id):
 def create_animal_daily_log(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = DailyLogForm()
-    logs = WeightLog.query.filter_by(animal_id=animal.id, date=form.date.data).all()
-    if len(logs) != 0:
-        flash(f'Log for {animal.display_id} already exists for {form.date.data.strftime("%B %d, %Y")}.', 'danger')
-        return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
-
     if form.validate_on_submit():
+        print(form.date.data)
+        logs = WeightLog.query.filter_by(animal_id=animal.id, date=form.date.data).all()
+        if len(logs) != 0:
+            flash(f'Log for {animal.display_id} already exists for {form.date.data.strftime("%B %d, %Y")}.', 'danger')
+            return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+
         weight = WeightLog(
             animal_id=animal.id,
             weight=form.weight.data,
@@ -215,8 +216,9 @@ def create_animal_daily_log(animal_id):
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete', methods=['POST'])
 def delete_animal_daily_log(animal_id, date):
     animal = Animal.query.get_or_404(animal_id)
-    weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
-    db.session.delete(weight)
+    weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one_or_none()
+    if weight is not None:
+        db.session.delete(weight)
     for entry in FeedLog.query.filter_by(animal_id=animal.id, date=date):
         db.session.delete(entry)
     db.session.commit()
@@ -346,7 +348,7 @@ def create_animal_daily_log_modal(animal_id, date=None):
     feed_data = [{'feed_id': f.id, 'feed_name': f.name, 'feed_weight': f.weight, 'amount': 0} for f in feed]
     form = DailyLogForm(feedings=feed_data, date=date, current_baseline=animal.baseline_weight)
     if disable_date:
-        mark_disabled(form, 'date')
+        mark_readonly(form, 'date')
     return render_template(
         'partials/form_daily_log_modal.html',
         form=form,
@@ -358,7 +360,6 @@ def create_animal_daily_log_modal(animal_id, date=None):
 def _generate_daily_log_form(animal_id, date):
     date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
     animal = Animal.query.get_or_404(animal_id)
-    weight_log = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
     feed = Feed.query.order_by(Feed.weight).all()
     feed_data = []
     for f in feed:
@@ -370,19 +371,26 @@ def _generate_daily_log_form(animal_id, date):
             'quantity': entry.quantity if entry else 0,
         })
 
-    if weight_log.weight is not None:
-        current_baseline_pct = int(round(weight_log.weight / animal.baseline_weight * 100))
+    weight_log = WeightLog.query.filter_by(animal_id=animal.id, date=date).one_or_none()
+    if weight_log is not None:
+        if weight_log.weight is not None:
+            current_baseline_pct = int(round(weight_log.weight / animal.baseline_weight * 100))
+        else:
+            current_baseline_pct = None
+        weight_data = {
+            'weight': weight_log.weight,
+            'notes': weight_log.notes,
+            'baseline': weight_log.baseline,
+            'current_baseline_pct': current_baseline_pct,
+        }
     else:
-        current_baseline_pct = None
+        weight_data = {}
 
     return animal, DailyLogForm(
         feedings=feed_data,
         date=date,
-        weight=weight_log.weight,
-        notes=weight_log.notes,
-        baseline=weight_log.baseline,
         current_baseline=animal.baseline_weight,
-        current_baseline_pct=current_baseline_pct,
+        **weight_data,
     )
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update_modal')

@@ -1,36 +1,42 @@
 <table class="table table-responsive small">
     <thead>
     <td>Animal</td>
-    {% for i in range(7)[::-1] %}
-    <td>{{ (datetime.date.today() - datetime.timedelta(days=i)).strftime('%a') }}</td>
+    {% for entry in weights.values()|list|first %}
+        <td>{{ entry['date'].month }}/{{ entry.date.day}}<br />{{ entry['date'].strftime('%a') }}</td>
     {% endfor %}
     </thead>
     <tbody>
     {% for animal, logs in weights.items() %}
-    <tr>
-        <td><a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}" class="text-decoration-none">{{ animal.display_id }}</a></td>
-        {% for log in logs %}
-        {% if log is none %}
-        <td>
-            {% set date = datetime.date.today() - datetime.timedelta(days=6-loop.index0) %}
-            <button class="btn btn-sm"
-                    data-bs-toggle="tooltip"
-                    data-bs-placement="top"
-                    title="Add weight/feed entry"
-                    onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')">—</button>
-        </td>
-        {% else %}
-        {% set baseline_pct = (log.weight/animal.baseline_weight*100)|round(0)|int %}
-        <td class="{{ macros.get_weight_color(baseline_pct, log.baseline, 'table-') }}">
-            <button class="btn btn-sm"
-                    data-bs-toggle="tooltip"
-                    data-bs-placement="top"
-                    title="Edit weight/feed entry"
-                    onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log.date.strftime('%Y-%m-%d')) }}')">{{ baseline_pct }}</button>
-        </td>
-        {% endif %}
-        {% endfor %}
-    </tr>
+        <tr>
+            <td><a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}" class="text-decoration-none">{{ animal.display_id }}</a></td>
+            {% for log in logs %}
+                {% if (log['weight'] is none) and (log['feeds']|length == 0) %}
+                    <td>
+                        <button class="btn btn-sm"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                title="Add weight/feed entry"
+                                onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')"><i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                {% else %}
+                    {% if (log['weight'] is not none) and (log['weight'].weight is not none) %}
+                        {% set baseline = log['weight'].baseline %}
+                        {% set baseline_pct = (log['weight'].weight/animal.baseline_weight*100)|round(0)|int %}
+                    {% else %}
+                        {% set baseline = False %}
+                        {% set baseline_pct = None %}
+                    {% endif %}
+                    <td class="{{ macros.get_weight_color(baseline_pct, baseline, 'table-') }}">
+                        <button class="btn btn-sm"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                title="Edit weight/feed entry"
+                                onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')">{{ baseline_pct or "—" }}</button>
+                    </td>
+                {% endif %}
+            {% endfor %}
+        </tr>
     {% endfor %}
     </tbody>
 </table>

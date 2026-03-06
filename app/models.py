@@ -265,30 +265,50 @@ class Animal(VersionedModel):
         return dict(sorted(history.items(), key=lambda item: item[0], reverse=True))
 
     @classmethod
-    def get_recent_weights(cls, days=7, tabulate=True):
-        """Returns animals paired with their weight logs from the last X days."""
+    def _get_recent_feeds(cls, days=7):
         today = date.today()
 
-        results = db.session.query(cls, WeightLog).join(WeightLog) \
+
+    @classmethod
+    def get_daily_logs(cls, reference_date=None, before=0, after=0):
+        """Returns animals paired with their weight logs from the last X days."""
+        if reference_date is None:
+            reference_date = date.today()
+
+        start_date = reference_date - timedelta(days=before)
+        end_date = reference_date + timedelta(days=after)
+        total_days = (end_date - start_date).days + 1
+
+        weights = db.session.query(cls, WeightLog).join(WeightLog) \
             .filter(
-            WeightLog.date > (today - timedelta(days)),
-            WeightLog.weight.is_not(None),
-            WeightLog.baseline == False
-        ) \
-            .order_by(WeightLog.date.desc()) \
-            .all()
+            WeightLog.date >= start_date,
+            WeightLog.date <= end_date,
+            #WeightLog.weight.is_not(None),
+            #WeightLog.baseline == False
+        ).all()
 
-        if not tabulate:
-            return results
+        feeds = db.session.query(cls, FeedLog).join(FeedLog) \
+            .filter(
+            FeedLog.date >= start_date,
+            FeedLog.date <= end_date,
+        ).all()
 
-        animals, logs = zip(*results)
-        animals = sorted(set(animals), key=lambda x: x.display_id)
-        results = {a: [None] * days for a in animals}
-        for log in logs:
-            ix = (today - log.date).days
-            if ix >= 0:
-                results[log.animal][ix] = log
-        results = {k: v[::-1] for k, v in results.items()}
+        w_animals, weights = zip(*weights)
+        f_animals, feeds = zip(*feeds)
+        animals = sorted(set(w_animals) | set(f_animals), key=lambda x: x.display_id)
+        results = {a: [{'date': start_date + timedelta(days=i), 'weight': None, 'feeds': []} \
+                       for i in range(total_days)] for a in animals}
+
+        for weight in weights:
+            ix = (weight.date - start_date).days
+            if 0 <= ix < total_days:
+                results[weight.animal][ix]['weight'] = weight
+
+        for feed in feeds:
+            ix = (feed.date - start_date).days
+            if 0 <= ix < total_days:
+                results[feed.animal][ix]['feeds'].append(feed)
+
         return results
 
 

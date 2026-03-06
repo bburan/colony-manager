@@ -265,3 +265,20 @@ def mark_disabled(form, field_name=None):
         if field.type == 'FieldList':
             for item in field:
                 mark_disabled(item)
+
+def mark_readonly(form, field_name=None):
+    if field_name is not None:
+        field = getattr(form, field_name)
+        if field.render_kw is None:
+            field.render_kw = {}
+        field.render_kw['readonly'] = True
+        return
+
+    for field in form:
+        if field.type not in ['CSRFTokenField', 'SubmitField']:
+            if field.render_kw is None:
+                field.render_kw = {}
+            field.render_kw['readonly'] = True
+        if field.type == 'FieldList':
+            for item in field:
+                mark_readonly(item)

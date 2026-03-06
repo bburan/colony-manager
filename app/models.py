@@ -309,6 +309,7 @@ class Animal(VersionedModel):
             if 0 <= ix < total_days:
                 results[feed_log.animal][ix]['total_feed'] += (feed_log.feed_type.weight * feed_log.quantity)
                 results[feed_log.animal][ix]['feeds'].append(feed_log)
+                results[feed_log.animal][ix][feed_log.feed_type.name] = feed_log.quantity
 
         return results
 

@@ -37,6 +37,9 @@
                             {% if log['total_feed'] > 0 %}
                                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-dark">{{ log['total_feed']|round(1) }}g</span>
                             {% endif %}
+                            {% if '20mg' in log %}
+                                <span class="position-absolute top-100 start-100 translate-middle badge rounded-pill text-dark">{{ log['20mg'] }}</span>
+                            {% endif %}
                         </button>
                     </td>
                 {% endif %}

@@ -110,9 +110,9 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     <td>{{ group.grouper if loop.first else "" }}</td>
                                     <td>{{ img.frequency }}</td>
                                     <td>
-                                        <select name="status" class="border-0 bg-light" onchange="markDirty(this)">
+                                        <select name="status" autocomplete="off" class="border-0 bg-light" onchange="markDirty(this)">
                                         {% for value, label in image_options.items() %}
-                                            <option value="{{ value }}" {% if img.status == '{{ value}}' %}selected{% endif %}>{{ label }}</option>
+                                                <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                         </select>
                                     </td>
@@ -126,14 +126,14 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                             <button 
                                                 data-bs-toggle="tooltip"
                                                 data-bs-placement="top"
-                                                title="Save changes to image"
+                                                title="Save changes to image record"
                                                 type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
                                             <button 
                                                 data-bs-toggle="tooltip"
                                                 data-bs-placement="top"
-                                                title="Remove image"
+                                                title="Remove image record"
                                                 type="button" class="btn btn-sm btn-outline-danger"
-                                                onclick="if(confirm('Delete frequency record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash-alt"></i></button>
+                                                onclick="if(confirm('Delete image record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash"></i></button>
                                         </div>
                                     </td>
                                 </form>

@@ -88,8 +88,8 @@ def create_confocal_image(ear_id):
 @histology_bp.route('/confocal_images/<int:image_id>/update', methods=['POST'])
 def update_confocal_image(image_id):
     img = ConfocalImage.query.get_or_404(image_id)
-    img.status = request.form.get('status')
-    img.notes = request.form.get('notes')
+    img.status = request.form['status']
+    img.notes = request.form['notes']
     db.session.commit()
     return redirect(request.referrer or url_for('histology.list_histology'))
 
@@ -99,7 +99,7 @@ def delete_confocal_image(image_id):
     try:
         db.session.delete(img)
         db.session.commit()
-        flash('Imaging record deleted successfully.', 'info')
+        flash('Image record deleted successfully.', 'info')
     except Exception as e:
         db.session.rollback()
         flash('Error deleting record', 'danger')

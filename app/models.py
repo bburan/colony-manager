@@ -434,7 +434,7 @@ class ConfocalImageType(VersionedModel):
 class ConfocalImage(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     ear_id = db.Column(db.Integer, db.ForeignKey('ear.id', use_alter=True), nullable=False)
-    frequency = db.Column(db.Integer, nullable=False)
+    frequency = db.Column(db.Float, nullable=False)
     image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id', use_alter=True), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(150), nullable=True)

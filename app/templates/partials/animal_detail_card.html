@@ -21,4 +21,14 @@
         <dt class="col-4">Termination Date</dt>
         <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') }}</dd>
     {% endif %}
+    <dt class="col-4">Studies</dt>
+    <dd class="col-8">
+        <ul class="list-group">
+            {% for study in animal.studies %}
+                <li class="list-group-item">
+                    <a href="{{ url_for('studies.view_study', study_id=study.id) }}" class="text-decoration-none">{{ study.name }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </dd>
 </dl>

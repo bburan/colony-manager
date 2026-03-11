@@ -58,14 +58,17 @@ class SimpleAddWithDescriptionForm(FlaskForm):
 class NoteForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
 
-class AnimalProcedureAddForm(FlaskForm):
-    name = StringField('Name', validators=[DataRequired()])
-    parent = QuerySelectField(
-        'Parent',
-        query_factory=lambda: AnimalProcedure.query.filter(AnimalProcedure.parent_id==None).order_by('name'),
-        get_label='name',
-        allow_blank=True
-    )
+def create_nested_form(model_class, label='Parent'):
+    class NestedAddForm(FlaskForm):
+        parent = QuerySelectField(
+            'Parent',
+            query_factory=lambda: model_class.query.filter(model_class.parent_id==None).order_by('name'),
+            get_label='name',
+            allow_blank=True,
+            blank_text='-- No Parent --',
+        )
+        name = StringField('Name', validators=[DataRequired()])
+    return NestedAddForm
 
 class CageForm(FlaskForm):
     custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=10)])

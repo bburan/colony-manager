@@ -19,7 +19,7 @@ SETTINGS_MAP = {
     'source': {'model': models.Source, 'form': forms.SimpleAddForm},
     'confocal_image_type': {'model': models.ConfocalImageType, 'form': forms.SimpleAddForm},
     'termination_reason': {'model': models.TerminationReason, 'form': forms.SimpleAddForm},
-    'animal_procedure': {'model': models.AnimalProcedure, 'form': forms.AnimalProcedureAddForm},
+    'animal_procedure': {'model': models.AnimalProcedure, 'form': forms.create_nested_form(models.AnimalProcedure)},
     'animal_procedure_target': {'model': models.AnimalProcedureTarget, 'form': forms.SimpleAddForm},
     'feed': {'model': models.Feed, 'form': forms.FeedForm},
     'animal_tag': {'model': models.AnimalTag, 'form': forms.SimpleAddForm},

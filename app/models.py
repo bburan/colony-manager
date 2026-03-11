@@ -354,7 +354,6 @@ class Animal(VersionedModel):
 
         return results
 
-
 class BreedingPair(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(50), unique=True, nullable=False)

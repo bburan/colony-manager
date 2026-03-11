@@ -70,7 +70,33 @@ class AnimalProcedure(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id'), nullable=True)
+
+    subcategories = db.relationship(
+        'AnimalProcedure',
+        backref=db.backref('parent', remote_side=[id]),
+        lazy='dynamic'
+    )
+
     events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
+
+    @property
+    def display_name(self):
+        if self.parent:
+            return f'{self.parent.name} > {self.name}'
+        return self.name
+
+    @classmethod
+    def get_ordered_procedures(cls):
+        Parent = orm.aliased(AnimalProcedure)
+        group_sort = func.coalesce(Parent.name, AnimalProcedure.name)
+        return db.session.query(AnimalProcedure). \
+            outerjoin(Parent, AnimalProcedure.parent_id == Parent.id). \
+            order_by(
+                group_sort.asc(),
+                AnimalProcedure.parent_id.desc(),
+                AnimalProcedure.name.asc(),
+            )
 
 class AnimalProcedureTarget(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)

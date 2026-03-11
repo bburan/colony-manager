@@ -3,33 +3,35 @@
 {% block content %}
 <div class="row g-4 mb-3">
     {% for type, info in settings.items() %}
-        {% set form = info['form'] %}
+        {% set form_class = info['form'] %}
+        {% set blank_form = form_class() %}
         <div class="col-md-4">
             <div class="card shadow-sm card-body">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
                 <form action="{{ url_for('main.create_setting', item_type=type) }}" method="POST" class="input-group input-group-sm mb-3">
-                    {{ form.hidden_tag() }}
-                    {% for field in form if field.widget_type != 'hidden' %}
-                        {{ field(class="form-control form-control-sm", oninput="markDirty(this)") }}
+                    {{ blank_form.hidden_tag() }}
+                    {% for field in blank_form if field.widget_type != 'hidden' %}
+                        {{ field(class="form-control form-control-sm") }}
                     {% endfor %}
                     <button class="btn btn-primary">Add</button>
                 </form>
 
                 <ul class="list-group list-group-flush small">
                     {% for item in info['items'] %}
+                        {% set form = form_class(obj=item) %}
                         <li class="list-group-item d-flex align-items-center">
                             <form id="update-setting-{{type}}-{{item.id}}"
                                 action="{{ url_for('main.update_setting', item_type=type, item_id=item.id) }}"
                                 method="POST" class="d-flex flex-grow-1 align-items-center">
                                 {{ form.hidden_tag() }}
                                 {% for field in form if field.widget_type != 'hidden' %}
-                                    {{ field(class="form-control form-control-sm border-0 bg-transparent fw-medium", oninput="markDirty(this)", value=item|attr(field.name)) }}
+                                    {{ field(class="form-control form-control-sm border-0 fw-medium", oninput="markDirty(this)") }}
                                 {% endfor %}
                                 <button type="submit" id="update-setting-{{type}}-{{item.id}}-save" disabled class="btn btn-sm"><i class="fas fa-save"></i></button>
                             </form>
                             <form action="{{ url_for('main.delete_setting', item_type=type, item_id=item.id) }}"
-                                method="POST" onsubmit="return confirm('Delete?');">
-                                <button class="btn btn-sm"><i class="fas fa-trash-alt"></i></button>
+                                method="POST" onsubmit="return confirm('Delete setting?');">
+                                <button class="btn btn-sm"><i class="fas fa-trash"></i></button>
                             </form>
                         </li>
                     {% endfor %}

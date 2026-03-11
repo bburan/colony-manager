@@ -7,22 +7,20 @@ from app import db
 from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Feed, ConfocalImage,
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
                         TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
+from app import forms
 from app.forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
 from app.routes.util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
 
-# Re-declare settings mapping for this blueprint
 SETTINGS_MAP = {
-    'species': {'model': Species, 'form': SimpleAddForm},
-    'source': {'model': Source, 'form': SimpleAddForm},
-    'feed': {'model': Feed, 'form': FeedForm},
-    'animal_procedure': {'model': AnimalProcedure, 'form': SimpleAddWithDescriptionForm},
-    'animal_procedure_target': {'model': AnimalProcedureTarget, 'form': SimpleAddWithDescriptionForm},
-    'termination_reason': {'model': TerminationReason, 'form': SimpleAddWithDescriptionForm},
-    'immunolabeling_panel': {'model': ImmunolabelingPanel, 'form': SimpleAddForm},
-    'reagent': {'model': Reagent, 'form': SimpleAddWithDescriptionForm},
-    'confocal_image_type': {'model': ConfocalImageType, 'form': SimpleAddForm},
+    'species': {'model': Species, 'form': forms.SimpleAddForm},
+    'source': {'model': Source, 'form': forms.SimpleAddForm},
+    'confocal_image_type': {'model': ConfocalImageType, 'form': forms.SimpleAddForm},
+    'termination_reason': {'model': TerminationReason, 'form': forms.SimpleAddForm},
+    'animal_procedure': {'model': AnimalProcedure, 'form': forms.AnimalProcedureAddForm},
+    'animal_procedure_target': {'model': AnimalProcedureTarget, 'form': forms.SimpleAddForm},
+    'feed': {'model': Feed, 'form': forms.FeedForm},
 }
 
 @main_bp.route('/')
@@ -105,41 +103,13 @@ def view_calendar():
 # --- Settings Routes ---
 @main_bp.route('/settings')
 def list_settings():
+    settings = {k: {'items': v['model'].query.all(), 'form': v['form']} for k, v in SETTINGS_MAP.items()}
     return render_template(
-        'settings.html',
+        'view_settings.html',
         panels=ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
-        settings={
-            'species': {
-                'items': Species.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'source': {
-                'items': Source.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'confocal_image_type': {
-                'items': ConfocalImageType.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'termination_reason': {
-                'items': TerminationReason.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'animal_procedure': {
-                'items': AnimalProcedure.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'animal_procedure_target': {
-                'items': AnimalProcedureTarget.query.all(),
-                'form': SimpleAddForm(),
-            },
-            'feed': {
-                'items': Feed.query.all(),
-                'form': FeedForm(),
-            },
-        }
+        settings=settings,
     )
 
 

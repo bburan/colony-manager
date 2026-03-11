@@ -57,6 +57,15 @@ class SimpleAddWithDescriptionForm(FlaskForm):
 class NoteForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
 
+class AnimalProcedureAddForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    parent = QuerySelectField(
+        'Parent',
+        query_factory=lambda: AnimalProcedure.query.filter(AnimalProcedure.parent_id==None).order_by('name'),
+        get_label='name',
+        allow_blank=True
+    )
+
 class CageForm(FlaskForm):
     custom_id = StringField('Cage ID (e.g., G001)', validators=[DataRequired(), Length(min=4, max=10)])
     species = QuerySelectField('Species', query_factory=species_factory, get_label='name', allow_blank=False, validators=[DataRequired()])
@@ -100,8 +109,14 @@ class AnimalForm(AnimalCustomIDForm):
     termination_date = DateField('Termination date', validators=[Optional()])
     termination_reason = QuerySelectField('Termination reason', query_factory=termination_reason_factory, get_label='name', validators=[Optional()])
 
+
 class AnimalEventForm(FlaskForm):
-    procedure = QuerySelectField('Procedure', query_factory=animal_procedure_factory, get_label='name', allow_blank=False)
+    procedure = QuerySelectField(
+        'Procedure',
+        query_factory=AnimalProcedure.get_ordered_procedures,
+        get_label='display_name',
+        allow_blank=False
+    )
     procedure_target = QuerySelectField('Target', query_factory=animal_procedure_target_factory, get_label='name', allow_blank=False)
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     completion_date = DateField('Completed Date', default=None, validators=[Optional()])

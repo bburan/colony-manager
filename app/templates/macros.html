@@ -37,7 +37,7 @@
                             <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-pencil"></i></button>
                             <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-trash"></i></button>
                         </div>
-                        <div>{{ event.procedure.name }}</div>
+                        <div class="align-items-center">{{ event.procedure.display_name }} <span class="badge text-bg-secondary">{{ event.procedure_target.name }}</span></div>
                         <div class="small muted">{{ event.notes }}</div>
                     </li>
                 {% endfor %}

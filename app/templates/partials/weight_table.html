@@ -1,4 +1,4 @@
-<table class="table table-responsive small">
+<table class="table table-responsive table-striped-columns">
     <thead>
     <td>Animal</td>
     {% for entry in weights.values()|list|first %}
@@ -33,12 +33,12 @@
                                 data-bs-placement="top"
                                 title="Edit weight/feed entry"
                                 onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')">
-                                    {{ baseline_pct or "—" }}
+							<span>{{ baseline_pct or "—" }}</span>
                             {% if log['total_feed'] > 0 %}
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-dark">{{ log['total_feed']|round(1) }}g</span>
+                                <span class="position-absolute top-0 start-100 badge text-bg-light text-muted translate-middle">{{ log['total_feed']|round(1) }}g</span>
                             {% endif %}
                             {% if '20mg' in log %}
-                                <span class="position-absolute top-100 start-100 translate-middle badge rounded-pill text-dark">{{ log['20mg'] }}</span>
+                                <span class="position-absolute top-100 start-100 badge text-bg-light text-muted translate-middle">{{ log['20mg'] }}</span>
                             {% endif %}
                         </button>
                     </td>

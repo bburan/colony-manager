@@ -85,7 +85,7 @@ def view_dashboard():
         today=today,
 
         # Table of weights for past week
-        weights=Animal.get_daily_logs(before=6, after=2),
+        weights=Animal.get_daily_logs(before=5, after=2),
     )
 
 

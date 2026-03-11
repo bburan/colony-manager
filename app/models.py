@@ -18,6 +18,16 @@ user_roles = db.Table('user_roles',
     db.Column('role_id', db.Integer, db.ForeignKey('user_role.id'), primary_key=True)
 )
 
+animal_tags = db.Table('animal_tags',
+    db.Column('animal_id', db.Integer, db.ForeignKey('animal.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('animal_tag.id'), primary_key=True)
+)
+
+animal_event_tags = db.Table('animal_event_tags',
+    db.Column('animal_event_id', db.Integer, db.ForeignKey('animal_event.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('animal_event_tag.id'), primary_key=True)
+)
+
 class VersionedModel(db.Model):
     """Base model that automatically adds created and updated timestamps."""
     __abstract__ = True
@@ -153,6 +163,10 @@ class Cage(VersionedModel):
             return 'N/A'
         return ', '.join(sorted(sources))
 
+class AnimalTag(VersionedModel):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+
 class Animal(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     custom_id = db.Column(db.String(100), unique=True, nullable=True)
@@ -170,6 +184,7 @@ class Animal(VersionedModel):
     breeding_pair = db.relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
     weights = db.relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     feedings = db.relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    tags = db.relationship('AnimalTag', secondary=animal_tags, backref='animals')
 
     @property
     def events_by_date(self):
@@ -397,6 +412,10 @@ class FeedLog(VersionedModel):
         UniqueConstraint('animal_id', 'feed_id', 'date'),
     )
 
+class AnimalEventTag(VersionedModel):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), unique=True, nullable=False)
+
 class AnimalEvent(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
@@ -405,6 +424,7 @@ class AnimalEvent(VersionedModel):
     scheduled_date = db.Column(db.Date, nullable=False)
     completion_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    tags = db.relationship('AnimalEventTag', secondary=animal_event_tags, backref='animal_procedure')
 
     @property
     def status(self):

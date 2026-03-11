@@ -8,9 +8,10 @@ from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 from markupsafe import Markup
 
 # Import models required for the form query factories
+from app import models
 from app.models import (
     Species, Source, Study, Cage, AnimalProcedure, AnimalProcedureTarget,
-    ImmunolabelingPanel, TerminationReason, Animal, ConfocalImageType, BreedingPair
+    ImmunolabelingPanel, TerminationReason, Animal, ConfocalImageType, BreedingPair, AnimalTag
 )
 
 # --- Query Factories ---
@@ -108,7 +109,11 @@ class AnimalForm(AnimalCustomIDForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     termination_date = DateField('Termination date', validators=[Optional()])
     termination_reason = QuerySelectField('Termination reason', query_factory=termination_reason_factory, get_label='name', validators=[Optional()])
-
+    tags = QuerySelectMultipleField(
+        'Tags',
+        query_factory=lambda: models.AnimalTag.query.all(),
+        get_label='name',
+    )
 
 class AnimalEventForm(FlaskForm):
     procedure = QuerySelectField(
@@ -121,6 +126,11 @@ class AnimalEventForm(FlaskForm):
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     completion_date = DateField('Completed Date', default=None, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])
+    tags = QuerySelectMultipleField(
+        'Tags',
+        query_factory=lambda: models.AnimalEventTag.query.all(),
+        get_label='name',
+    )
 
 class AnimalEventDeleteForm(AnimalEventForm):
     def __init__(self, *args, **kwargs):

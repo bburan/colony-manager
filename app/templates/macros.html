@@ -38,6 +38,7 @@
                             <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-trash"></i></button>
                         </div>
                         <div class="align-items-center">{{ event.procedure.display_name }} <span class="badge text-bg-secondary">{{ event.procedure_target.name }}</span></div>
+                        <div><i class="fas fa-tag m-1"></i>{% for tag in event.tags %}<span class="m-1 badge badge-pill text-bg-secondary">{{ tag.name }}</span>{% endfor %}</div>
                         <div class="small muted">{{ event.notes }}</div>
                     </li>
                 {% endfor %}

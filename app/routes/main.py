@@ -8,19 +8,22 @@ from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Fe
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
                         TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
 from app import forms
+from app import models
 from app.forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
 from app.routes.util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
 
 SETTINGS_MAP = {
-    'species': {'model': Species, 'form': forms.SimpleAddForm},
-    'source': {'model': Source, 'form': forms.SimpleAddForm},
-    'confocal_image_type': {'model': ConfocalImageType, 'form': forms.SimpleAddForm},
-    'termination_reason': {'model': TerminationReason, 'form': forms.SimpleAddForm},
-    'animal_procedure': {'model': AnimalProcedure, 'form': forms.AnimalProcedureAddForm},
-    'animal_procedure_target': {'model': AnimalProcedureTarget, 'form': forms.SimpleAddForm},
-    'feed': {'model': Feed, 'form': forms.FeedForm},
+    'species': {'model': models.Species, 'form': forms.SimpleAddForm},
+    'source': {'model': models.Source, 'form': forms.SimpleAddForm},
+    'confocal_image_type': {'model': models.ConfocalImageType, 'form': forms.SimpleAddForm},
+    'termination_reason': {'model': models.TerminationReason, 'form': forms.SimpleAddForm},
+    'animal_procedure': {'model': models.AnimalProcedure, 'form': forms.AnimalProcedureAddForm},
+    'animal_procedure_target': {'model': models.AnimalProcedureTarget, 'form': forms.SimpleAddForm},
+    'feed': {'model': models.Feed, 'form': forms.FeedForm},
+    'animal_tag': {'model': models.AnimalTag, 'form': forms.SimpleAddForm},
+    'animal_event_tag': {'model': models.AnimalEventTag, 'form': forms.SimpleAddForm},
 }
 
 @main_bp.route('/')

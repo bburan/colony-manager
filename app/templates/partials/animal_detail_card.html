@@ -21,6 +21,15 @@
         <dt class="col-4">Termination Date</dt>
         <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') }}</dd>
     {% endif %}
+    <dt class="col-4">Tags</dt>
+    <dd class="col-8">
+        <ul class="list-group list-group-horizontal">
+            {% for tag in animal.tags %}
+                <li class="list-group-item">{{ tag.name }}</li>
+            {% endfor %}
+        </ul>
+
+    </dd>
     <dt class="col-4">Studies</dt>
     <dd class="col-8">
         <ul class="list-group">

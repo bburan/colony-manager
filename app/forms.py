@@ -114,14 +114,14 @@ class AnimalForm(AnimalCustomIDForm):
     termination_reason = QuerySelectField('Termination reason', query_factory=termination_reason_factory, get_label='name', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=lambda: models.AnimalTag.query.all(),
-        get_label='name',
+        query_factory=models.AnimalTag.get_ordered,
+        get_label='display_name',
     )
 
 class AnimalEventForm(FlaskForm):
     procedure = QuerySelectField(
         'Procedure',
-        query_factory=AnimalProcedure.get_ordered_procedures,
+        query_factory=AnimalProcedure.get_ordered,
         get_label='display_name',
         allow_blank=False
     )
@@ -131,8 +131,8 @@ class AnimalEventForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=lambda: models.AnimalEventTag.query.all(),
-        get_label='name',
+        query_factory=models.AnimalEventTag.get_ordered,
+        get_label='display_name',
     )
 
 class AnimalEventDeleteForm(AnimalEventForm):

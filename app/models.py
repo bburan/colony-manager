@@ -76,7 +76,27 @@ class Source(VersionedModel):
     name = db.Column(db.String(100), unique=True, nullable=False)
     animals = db.relationship('Animal', backref='source', lazy=True)
 
-class AnimalProcedure(VersionedModel):
+class NestedMixin:
+
+    @property
+    def display_name(self):
+        if self.parent:
+            return f'{self.parent.name} > {self.name}'
+        return self.name
+
+    @classmethod
+    def get_ordered(cls):
+        Parent = orm.aliased(cls)
+        group_sort = func.coalesce(Parent.name, cls.name)
+        return db.session.query(cls). \
+            outerjoin(Parent, cls.parent_id == Parent.id). \
+            order_by(
+                group_sort.asc(),
+                cls.parent_id.desc(),
+                cls.name.asc(),
+            )
+
+class AnimalProcedure(VersionedModel, NestedMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -89,24 +109,6 @@ class AnimalProcedure(VersionedModel):
     )
 
     events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
-
-    @property
-    def display_name(self):
-        if self.parent:
-            return f'{self.parent.name} > {self.name}'
-        return self.name
-
-    @classmethod
-    def get_ordered_procedures(cls):
-        Parent = orm.aliased(AnimalProcedure)
-        group_sort = func.coalesce(Parent.name, AnimalProcedure.name)
-        return db.session.query(AnimalProcedure). \
-            outerjoin(Parent, AnimalProcedure.parent_id == Parent.id). \
-            order_by(
-                group_sort.asc(),
-                AnimalProcedure.parent_id.desc(),
-                AnimalProcedure.name.asc(),
-            )
 
 class AnimalProcedureTarget(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
@@ -163,9 +165,21 @@ class Cage(VersionedModel):
             return 'N/A'
         return ', '.join(sorted(sources))
 
-class AnimalTag(VersionedModel):
+class AnimalTag(VersionedModel, NestedMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('animal_tag.id'), nullable=True)
+    subtags = db.relationship(
+        'AnimalTag',
+        backref=db.backref('parent', remote_side=[id]),
+        lazy='dynamic'
+    )
+
+    @property
+    def display_name(self):
+        if self.parent:
+            return f'{self.parent.name} > {self.name}'
+        return self.name
 
 class Animal(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
@@ -411,9 +425,21 @@ class FeedLog(VersionedModel):
         UniqueConstraint('animal_id', 'feed_id', 'date'),
     )
 
-class AnimalEventTag(VersionedModel):
+class AnimalEventTag(VersionedModel, NestedMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), unique=True, nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('animal_event_tag.id'), nullable=True)
+    subtags = db.relationship(
+        'AnimalEventTag',
+        backref=db.backref('parent', remote_side=[id]),
+        lazy='dynamic'
+    )
+
+    @property
+    def display_name(self):
+        if self.parent:
+            return f'{self.parent.name} > {self.name}'
+        return self.name
 
 class AnimalEvent(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)

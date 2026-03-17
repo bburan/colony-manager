@@ -128,15 +128,14 @@ Dashboard
                         {% for ear_group in images|groupby('ear') %}
                             {% for type_group in ear_group.list|groupby('image_type.name') %}
                                 <li class="list-group-item">
-                                <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
-                                {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
-                                <div class="d-flex flex-wrap gap-1">
-                                {% for image in type_group.list|sort(attribute='frequency') %}
-                                    <span class="badge rounded-pill text-bg-light border">{{ image.frequency }}</span>
-                                {% endfor %}
-                                </ul>
+                                    <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
+                                    {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
+                                    <div class="d-flex flex-wrap gap-1">
+                                    {% for image in type_group.list|sort(attribute='frequency') %}
+                                        <span class="badge rounded-pill text-bg-light border">{{ image.frequency }}</span>
+                                    {% endfor %}
+                                </li>
                             {% endfor %}
-                            </li>
                         {% endfor %}
                     </ul>
                 </div>

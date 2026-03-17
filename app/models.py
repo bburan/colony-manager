@@ -348,8 +348,16 @@ class Animal(VersionedModel):
             FeedLog.date <= end_date,
         ).all()
 
-        w_animals, weights = zip(*weights)
-        f_animals, feeds = zip(*feeds)
+        if len(weights):
+            w_animals, weights = zip(*weights)
+        else:
+            w_animals, weights = [], []
+
+        if len(feeds):
+            f_animals, feeds = zip(*feeds)
+        else:
+            f_animals, feeds = [], []
+
         animals = sorted(set(w_animals) | set(f_animals), key=lambda x: x.display_id)
         results = {a: [{'date': start_date + timedelta(days=i), 'weight': None, 'feeds': [], 'total_feed': 0} \
                        for i in range(total_days)] for a in animals}

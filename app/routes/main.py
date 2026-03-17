@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 from app import db
+
 from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Feed, ConfocalImage,
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
                         TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
@@ -31,10 +32,10 @@ def view_dashboard():
     today = date.today()
 
     # 1. Metrics for Top Cards
-    active_cages_count = Cage.query.filter(Cage.animals.any(Animal.termination_date.is_(None))).count()
-    active_animals_count = Animal.query.filter(Animal.termination_date == None).count()
-    active_breeding_pairs_count = BreedingPair.query.filter_by(is_active=True).count()
-    ears_for_processing_count = Ear.query.filter(Ear.immunolabel_date == None).count()
+    active_cages_count = models.Species.count_active_cages()
+    active_animals_count = models.Species.count_active_animals()
+    ears_for_processing_count = models.Species.count_unprocessed_ears()
+    active_breeding_pairs_count = models.Species.count_active_breeding_pairs()
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
     upcoming_events = AnimalEvent.query.filter(

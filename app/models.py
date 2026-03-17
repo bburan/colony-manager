@@ -71,6 +71,67 @@ class Species(VersionedModel):
     animals = db.relationship('Animal', backref='species', lazy=True)
     cages = db.relationship('Cage', backref='species', lazy=True)
 
+    @classmethod
+    def count_active_cages(cls):
+        return db.session.query(
+            Species.name,
+            func.count(func.distinct(Cage.id))
+        ) \
+        .outerjoin(Species.animals) \
+        .outerjoin(Animal.cage) \
+        .filter(
+            db.or_(
+                Animal.termination_date.is_(None), # Animal is active
+                Animal.id.is_(None)               # OR there are no animals at all
+            )
+        )\
+        .group_by(Species.id)\
+        .all()
+
+    @classmethod
+    def count_active_animals(cls):
+        return db.session.query(
+            Species.name,
+            func.count(func.distinct(Animal.id))
+        ) \
+        .outerjoin(Species.animals) \
+        .filter(
+            db.and_(
+                Animal.termination_date.is_(None), # Animal is active
+                Animal.custom_id.isnot(None)               # OR there are no animals at all
+            )
+        )\
+        .group_by(Species.id)\
+        .all()
+
+    @classmethod
+    def count_unprocessed_ears(cls):
+        return db.session.query(
+            Species.name,
+            func.count(func.distinct(Ear.id))
+        ) \
+        .outerjoin(Species.animals) \
+        .outerjoin(Animal.ears) \
+        .filter(
+            db.and_(
+                Ear.immunolabel_date.is_(None), # Ear is not processed
+            )
+        )\
+        .group_by(Species.id)\
+        .all()
+
+    @classmethod
+    def count_active_breeding_pairs(cls):
+        return db.session.query(
+            Species.name,
+            func.count(func.distinct(BreedingPair.id))
+        ) \
+        .outerjoin(Species.animals) \
+        .outerjoin(BreedingPair, db.and_(Animal.id == BreedingPair.male_animal_id, BreedingPair.is_active == True)) \
+        .group_by(Species.id) \
+        .all()
+
+
 class Source(VersionedModel):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
@@ -164,6 +225,7 @@ class Cage(VersionedModel):
         if len(sources) == 0:
             return 'N/A'
         return ', '.join(sorted(sources))
+
 
 class AnimalTag(VersionedModel, NestedMixin):
     id = db.Column(db.Integer, primary_key=True)

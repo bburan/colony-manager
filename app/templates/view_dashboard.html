@@ -15,18 +15,22 @@ Dashboard
 
 {% block content %}
 <div class="row mb-4">
-    {% for (url, icon, label, number) in buttons %}
+    {% for (url, icon, label, info) in buttons %}
     <div class="col-md-6 col-lg-3">
         <div class="card shadow-sm h-100">
             <a href="{{ url_for(url) }}" class="stretched-link"></a>
             <div class="card-body p-4">
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-top">
                     <i class="fas {{ icon }} fa-2x"></i>
                     <div class="ms-4">
                         <h3 class="small fw-bold text-uppercase mb-1">
                             {{ label }}
                         </h3>
-                        <div class="h4">{{ number }}</div>
+                        <ul class="list-group">
+                            {% for species, number in info %}
+                                <li class="list-group-item">{{ species }} {{ number }}</li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
             </div>

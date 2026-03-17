@@ -1,5 +1,5 @@
 from sqlalchemy import exists
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from app import db
 from app.models import Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType
 from app.forms import HistologyForm, NoteForm, ConfocalImageForm
@@ -30,6 +30,10 @@ def list_histology():
             (ConfocalImage.status == analysis_filter)
         )
         query = query.filter(subquery)
+
+    species_id = int(session.get('selected_species', -1))
+    if species_id != -1:
+        query = query.filter(Ear.animal.has(species_id=species_id))
     ears = [row[0] for row in query.distinct().all()]
 
     return render_template(

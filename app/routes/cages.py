@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from sqlalchemy import func
 from app import db
 from app.models import Cage, Animal
@@ -10,11 +10,17 @@ cages_bp = Blueprint('cages', __name__)
 
 @cages_bp.route('/')
 def list_cages():
+    species_id = int(session.get('selected_species', -1))
+    if species_id != -1:
+        query = Cage.query.filter(Cage.species_id==species_id)
+    else:
+        query = Cage.query
+
     sort_by = request.args.get('sort_by', 'custom_id')
     if sort_by == 'custom_id':
-        cages = Cage.query.order_by(Cage.custom_id).all()
+        cages = query.order_by(Cage.custom_id).all()
     elif sort_by == 'age':
-        cages = Cage.query \
+        cages = query \
             .outerjoin(Cage.animals) \
             .group_by(Cage.id) \
             .order_by(func.min(Animal.dob).desc()) \

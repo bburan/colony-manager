@@ -1,6 +1,6 @@
 import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from app import db
 from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
 from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
@@ -21,6 +21,10 @@ def list_animals():
     search_query = request.args.get('search_query', '')
 
     query = Animal.query.filter(Animal.custom_id.is_not(None))
+
+    species_id = int(session.get('selected_species', -1))
+    if species_id != -1:
+        query = query.filter(Animal.species_id==species_id)
 
     if search_query:
         # We join Events and Procedures to allow searching by procedure name

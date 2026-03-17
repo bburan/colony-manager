@@ -1,6 +1,6 @@
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 from app import db
@@ -197,3 +197,8 @@ def create_feed():
     else:
         flash_form_errors(form, title="Could not create feed")
     return redirect(request.referrer or url_for('list_settings'))
+
+@main_bp.route('/set-species/<species_id>')
+def set_species(species_id):
+    session['selected_species'] = species_id
+    return redirect(request.referrer or url_for('view_dashboard'))

@@ -20,7 +20,7 @@
 </head>
 <body>
     <nav class="navbar navbar-expand-lg shadow-sm">
-        <div class="container">
+		<div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('main.view_dashboard') }}">
                 <i class="fas fa-dna me-2"></i>Colony Manager
             </a>
@@ -45,6 +45,20 @@
                            href="{{ url_for(endpoint) }}">{{ label }}</a>
                     </li>
                     {% endfor %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+							<i class="fas fa-paw me-1"></i>{{ selected_species|capitalize }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+							<li><a class="dropdown-item" href="{{ url_for('main.set_species', species_id=-1) }}">All</a></li>
+							<li><hr class="dropdown-divider"></li>
+							{% for s in species %}
+                                <li>
+									<a class="dropdown-item" href="{{ url_for('main.set_species', species_id=s.id) }}">{{ s.name }}</a>
+                                </li>
+							{% endfor %}
+                        </ul>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user"></i>

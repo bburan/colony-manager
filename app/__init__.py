@@ -1,7 +1,7 @@
 import datetime
 import os
 import datetime
-from flask import Flask
+from flask import Flask, session
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
@@ -23,6 +23,7 @@ make_versioned(user_cls='User', plugins=[FlaskPlugin()])
 db = SQLAlchemy(metadata=MetaData(naming_convention=naming_convention))
 migrate = Migrate()
 login_manager = LoginManager()
+
 
 def create_app():
     app = Flask(__name__)
@@ -56,6 +57,20 @@ def create_app():
     def load_user(user_id):
         from app.models import User
         return User.query.get(user_id)
+
+    @app.context_processor
+    def inject_global_vars():
+        from app.models import Species
+        species_id = int(session.get('selected_species', -1))
+        if species_id != -1:
+            selected_species = Species.query.get_or_404(species_id).name
+        else:
+            selected_species = 'All'
+        return {
+            'datetime': datetime,
+            'species': Species.query.all(),
+            'selected_species': selected_species,
+        }
 
     @app.context_processor
     def datetime_processor():

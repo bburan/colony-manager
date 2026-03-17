@@ -119,9 +119,9 @@ Dashboard
                             <li class="list-group-item">
                             <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
                             {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
-                            <ul class="list-group list-group-horizontal small">
-                            {% for image in type_group.list %}
-                                <li class="list-group-item">{{ image.frequency }}</li>
+                            <div class="d-flex flex-wrap gap-1">
+                            {% for image in type_group.list|sort(attribute='frequency') %}
+                                <span class="badge rounded-pill text-bg-light border">{{ image.frequency }}</span>
                             {% endfor %}
                             </ul>
                         {% endfor %}

@@ -26,7 +26,7 @@ Dashboard
                         <h3 class="small fw-bold text-uppercase mb-1">
                             {{ label }}
                         </h3>
-                        <ul class="list-group">
+                        <ul class="list-group list-group-flush">
                             {% for species, number in info %}
                                 <li class="list-group-item">{{ species }} {{ number }}</li>
                             {% endfor %}
@@ -112,51 +112,36 @@ Dashboard
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-6">
-        <div class="card shadow-sm">
-            <div class="card-header">Images pending analysis</div>
-            <div class="card-body">
-                <ul class="list-group small">
-                    {% for ear_group in image_analysis_pending|groupby('ear') %}
-                        {% for type_group in ear_group.list|groupby('image_type.name') %}
-                            <li class="list-group-item">
-                            <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
-                            {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
-                            <div class="d-flex flex-wrap gap-1">
-                            {% for image in type_group.list|sort(attribute='frequency') %}
-                                <span class="badge rounded-pill text-bg-light border">{{ image.frequency }}</span>
-                            {% endfor %}
-                            </ul>
-                        {% endfor %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
+{% set images = [
+    ('analysis', image_analysis_pending),
+    ('review', image_analysis_review),
+    ]
+    %}
 
-    <div class="col-6">
-        <div class="card shadow-sm">
-            <div class="card-header">Images pending review</div>
-            <div class="card-body">
-                <ul class="list-group small">
-                    {% for ear_group in image_analysis_review|groupby('ear') %}
-                        {% for type_group in ear_group.list|groupby('image_type.name') %}
-                            <li class="list-group-item">
-                            <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
-                            {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
-                            <ul class="list-group list-group-horizontal small">
-                                {% for image in type_group.list %}
-                                    <li class="list-group-item">{{ image.frequency }}</li>
+<div class="row mb-4">
+    {% for text, images in images %}
+        <div class="col-6">
+            <div class="card shadow-sm">
+                <div class="card-header">Images pending {{ text }}</div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush small">
+                        {% for ear_group in images|groupby('ear') %}
+                            {% for type_group in ear_group.list|groupby('image_type.name') %}
+                                <li class="list-group-item">
+                                <a class="stretched-link" href="{{ url_for('histology.view_ear', ear_id=ear_group.grouper.id) }}"></a>
+                                {{ ear_group.grouper.full_display }} {{ type_group.grouper }}
+                                <div class="d-flex flex-wrap gap-1">
+                                {% for image in type_group.list|sort(attribute='frequency') %}
+                                    <span class="badge rounded-pill text-bg-light border">{{ image.frequency }}</span>
                                 {% endfor %}
-                            </ul>
+                                </ul>
+                            {% endfor %}
+                            </li>
                         {% endfor %}
-                    </li>
-                    {% endfor %}
-                </ul>
+                    </ul>
+                </div>
             </div>
         </div>
-    </div>
+    {% endfor %}
 </div>
 {% endblock %}

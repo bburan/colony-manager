@@ -29,7 +29,7 @@ def login_user():
         # Login and validate the user.
         # user should be an instance of your `User` class
         user = User.query.filter_by(email=login_form.email.data).first()
-        if user and user.is_active():
+        if user and user.is_active:
             if user.check_password(login_form.password.data):
                 flask_login.login_user(user)
                 flash('Logged in successfully.', 'success')

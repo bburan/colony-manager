@@ -7,7 +7,8 @@ from app import db
 
 from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Feed, ConfocalImage,
                         Species, Source, AnimalProcedure, AnimalProcedureTarget,
-                        TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType, User)
+                        TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType)
+from app.models import User
 from app import forms
 from app import models
 from app.forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm

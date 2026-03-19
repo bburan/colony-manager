@@ -1,86 +1,81 @@
 from datetime import date, timedelta
+import re
 from statistics import mean
 
-from sqlalchemy import func, orm, UniqueConstraint
-from app import db
-from flask_login import current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+
+from sqlalchemy import (
+    func, orm, UniqueConstraint, MetaData, Table, Column, Integer, String,
+    ForeignKey, Text, Boolean, Date, Float, and_, or_
+)
+from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
+                            backref, scoped_session, sessionmaker)
+
+Base = declarative_base(
+    metadata=MetaData(
+        naming_convention={
+            "ix": "ix_%(column_0_label)s",
+            "uq": "uq_%(table_name)s_%(column_0_name)s",
+            "ck": "ck_%(table_name)s_%(constraint_name)s",
+            "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+            "pk": "pk_%(table_name)s"
+        },
+    ),
+)
+
+Base.session = scoped_session(sessionmaker())
+Base.query = Base.session.query_property()
 
 
 # --- Association Tables ---
-study_animals = db.Table('study_animals',
-    db.Column('study_id', db.Integer, db.ForeignKey('study.id'), primary_key=True),
-    db.Column('animal_id', db.Integer, db.ForeignKey('animal.id'), primary_key=True)
+study_animals = Table('study_animals', Base.metadata,
+    Column('study_id', Integer, ForeignKey('study.id'), primary_key=True),
+    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True)
 )
 
-user_roles = db.Table('user_roles',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('role_id', db.Integer, db.ForeignKey('user_role.id'), primary_key=True)
+user_roles = Table('user_roles', Base.metadata,
+    Column('user_id', Integer, ForeignKey('user.id'), primary_key=True),
+    Column('role_id', Integer, ForeignKey('user_role.id'), primary_key=True)
 )
 
-animal_tags = db.Table('animal_tags',
-    db.Column('animal_id', db.Integer, db.ForeignKey('animal.id'), primary_key=True),
-    db.Column('tag_id', db.Integer, db.ForeignKey('animal_tag.id'), primary_key=True)
+animal_tags = Table('animal_tags', Base.metadata,
+    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('animal_tag.id'), primary_key=True)
 )
 
-animal_event_tags = db.Table('animal_event_tags',
-    db.Column('animal_event_id', db.Integer, db.ForeignKey('animal_event.id'), primary_key=True),
-    db.Column('tag_id', db.Integer, db.ForeignKey('animal_event_tag.id'), primary_key=True)
+animal_event_tags = Table('animal_event_tags', Base.metadata,
+    Column('animal_event_id', Integer, ForeignKey('animal_event.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('animal_event_tag.id'), primary_key=True)
 )
 
-class VersionedModel(db.Model):
+
+class VersionedModel(Base):
     """Base model that automatically adds created and updated timestamps."""
     __abstract__ = True
     __versioned__ = {}
 
-class UserRole(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
+    @declared_attr
+    def __tablename__(cls):
+        name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
-class User(UserMixin, VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(150), unique=False, nullable=False)
-    last_name = db.Column(db.String(150), unique=False, nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)
-    password_hash = db.Column(db.String(512))
-    roles = db.relationship('UserRole', secondary=user_roles, backref=db.backref('users', lazy='dynamic'))
-    active = db.Column(db.Boolean, default=False, nullable=False)
-    admin = db.Column(db.Boolean, default=False, nullable=False)
-
-    def is_admin(self):
-        return self.admin
-
-    def is_active(self):
-        return self.active
-
-    def set_password(self, password):
-        """Creates a hashed version of the password."""
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        """Checks the provided password against the stored hash."""
-        return check_password_hash(self.password_hash, password)
-
-    @property
-    def display_name(self):
-        return f'{self.first_name} {self.last_name}'
 
 class Species(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    animals = db.relationship('Animal', backref='species', lazy=True)
-    cages = db.relationship('Cage', backref='species', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    animals = relationship('Animal', backref='species', lazy=True)
+    cages = relationship('Cage', backref='species', lazy=True)
 
     @classmethod
     def count_active_cages(cls):
-        return db.session.query(
+        return cls.session.query(
             Species.name,
             func.count(func.distinct(Cage.id))
         ) \
         .outerjoin(Species.animals) \
         .outerjoin(Animal.cage) \
         .filter(
-            db.or_(
+            or_(
                 Animal.termination_date.is_(None), # Animal is active
                 Animal.id.is_(None)               # OR there are no animals at all
             )
@@ -90,13 +85,13 @@ class Species(VersionedModel):
 
     @classmethod
     def count_active_animals(cls):
-        return db.session.query(
+        return cls.session.query(
             Species.name,
             func.count(func.distinct(Animal.id))
         ) \
         .outerjoin(Species.animals) \
         .filter(
-            db.and_(
+            and_(
                 Animal.termination_date.is_(None), # Animal is active
                 Animal.custom_id.isnot(None)               # OR there are no animals at all
             )
@@ -106,14 +101,14 @@ class Species(VersionedModel):
 
     @classmethod
     def count_unprocessed_ears(cls):
-        return db.session.query(
+        return cls.session.query(
             Species.name,
             func.count(func.distinct(Ear.id))
         ) \
         .outerjoin(Species.animals) \
         .outerjoin(Animal.ears) \
         .filter(
-            db.and_(
+            and_(
                 Ear.immunolabel_date.is_(None), # Ear is not processed
             )
         )\
@@ -122,20 +117,20 @@ class Species(VersionedModel):
 
     @classmethod
     def count_active_breeding_pairs(cls):
-        return db.session.query(
+        return cls.session.query(
             Species.name,
             func.count(func.distinct(BreedingPair.id))
         ) \
         .outerjoin(Species.animals) \
-        .outerjoin(BreedingPair, db.and_(Animal.id == BreedingPair.male_animal_id, BreedingPair.is_active == True)) \
+        .outerjoin(BreedingPair, and_(Animal.id == BreedingPair.male_animal_id, BreedingPair.is_active == True)) \
         .group_by(Species.id) \
         .all()
 
 
 class Source(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    animals = db.relationship('Animal', backref='source', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    animals = relationship('Animal', backref='source', lazy=True)
 
 class NestedMixin:
 
@@ -149,7 +144,7 @@ class NestedMixin:
     def get_ordered(cls):
         Parent = orm.aliased(cls)
         group_sort = func.coalesce(Parent.name, cls.name)
-        return db.session.query(cls). \
+        return cls.session.query(cls). \
             outerjoin(Parent, cls.parent_id == Parent.id). \
             order_by(
                 group_sort.asc(),
@@ -158,37 +153,37 @@ class NestedMixin:
             )
 
 class AnimalProcedure(VersionedModel, NestedMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id'), nullable=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    parent_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
 
-    subcategories = db.relationship(
+    subcategories = relationship(
         'AnimalProcedure',
-        backref=db.backref('parent', remote_side=[id]),
+        backref=backref('parent', remote_side=[id]),
         lazy='dynamic'
     )
 
-    events = db.relationship('AnimalEvent', backref='procedure', lazy=True)
+    events = relationship('AnimalEvent', backref='procedure', lazy=True)
 
 class AnimalProcedureTarget(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    events = db.relationship('AnimalEvent', backref='procedure_target', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    events = relationship('AnimalEvent', backref='procedure_target', lazy=True)
 
 class TerminationReason(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    animals = db.relationship('Animal', backref='termination_reason', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    animals = relationship('Animal', backref='termination_reason', lazy=True)
 
 class Cage(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    custom_id = db.Column(db.String(50), unique=True, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    species_id = db.Column(db.Integer, db.ForeignKey('species.id', use_alter=True), nullable=False)
-    animals = db.relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
+    id = Column(Integer, primary_key=True)
+    custom_id = Column(String(50), unique=True, nullable=False)
+    notes = Column(Text, nullable=True)
+    species_id = Column(Integer, ForeignKey('species.id', use_alter=True), nullable=False)
+    animals = relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
 
     @property
     def sources(self):
@@ -228,12 +223,12 @@ class Cage(VersionedModel):
 
 
 class AnimalTag(VersionedModel, NestedMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('animal_tag.id'), nullable=True)
-    subtags = db.relationship(
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    parent_id = Column(Integer, ForeignKey('animal_tag.id'), nullable=True)
+    subtags = relationship(
         'AnimalTag',
-        backref=db.backref('parent', remote_side=[id]),
+        backref=backref('parent', remote_side=[id]),
         lazy='dynamic'
     )
 
@@ -244,23 +239,23 @@ class AnimalTag(VersionedModel, NestedMixin):
         return self.name
 
 class Animal(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    custom_id = db.Column(db.String(100), unique=True, nullable=True)
-    cage_id = db.Column(db.Integer, db.ForeignKey('cage.id', use_alter=True), nullable=False)
-    species_id = db.Column(db.Integer, db.ForeignKey('species.id', use_alter=True), nullable=False)
-    sex = db.Column(db.String(10), nullable=False)
-    dob = db.Column(db.Date, nullable=False)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id', use_alter=True), nullable=True)
-    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id'), nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    termination_date = db.Column(db.Date, nullable=True)
-    termination_reason_id = db.Column(db.Integer, db.ForeignKey('termination_reason.id', use_alter=True), nullable=True)
-    events = db.relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    ears = db.relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    breeding_pair = db.relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
-    weights = db.relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    feedings = db.relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    tags = db.relationship('AnimalTag', secondary=animal_tags, backref='animals')
+    id = Column(Integer, primary_key=True)
+    custom_id = Column(String(100), unique=True, nullable=True)
+    cage_id = Column(Integer, ForeignKey('cage.id', use_alter=True), nullable=False)
+    species_id = Column(Integer, ForeignKey('species.id', use_alter=True), nullable=False)
+    sex = Column(String(10), nullable=False)
+    dob = Column(Date, nullable=False)
+    source_id = Column(Integer, ForeignKey('source.id', use_alter=True), nullable=True)
+    breeding_pair_id = Column(Integer, ForeignKey('breeding_pair.id'), nullable=True)
+    notes = Column(Text, nullable=True)
+    termination_date = Column(Date, nullable=True)
+    termination_reason_id = Column(Integer, ForeignKey('termination_reason.id', use_alter=True), nullable=True)
+    events = relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    ears = relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    breeding_pair = relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
+    weights = relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    feedings = relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    tags = relationship('AnimalTag', secondary=animal_tags, backref='animals')
 
     @property
     def events_by_date(self):
@@ -396,7 +391,7 @@ class Animal(VersionedModel):
         end_date = reference_date + timedelta(days=after)
         total_days = (end_date - start_date).days + 1
 
-        weights = db.session.query(cls, WeightLog).join(WeightLog) \
+        weights = cls.session.query(cls, WeightLog).join(WeightLog) \
             .filter(
             WeightLog.date >= start_date,
             WeightLog.date <= end_date,
@@ -404,7 +399,7 @@ class Animal(VersionedModel):
             #WeightLog.baseline == False
         ).all()
 
-        feeds = db.session.query(cls, FeedLog).join(FeedLog) \
+        feeds = cls.session.query(cls, FeedLog).join(FeedLog) \
             .filter(
             FeedLog.date >= start_date,
             FeedLog.date <= end_date,
@@ -439,53 +434,53 @@ class Animal(VersionedModel):
         return results
 
 class BreedingPair(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    custom_id = db.Column(db.String(50), unique=True, nullable=False)
-    start_date = db.Column(db.Date, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    male_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
-    male = db.relationship('Animal', foreign_keys=[male_animal_id])
-    female_animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
-    female = db.relationship('Animal', foreign_keys=[female_animal_id])
-    is_active = db.Column(db.Boolean, default=True, nullable=False)
-    litters = db.relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
-    offspring = db.relationship('Animal', back_populates='breeding_pair', foreign_keys='Animal.breeding_pair_id')
+    id = Column(Integer, primary_key=True)
+    custom_id = Column(String(50), unique=True, nullable=False)
+    start_date = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    male_animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
+    male = relationship('Animal', foreign_keys=[male_animal_id])
+    female_animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
+    female = relationship('Animal', foreign_keys=[female_animal_id])
+    is_active = Column(Boolean, default=True, nullable=False)
+    litters = relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
+    offspring = relationship('Animal', back_populates='breeding_pair', foreign_keys='Animal.breeding_pair_id')
 
 class Litter(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    breeding_pair_id = db.Column(db.Integer, db.ForeignKey('breeding_pair.id', use_alter=True), nullable=False)
-    dob = db.Column(db.Date, nullable=False)
-    pup_count = db.Column(db.Integer, nullable=False)
-    wean_date = db.Column(db.Date, nullable=True)
+    id = Column(Integer, primary_key=True)
+    breeding_pair_id = Column(Integer, ForeignKey('breeding_pair.id', use_alter=True), nullable=False)
+    dob = Column(Date, nullable=False)
+    pup_count = Column(Integer, nullable=False)
+    wean_date = Column(Date, nullable=True)
 
     @property
     def age_in_days(self):
         return (date.today() - self.dob).days
 
 class Feed(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    weight = db.Column(db.Float, nullable=False)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False)
+    weight = Column(Float, nullable=False)
 
 class WeightLog(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    date = db.Column(db.Date)
-    weight = db.Column(db.Float, nullable=True)
-    notes = db.Column(db.Text)
-    baseline = db.Column(db.Boolean, nullable=False, default=False)
+    id = Column(Integer, primary_key=True)
+    animal_id = Column(Integer, ForeignKey('animal.id'), nullable=False)
+    date = Column(Date)
+    weight = Column(Float, nullable=True)
+    notes = Column(Text)
+    baseline = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         UniqueConstraint('animal_id', 'date'),
     )
 
 class FeedLog(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
-    feed_id = db.Column(db.Integer, db.ForeignKey('feed.id'), nullable=False)
-    date = db.Column(db.Date)
-    quantity = db.Column(db.Integer, nullable=False)  # Number of pellets
-    feed_type = db.relationship('Feed')
+    id = Column(Integer, primary_key=True)
+    animal_id = Column(Integer, ForeignKey('animal.id'), nullable=False)
+    feed_id = Column(Integer, ForeignKey('feed.id'), nullable=False)
+    date = Column(Date)
+    quantity = Column(Integer, nullable=False)  # Number of pellets
+    feed_type = relationship('Feed')
 
     @property
     def total_grams(self):
@@ -496,12 +491,12 @@ class FeedLog(VersionedModel):
     )
 
 class AnimalEventTag(VersionedModel, NestedMixin):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('animal_event_tag.id'), nullable=True)
-    subtags = db.relationship(
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    parent_id = Column(Integer, ForeignKey('animal_event_tag.id'), nullable=True)
+    subtags = relationship(
         'AnimalEventTag',
-        backref=db.backref('parent', remote_side=[id]),
+        backref=backref('parent', remote_side=[id]),
         lazy='dynamic'
     )
 
@@ -512,14 +507,14 @@ class AnimalEventTag(VersionedModel, NestedMixin):
         return self.name
 
 class AnimalEvent(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
-    procedure_id = db.Column(db.Integer, db.ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
-    procedure_target_id = db.Column(db.Integer, db.ForeignKey('animal_procedure_target.id', use_alter=True), nullable=False)
-    scheduled_date = db.Column(db.Date, nullable=False)
-    completion_date = db.Column(db.Date, nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    tags = db.relationship('AnimalEventTag', secondary=animal_event_tags, backref='animal_procedure')
+    id = Column(Integer, primary_key=True)
+    animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
+    procedure_id = Column(Integer, ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
+    procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id', use_alter=True), nullable=False)
+    scheduled_date = Column(Date, nullable=False)
+    completion_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    tags = relationship('AnimalEventTag', secondary=animal_event_tags, backref='animal_procedure')
 
     @property
     def status(self):
@@ -533,27 +528,27 @@ class AnimalEvent(VersionedModel):
         return self.scheduled_date if self.completion_date is None else self.completion_date
 
 class ImmunolabelingPanel(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    reagents = db.relationship('Reagent', backref='panel', lazy='dynamic', cascade="all, delete-orphan")
-    ears = db.relationship('Ear', backref='panel', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    reagents = relationship('Reagent', backref='panel', lazy='dynamic', cascade="all, delete-orphan")
+    ears = relationship('Ear', backref='panel', lazy=True)
 
 class Reagent(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id'), nullable=False)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    panel_id = Column(Integer, ForeignKey('immunolabeling_panel.id'), nullable=False)
 
 class Ear(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id', use_alter=True), nullable=False)
-    side = db.Column(db.String(5), nullable=False)
-    cryoprotection_date = db.Column(db.Date, nullable=True)
-    dissection_date = db.Column(db.Date, nullable=True)
-    immunolabel_date = db.Column(db.Date, nullable=True)
-    panel_id = db.Column(db.Integer, db.ForeignKey('immunolabeling_panel.id', use_alter=True), nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    confocal_images = db.relationship('ConfocalImage', backref='ear', lazy=True)
+    id = Column(Integer, primary_key=True)
+    animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
+    side = Column(String(5), nullable=False)
+    cryoprotection_date = Column(Date, nullable=True)
+    dissection_date = Column(Date, nullable=True)
+    immunolabel_date = Column(Date, nullable=True)
+    panel_id = Column(Integer, ForeignKey('immunolabeling_panel.id', use_alter=True), nullable=True)
+    notes = Column(Text, nullable=True)
+    confocal_images = relationship('ConfocalImage', backref='ear', lazy=True)
 
     @property
     def full_display(self):
@@ -568,27 +563,88 @@ class Ear(VersionedModel):
         return (self.animal.custom_id, self.side) < (other.animal.custom_id, other.side)
 
 class ConfocalImageType(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    confocal_images = db.relationship('ConfocalImage', backref='image_type', lazy=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    confocal_images = relationship('ConfocalImage', backref='image_type', lazy=True)
 
 class ConfocalImage(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    ear_id = db.Column(db.Integer, db.ForeignKey('ear.id', use_alter=True), nullable=False)
-    frequency = db.Column(db.Float, nullable=False)
-    image_type_id = db.Column(db.Integer, db.ForeignKey('confocal_image_type.id', use_alter=True), nullable=False)
-    notes = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(150), nullable=True)
+    id = Column(Integer, primary_key=True)
+    ear_id = Column(Integer, ForeignKey('ear.id', use_alter=True), nullable=False)
+    frequency = Column(Float, nullable=False)
+    image_type_id = Column(Integer, ForeignKey('confocal_image_type.id', use_alter=True), nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(String(150), nullable=True)
 
     @property
     def full_display(self):
         return f'{self.ear.full_display} {self.image_type.name} {self.frequency}'
 
 class Study(VersionedModel):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), unique=True, nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    animals = db.relationship('Animal', secondary=study_animals, lazy='dynamic', backref=db.backref('studies', lazy='dynamic'))
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    animals = relationship('Animal', secondary=study_animals, lazy='dynamic', backref=backref('studies', lazy='dynamic'))
+
+
+class UserRole(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False)
+
+
+class User(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String(150), unique=False, nullable=False)
+    last_name = Column(String(150), unique=False, nullable=False)
+    email = Column(String(150), unique=True, nullable=False)
+    password_hash = Column(String(512))
+    roles = relationship('UserRole', secondary='user_roles', backref=backref('users', lazy='dynamic'))
+    active = Column(Boolean, default=False, nullable=False)
+    admin = Column(Boolean, default=False, nullable=False)
+
+    def is_admin(self):
+        return self.admin
+
+    @property
+    def is_active(self):
+        return self.active
+
+    @property
+    def is_authenticated(self):
+        return self.is_active
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def set_password(self, password):
+        """Creates a hashed version of the password."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Checks the provided password against the stored hash."""
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def display_name(self):
+        return f'{self.first_name} {self.last_name}'
+
+    # Python 3 implicitly set __hash__ to None if we override __eq__ We set it
+    # back to its default implementation
+    __hash__ = object.__hash__
+
+    def get_id(self):
+        return str(self.id)
+
+    def __eq__(self, other):
+        if isinstance(other, User):
+            return self.get_id() == other.get_id()
+        return NotImplemented
+
+    def __ne__(self, other):
+        equal = self.__eq__(other)
+        if equal is NotImplemented:
+            return NotImplemented
+        return not equal
 
 
 orm.configure_mappers()

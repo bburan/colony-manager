@@ -1,26 +1,24 @@
-import datetime
 import os
 import datetime
 from flask import Flask, session
 from flask_login import LoginManager
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import MetaData
-from flask_migrate import Migrate
+
+# Setup versioning
 from sqlalchemy_continuum import make_versioned
 from sqlalchemy_continuum.plugins import FlaskPlugin
-
-# --- Naming Convention for Constraints ---
-naming_convention = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
-}
-
-
 make_versioned(user_cls='User', plugins=[FlaskPlugin()])
-db = SQLAlchemy(metadata=MetaData(naming_convention=naming_convention))
+
+# Import extensions
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+# Must come last
+from app import models
+
+# Hack to emulate Flask session and query properties.
+db = SQLAlchemy(metadata=models.Base.metadata)
+
 migrate = Migrate()
 login_manager = LoginManager()
 
@@ -55,20 +53,19 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        from app.models import User
-        return User.query.get(user_id)
+        return db.session.get(models.User, int(user_id))
 
     @app.context_processor
     def inject_global_vars():
         from app.models import Species
         species_id = int(session.get('selected_species', -1))
         if species_id != -1:
-            selected_species = Species.query.get_or_404(species_id).name
+            selected_species = db.get_or_404(Species, species_id).name
         else:
             selected_species = 'All'
         return {
             'datetime': datetime,
-            'species': Species.query.all(),
+            'species': db.session.query(Species).all(),
             'selected_species': selected_species,
         }
 
@@ -85,5 +82,8 @@ def create_app():
         if request.endpoint in ('auth.login_user', 'auth.add_user'):
             return
         return redirect(url_for('auth.login_user', next=request.url))
+
+    with app.app_context():
+        models.Base.session.configure(bind=db.engine)
 
     return app

@@ -11,7 +11,6 @@ make_versioned(user_cls='User', plugins=[FlaskPlugin()])
 
 # Import extensions
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 
 # Must come last
 from colony_manager import models
@@ -19,7 +18,6 @@ from colony_manager import models
 # Hack to emulate Flask session and query properties.
 db = SQLAlchemy(metadata=models.Base.metadata)
 
-migrate = Migrate()
 login_manager = LoginManager()
 
 
@@ -48,7 +46,6 @@ def create_app():
     app.register_blueprint(studies_bp, url_prefix='/studies')
 
     db.init_app(app)
-    migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
 
     @login_manager.user_loader

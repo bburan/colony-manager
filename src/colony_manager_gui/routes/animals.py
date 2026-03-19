@@ -1,12 +1,13 @@
 import datetime
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from app import db
-from app.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
-from app.forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
-from app.routes.util import flash_form_errors
+from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
 
-from app import forms
+from .. import db
+from .. import forms
+from ..forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
+from .util import flash_form_errors
+
 
 animals_bp = Blueprint('animals', __name__)
 

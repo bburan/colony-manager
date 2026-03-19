@@ -1,9 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from sqlalchemy import func
-from app import db
-from app.models import Cage, Animal
-from app.forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
-from app.routes.util import flash_form_errors  # Importing the new utility
+
+from colony_manager.models import Cage, Animal
+from .. import db
+from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
+from .util import flash_form_errors  # Importing the new utility
 
 cages_bp = Blueprint('cages', __name__)
 

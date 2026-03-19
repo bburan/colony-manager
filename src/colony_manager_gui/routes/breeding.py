@@ -1,9 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from app import db
-from app.models import BreedingPair, Litter, Animal, Cage
-from app.forms import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
 
-from app.routes.util import flash_form_errors
+from colony_manager.models import BreedingPair, Litter, Animal, Cage
+from .. import db
+from ..forms import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
+from .util import flash_form_errors
 
 breeding_bp = Blueprint('breeding', __name__)
 

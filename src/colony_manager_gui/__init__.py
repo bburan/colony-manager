@@ -14,7 +14,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
 # Must come last
-from app import models
+from colony_manager import models
 
 # Hack to emulate Flask session and query properties.
 db = SQLAlchemy(metadata=models.Base.metadata)
@@ -31,13 +31,13 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Register Blueprints
-    from app.routes.main import main_bp
-    from app.routes.auth import auth_bp
-    from app.routes.cages import cages_bp
-    from app.routes.animals import animals_bp
-    from app.routes.breeding import breeding_bp
-    from app.routes.histology import histology_bp
-    from app.routes.studies import studies_bp
+    from colony_manager_gui.routes.main import main_bp
+    from colony_manager_gui.routes.auth import auth_bp
+    from colony_manager_gui.routes.cages import cages_bp
+    from colony_manager_gui.routes.animals import animals_bp
+    from colony_manager_gui.routes.breeding import breeding_bp
+    from colony_manager_gui.routes.histology import histology_bp
+    from colony_manager_gui.routes.studies import studies_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -57,7 +57,7 @@ def create_app():
 
     @app.context_processor
     def inject_global_vars():
-        from app.models import Species
+        from colony_manager.models import Species
         species_id = int(session.get('selected_species', -1))
         if species_id != -1:
             selected_species = db.get_or_404(Species, species_id).name

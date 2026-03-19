@@ -8,8 +8,8 @@ from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 from markupsafe import Markup
 
 # Import models required for the form query factories
-from app import models
-from app.models import (
+from colony_manager import models
+from colony_manager.models import (
     Species, Source, Study, Cage, AnimalProcedure, AnimalProcedureTarget,
     ImmunolabelingPanel, TerminationReason, Animal, ConfocalImageType, BreedingPair, AnimalTag
 )

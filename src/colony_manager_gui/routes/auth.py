@@ -1,10 +1,11 @@
 import sqlalchemy
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 import flask_login
-from app import db
-from app.routes.util import flash_form_errors
-from app.forms import UserLoginForm, UserCreateForm, UserEditForm
-from app.models import User
+
+from colony_manager_gui import db
+from colony_manager_gui.routes.util import flash_form_errors
+from colony_manager_gui.forms import UserLoginForm, UserCreateForm, UserEditForm
+from colony_manager.models import User
 
 auth_bp = Blueprint('auth', __name__)
 

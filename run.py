@@ -1,4 +1,4 @@
-from app import create_app
+from colony_manager_gui import create_app
 
 # Instantiate the application using the factory function
 app = create_app()

@@ -1,9 +1,10 @@
 from sqlalchemy import exists
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from app import db
-from app.models import Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType
-from app.forms import HistologyForm, NoteForm, ConfocalImageForm
-from app.routes.util import flash_form_errors
+
+from colony_manager.models import Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType
+from .. import db
+from ..forms import HistologyForm, NoteForm, ConfocalImageForm
+from .util import flash_form_errors
 
 histology_bp = Blueprint('histology', __name__)
 

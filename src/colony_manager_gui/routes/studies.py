@@ -1,8 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from app import db
-from app.models import Study, Animal
-from app.forms import StudyForm, AddToStudyForm, QuickAddToStudyForm, NoteForm
-from app.routes.util import flash_form_errors
+
+from colony_manager.models import Study, Animal
+from .. import db
+from ..forms import StudyForm, AddToStudyForm, QuickAddToStudyForm, NoteForm
+from .util import flash_form_errors
 
 studies_bp = Blueprint('studies', __name__)
 

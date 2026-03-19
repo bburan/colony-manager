@@ -3,16 +3,13 @@ import sqlalchemy
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import current_user, login_user
 from datetime import date, timedelta
-from app import db
 
-from app.models import (Animal, Cage, BreedingPair, Ear, AnimalEvent, Litter, Feed, ConfocalImage,
-                        Species, Source, AnimalProcedure, AnimalProcedureTarget,
-                        TerminationReason, ImmunolabelingPanel, Reagent, ConfocalImageType)
-from app.models import User
-from app import forms
-from app import models
-from app.forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
-from app.routes.util import flash_form_errors
+from colony_manager import models
+
+from .. import db
+from .. import forms
+from ..forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
+from .util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
 
@@ -39,32 +36,32 @@ def view_dashboard():
     active_breeding_pairs_count = models.Species.count_active_breeding_pairs()
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
-    upcoming_events = AnimalEvent.query.filter(
-        AnimalEvent.completion_date == None,
-        AnimalEvent.scheduled_date <= today + timedelta(days=7)
-    ).order_by(AnimalEvent.scheduled_date.asc()).all()
+    upcoming_events = models.AnimalEvent.query.filter(
+        models.AnimalEvent.completion_date == None,
+        models.AnimalEvent.scheduled_date <= today + timedelta(days=7)
+    ).order_by(models.AnimalEvent.scheduled_date.asc()).all()
 
     # Animals terminated in the last 30 days
-    recent_terminations = Animal.query.filter(
-        Animal.termination_date >= (date.today() - timedelta(days=7))
-    ).order_by(Animal.termination_date.desc())
+    recent_terminations = models.Animal.query.filter(
+        models.Animal.termination_date >= (date.today() - timedelta(days=7))
+    ).order_by(models.Animal.termination_date.desc())
 
-    upcoming_litters = Litter.query.filter(Litter.wean_date == None).order_by(Litter.dob).all()
+    upcoming_litters = models.Litter.query.filter(models.Litter.wean_date == None).order_by(models.Litter.dob).all()
 
-    active_males = db.session.query(BreedingPair.male_animal_id).filter_by(is_active=True)
-    active_females = db.session.query(BreedingPair.female_animal_id).filter_by(is_active=True)
+    active_males = db.session.query(models.BreedingPair.male_animal_id).filter_by(is_active=True)
+    active_females = db.session.query(models.BreedingPair.female_animal_id).filter_by(is_active=True)
     active_parent_ids = active_males.union(active_females)
-    unassigned_animals = Animal.query.filter(
-        Animal.termination_date == None,
-        ~Animal.studies.any(),
-        Animal.custom_id != None,
-        ~Animal.id.in_(active_parent_ids),
-    ).order_by(Animal.custom_id)
+    unassigned_animals = models.Animal.query.filter(
+        models.Animal.termination_date == None,
+        ~models.Animal.studies.any(),
+        models.Animal.custom_id != None,
+        ~models.Animal.id.in_(active_parent_ids),
+    ).order_by(models.Animal.custom_id)
 
-    available_animals_n = Animal.query.filter(Animal.custom_id == None).count()
+    available_animals_n = models.Animal.query.filter(models.Animal.custom_id == None).count()
 
-    image_analysis_pending = ConfocalImage.query.filter_by(status='pending')
-    image_analysis_review = ConfocalImage.query.filter_by(status='need_review')
+    image_analysis_pending = models.ConfocalImage.query.filter_by(status='pending')
+    image_analysis_review = models.ConfocalImage.query.filter_by(status='need_review')
 
     return render_template(
         'view_dashboard.html',
@@ -87,13 +84,13 @@ def view_dashboard():
         today=today,
 
         # Table of weights for past week
-        weights=Animal.get_daily_logs(before=5, after=2),
+        weights=models.Animal.get_daily_logs(before=5, after=2),
     )
 
 
 @main_bp.route('/calendar')
 def view_calendar():
-    events = AnimalEvent.query.all()
+    events = models.AnimalEvent.query.all()
     calendar_events = []
     for event in events:
         calendar_events.append({
@@ -111,7 +108,7 @@ def list_settings():
     settings = {k: {'items': v['model'].query.all(), 'form': v['form']} for k, v in SETTINGS_MAP.items()}
     return render_template(
         'view_settings.html',
-        panels=ImmunolabelingPanel.query.all(),
+        panels=models.ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
@@ -164,7 +161,7 @@ def delete_setting(item_type, item_id):
 
 @main_bp.route('/settings/panel/delete/<int:panel_id>', methods=['POST'])
 def delete_panel(panel_id):
-    panel = ImmunolabelingPanel.query.get_or_404(panel_id)
+    panel = models.ImmunolabelingPanel.query.get_or_404(panel_id)
     if panel.ears:
         flash(f'Cannot delete "{panel.name}" because it is in use on at least one ear.', 'danger')
         return redirect(url_for('settings'))
@@ -177,7 +174,7 @@ def delete_panel(panel_id):
 @main_bp.route('/settings/reagent/new/<int:panel_id>', methods=['POST'])
 def add_reagent(panel_id):
     form = SimpleAddWithDescriptionForm()
-    panel = ImmunolabelingPanel.query.get_or_404(panel_id)
+    panel = models.ImmunolabelingPanel.query.get_or_404(panel_id)
     if form.validate_on_submit():
         reagent = Reagent(name=form.name.data, description=form.description.data, panel_id=panel.id)
         db.session.add(reagent)

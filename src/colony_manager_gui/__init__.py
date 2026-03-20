@@ -36,6 +36,7 @@ def create_app():
     from colony_manager_gui.routes.breeding import breeding_bp
     from colony_manager_gui.routes.histology import histology_bp
     from colony_manager_gui.routes.studies import studies_bp
+    from colony_manager_gui.routes.util import AppQuery
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -80,7 +81,15 @@ def create_app():
             return
         return redirect(url_for('auth.login_user', next=request.url))
 
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        models.Base.session.remove()
+
     with app.app_context():
+        from flask_sqlalchemy.query import Query
+        from sqlalchemy.orm import scoped_session, sessionmaker
+        models.Base.session = scoped_session(sessionmaker())
         models.Base.session.configure(bind=db.engine)
+        models.Base.query = models.Base.session.query_property(query_cls=Query)
 
     return app

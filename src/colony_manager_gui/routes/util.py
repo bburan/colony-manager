@@ -1,6 +1,18 @@
 from flask import flash
 from markupsafe import Markup
 
+from werkzeug.exceptions import NotFound
+from sqlalchemy.orm import Query
+
+
+class AppQuery(Query):
+    def get_or_404(self, ident, description=None):
+        rv = self.get(ident)
+        if rv is None:
+            # Raising Werkzeug's native 404 exception
+            raise NotFound(description=description or f"Record {ident} not found")
+        return rv
+
 
 def flash_form_errors(form, title="Please correct the following errors:"):
     """

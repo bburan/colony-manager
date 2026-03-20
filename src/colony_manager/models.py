@@ -9,7 +9,7 @@ from sqlalchemy import (
     ForeignKey, Text, Boolean, Date, Float, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
-                            backref, scoped_session, sessionmaker)
+                            backref)
 
 Base = declarative_base(
     metadata=MetaData(
@@ -22,9 +22,6 @@ Base = declarative_base(
         },
     ),
 )
-
-Base.session = scoped_session(sessionmaker())
-Base.query = Base.session.query_property()
 
 
 # --- Association Tables ---
@@ -58,7 +55,6 @@ class VersionedModel(Base):
     def __tablename__(cls):
         name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
-
 
 class Species(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -125,7 +121,6 @@ class Species(VersionedModel):
         .outerjoin(BreedingPair, and_(Animal.id == BreedingPair.male_animal_id, BreedingPair.is_active == True)) \
         .group_by(Species.id) \
         .all()
-
 
 class Source(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -220,7 +215,6 @@ class Cage(VersionedModel):
         if len(sources) == 0:
             return 'N/A'
         return ', '.join(sorted(sources))
-
 
 class AnimalTag(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)

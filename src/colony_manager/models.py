@@ -348,10 +348,13 @@ class Animal(VersionedModel):
                     baselines.append(w)
                     baseline_pct = None
                 else:
-                    if current_baseline is None:
+                    if current_baseline is None and len(baselines) > 0:
                         current_baseline = mean(w.weight for w in baselines)
                         baselines = []
-                    baseline_pct = int(round((w.weight / current_baseline) * 100))
+                    if current_baseline is not None:
+                        baseline_pct = int(round((w.weight / current_baseline) * 100))
+                    else:
+                        baseline_pct = None
             else:
                 baseline_pct = None
             history[w.date] = {

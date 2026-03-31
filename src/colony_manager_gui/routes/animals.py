@@ -378,7 +378,7 @@ def _generate_daily_log_form(animal_id, date):
 
     weight_log = WeightLog.query.filter_by(animal_id=animal.id, date=date).one_or_none()
     if weight_log is not None:
-        if weight_log.weight is not None:
+        if weight_log.weight is not None and animal.baseline_weight is not None:
             current_baseline_pct = int(round(weight_log.weight / animal.baseline_weight * 100))
         else:
             current_baseline_pct = None

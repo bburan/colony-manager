@@ -22,7 +22,11 @@
                 {% else %}
                     {% if (log['weight'] is not none) and (log['weight'].weight is not none) %}
                         {% set baseline = log['weight'].baseline %}
-                        {% set baseline_pct = (log['weight'].weight/animal.baseline_weight*100)|round(0)|int %}
+                        {% if animal.baseline_weight is not none %}
+                            {% set baseline_pct = (log['weight'].weight/animal.baseline_weight*100)|round(0)|int %}
+                        {% else %}
+                            {% set baseline_pct = None %}
+                        {% endif %}
                     {% else %}
                         {% set baseline = False %}
                         {% set baseline_pct = None %}

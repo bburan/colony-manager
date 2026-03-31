@@ -81,15 +81,8 @@ def create_app():
             return
         return redirect(url_for('auth.login_user', next=request.url))
 
-    @app.teardown_appcontext
-    def shutdown_session(exception=None):
-        models.Base.session.remove()
-
     with app.app_context():
-        from flask_sqlalchemy.query import Query
-        from sqlalchemy.orm import scoped_session, sessionmaker
-        models.Base.session = scoped_session(sessionmaker())
-        models.Base.session.configure(bind=db.engine)
-        models.Base.query = models.Base.session.query_property(query_cls=Query)
+        models.Base.session = db.session
+        models.Base.query = db.session.query_property()
 
     return app

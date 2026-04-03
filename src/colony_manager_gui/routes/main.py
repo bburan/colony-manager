@@ -63,6 +63,12 @@ def view_dashboard():
     image_analysis_pending = models.ConfocalImage.query.filter_by(status='pending')
     image_analysis_review = models.ConfocalImage.query.filter_by(status='need_review')
 
+    species_id = int(session.get('selected_species', -1))
+    if species_id != -1:
+        species = models.Species.query.get(species_id)
+    else:
+        species = None
+
     return render_template(
         'view_dashboard.html',
         # Card Metrics
@@ -84,7 +90,7 @@ def view_dashboard():
         today=today,
 
         # Table of weights for past week
-        weights=models.Animal.get_daily_logs(before=5, after=2),
+        weights=models.Animal.get_daily_logs(before=5, after=2, species=species),
     )
 
 

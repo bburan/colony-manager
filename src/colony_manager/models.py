@@ -379,7 +379,7 @@ class Animal(VersionedModel):
 
 
     @classmethod
-    def get_daily_logs(cls, reference_date=None, before=0, after=0):
+    def get_daily_logs(cls, reference_date=None, before=0, after=0, species=None):
         """Returns animals paired with their weight logs from the last X days."""
         if reference_date is None:
             reference_date = date.today()
@@ -388,16 +388,21 @@ class Animal(VersionedModel):
         end_date = reference_date + timedelta(days=after)
         total_days = (end_date - start_date).days + 1
 
-        weights = cls.session.query(cls, WeightLog).join(WeightLog) \
-            .filter(
+        weights = cls.session.query(cls, WeightLog).join(WeightLog)
+        feeds = cls.session.query(cls, FeedLog).join(FeedLog)
+
+        if species is not None:
+            weights = weights.filter(Animal.species == species)
+            feeds = feeds.filter(Animal.species == species)
+
+        weights = weights.filter(
             WeightLog.date >= start_date,
             WeightLog.date <= end_date,
             #WeightLog.weight.is_not(None),
             #WeightLog.baseline == False
         ).all()
 
-        feeds = cls.session.query(cls, FeedLog).join(FeedLog) \
-            .filter(
+        feeds = feeds.filter(
             FeedLog.date >= start_date,
             FeedLog.date <= end_date,
         ).all()

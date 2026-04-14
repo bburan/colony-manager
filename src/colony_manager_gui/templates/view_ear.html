@@ -110,7 +110,8 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     <td>{{ group.grouper if loop.first else "" }}</td>
                                     <td>{{ img.frequency }}</td>
                                     <td>
-                                        <select name="status" autocomplete="off" class="border-0 bg-light" onchange="markDirty(this)">
+                                        <select name="status" autocomplete="off" class="border-0 bg-light" 
+                                            onchange="autoSaveImage('{{ img.id }}', this)">
                                         {% for value, label in image_options.items() %}
                                                 <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
@@ -118,23 +119,17 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                                     </td>
                                     <td>
                                         <input type="text" name="notes" class="border-0 bg-light"
-                                               value="{{ img.notes or '' }}" placeholder="Add observations..."
-                                               oninput="markDirty(this)">
+                                            value="{{ img.notes or '' }}" 
+                                            placeholder="Add observations..." 
+                                            onchange="autoSaveImage('{{ img.id }}', this)">
                                     </td>
                                     <td class="pe-4 text-end">
-                                        <div class="btn-group btn-group-sm">
-                                            <button 
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                title="Save changes to image record"
-                                                type="submit" id="edit-img-{{ img.id }}-save" class="btn btn-sm save-btn" disabled><i class="fas fa-save"></i></button>
-                                            <button 
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                title="Remove image record"
-                                                type="button" class="btn btn-sm btn-outline-danger"
-                                                onclick="if(confirm('Delete image record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash"></i></button>
-                                        </div>
+                                        <button 
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Remove image record"
+                                            type="button" class="btn btn-sm btn-secondary"
+                                            onclick="if(confirm('Delete image record?')) { document.getElementById('del-{{ img.id }}').submit(); }"><i class="fas fa-trash"></i></button>
                                     </td>
                                 </form>
                                 {# Separate delete form #}
@@ -150,4 +145,55 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
 
 {# Include modals at the bottom #}
 {% include 'partials/histology_modals.html' %}
+
+<script>
+async function autoSaveImage(imgId, element) {
+    if (!element) return;
+
+    const form = document.getElementById(`edit-img-${imgId}`);
+    const formData = new FormData(form);
+
+    // Optional: add a subtle indicator while saving (like a slight border)
+    element.classList.add('border', 'border-warning');
+
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        // Remove the "saving" indicator
+        element.classList.remove('border-warning');
+
+        if (response.ok) {
+            // 1. Instantly flash green on success
+            element.classList.add('is-valid', 'bg-success-subtle');
+            
+            // 2. Wait a brief moment, then start the fade out
+            setTimeout(() => {
+                // Apply a CSS transition for a smooth fade
+                element.style.transition = 'background-color 1s ease, border-color 1s ease';
+                
+                // Remove the green classes (the transition makes this slow)
+                element.classList.remove('is-valid', 'bg-success-subtle');
+                
+                // Clean up the transition style after the animation finishes
+                setTimeout(() => { element.style.transition = ''; }, 1000);
+            }, 500); // How long the solid green stays before fading
+
+        } else {
+            throw new Error('Save failed');
+        }
+    } catch (error) {
+        console.error('Auto-save error:', error);
+        // Flash red on error
+        element.classList.remove('border-warning');
+        element.classList.add('is-invalid', 'bg-danger-subtle');
+    }
+}
+</script>
+
 {% endblock %}

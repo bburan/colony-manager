@@ -2,8 +2,6 @@ from datetime import date, timedelta
 import re
 from statistics import mean
 
-from werkzeug.security import generate_password_hash, check_password_hash
-
 from sqlalchemy import (
     func, orm, UniqueConstraint, MetaData, Table, Column, Integer, String,
     ForeignKey, Text, Boolean, Date, Float, and_, or_
@@ -620,10 +618,12 @@ class User(VersionedModel):
 
     def set_password(self, password):
         """Creates a hashed version of the password."""
+        from werkzeug.security import generate_password_hash
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         """Checks the provided password against the stored hash."""
+        from werkzeug.security import check_password_hash
         return check_password_hash(self.password_hash, password)
 
     @property

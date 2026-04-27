@@ -307,6 +307,54 @@ class Animal(VersionedModel):
         completed = [e for e in self.events if e.completion_date is not None]
         return sorted(completed, key=lambda x: x.completion_date)
 
+    def terminate(self, termination_date, termination_reason=None,
+                  ears_extracted=None):
+        """Mark this animal as terminated and optionally extract ears for histology.
+
+        Parameters
+        ----------
+        termination_date : date
+            The date the animal was terminated.
+        termination_reason : TerminationReason or None, optional
+            The reason for termination.
+        ears_extracted : str or None, optional
+            Which ears to extract for histology. Accepted values are
+            ``'Left'``, ``'Right'``, ``'Both'``, or ``None`` (no extraction).
+
+        Returns
+        -------
+        list of Ear
+            The newly created :class:`Ear` instances (may be empty).
+
+        Raises
+        ------
+        ValueError
+            If the animal is already terminated or *ears_extracted* is not a
+            recognised value.
+        """
+        if self.termination_date is not None:
+            raise ValueError(
+                f'{self.display_id} is already terminated '
+                f'(on {self.termination_date}).'
+            )
+
+        valid_ear_choices = (None, 'Left', 'Right', 'Both')
+        if ears_extracted not in valid_ear_choices:
+            raise ValueError(
+                f'ears_extracted must be one of {valid_ear_choices}, '
+                f'got {ears_extracted!r}.'
+            )
+
+        self.termination_date = termination_date
+        self.termination_reason = termination_reason
+
+        new_ears = []
+        if ears_extracted in ('Left', 'Both'):
+            new_ears.append(Ear(animal_id=self.id, side='Left'))
+        if ears_extracted in ('Right', 'Both'):
+            new_ears.append(Ear(animal_id=self.id, side='Right'))
+        return new_ears
+
     def age_display(self, unit='day'):
         age = getattr(self, f'age_in_{unit}s')
         return f'{age:.1f} {unit}s'

@@ -133,13 +133,20 @@ def terminate_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = TerminationForm()
     if form.validate_on_submit():
-        animal.termination_date = form.termination_date.data
-        animal.termination_reason = form.termination_reason.data
-        animal.ears_extracted = form.ears_extracted.data
-        if animal.ears_extracted in ['Left', 'Both']:
-            db.session.add(Ear(animal_id=animal.id, side='Left'))
-        if animal.ears_extracted in ['Right', 'Both']:
-            db.session.add(Ear(animal_id=animal.id, side='Right'))
+        ears = form.ears_extracted.data
+        if ears == 'None':
+            ears = None
+        try:
+            new_ears = animal.terminate(
+                termination_date=form.termination_date.data,
+                termination_reason=form.termination_reason.data,
+                ears_extracted=ears,
+            )
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return redirect(request.referrer or url_for('animals.list_animals'))
+        for ear in new_ears:
+            db.session.add(ear)
         db.session.commit()
         flash(f'Animal {animal.display_id} has been marked as terminated.', 'success')
     else:

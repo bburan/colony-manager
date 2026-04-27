@@ -54,6 +54,35 @@
 </div>
 {% endmacro %}
 
+{% macro render_event_summary(animal) %}
+<div class="small" style="min-width: 220px;">
+    {% if animal.events.count() == 0 %}
+        <p class="text-muted mb-0">No events recorded.</p>
+    {% else %}
+    <table class="table table-sm table-borderless mb-0">
+        <thead>
+            <tr>
+                <th>Procedure</th>
+                <th>Date</th>
+                <th>Tags</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for date, events in animal.events_by_date.items() %}
+                {% for event in events %}
+                <tr class="{{ class_map[event.status] }}">
+                    <td>{{ event.procedure.display_name }}</td>
+                    <td>{{ date.strftime('%b %d, %Y') }}</td>
+                    <td>{{ event.tags | map(attribute='display_name') | join(', ') }}</td>
+                </tr>
+                {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endmacro %}
+
 {% macro format_date(date) %}
     {% if date is none %}
         &horbar;

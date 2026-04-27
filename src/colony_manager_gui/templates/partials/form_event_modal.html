@@ -1,0 +1,23 @@
+{% import "macros.html" as macros %}
+<form action="{{ submit_url }}" method="POST">
+    <header class="modal-header">
+        <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
+    </header>
+    <main class="modal-body">
+        {{ form.hidden_tag() }}
+        {% for field in form if field.widget.input_type != 'hidden' %}
+            {{ macros.render_field(field) }}
+        {% endfor %}
+    </main>
+    <footer class="modal-footer border-top-0 pb-4 px-4">
+        <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-outline-primary btn-sm px-3"
+                onclick="document.getElementById('action').value='schedule'">
+            <i class="fas fa-calendar-plus me-1"></i> Schedule
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm px-3"
+                onclick="document.getElementById('action').value='completed'">
+            <i class="fas fa-check me-1"></i> Completed
+        </button>
+    </footer>
+</form>

@@ -55,83 +55,108 @@
     </div>
 
     <div class="col-6">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between">
-                Events
-                <button class="btn btn-sm"
-                        data-bs-toggle="tooltip"
-                        data-bs-placement="top"
-                        title="Add event"
-                        onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')"><i class="fas fa-calendar"> +</i></button>
-            </div>
-            <div class="card-body">
-                {{ macros.render_event_list(animal) }}
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-6">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                Weight & Feed
-                {% if animal.baseline_weight %}
-                    <span>
-                        <span class="badge rounded-pill bg-primary">Baseline: {{ macros.format_int(animal.baseline_weight) }}g</span>
-                        <span class="badge rounded-pill bg-warning">80%: {{ macros.format_int(animal.baseline_weight*0.8) }}g</span>
-                        <span class="badge rounded-pill bg-danger">75%: {{ macros.format_int(animal.baseline_weight*0.75) }}g</span>
-                    </span>
-                {% endif %}
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-sm"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
-                            title="Add weight/feed entry"
-                            onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')"><i class="fas fa-plus"></i></button>
+        <div class="accordion" id="animalDetailAccordion">
+            {# --- Events Accordion Item --- #}
+            <div class="accordion-item shadow-sm mb-3">
+                <h2 class="accordion-header" id="headingEvents">
+                    <button class="accordion-button" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#collapseEvents"
+                            aria-expanded="true"
+                            aria-controls="collapseEvents">
+                        <i class="fas fa-calendar-alt me-2"></i> Events
+                    </button>
+                </h2>
+                <div id="collapseEvents" class="accordion-collapse collapse show"
+                     aria-labelledby="headingEvents">
+                    <div class="accordion-body">
+                        <div class="d-flex justify-content-end mb-2">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="Add event"
+                                    onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')">
+                                <i class="fas fa-calendar"></i> Add Event
+                            </button>
+                        </div>
+                        {{ macros.render_event_list(animal) }}
+                    </div>
                 </div>
             </div>
-            <div class="card-body">
-                <table class="table table-responsive small">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Weight (g)</th>
-                            <th>Weight (%)</th>
-                            <th>Feed (g)</th>
-                            <th>Notes</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for date, data in animal.weight_feed_history().items() %}
-                        <tr class="{{ macros.get_weight_color(data['baseline_pct'], data['baseline'], 'table-') }} align-items-center">
-                            <td>{{ date.strftime('%B %d, %Y') }}</td>
-                            <td>{{ macros.format_int(data.weight) }}</td>
-                            <td>{{ macros.format_int(data.baseline_pct) }}</td>
-                            <td>{{ data.total_feed|round(1) or "—" }}</td>
-                            <td>{{ data.notes or "—" }}</td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-sm"
-                                            data-bs-toggle="tooltip"
-                                            data-bs-placement="top"
-                                            title="Edit weight/feed entry"
-                                            onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
-                                    <button class="btn btn-sm"
-                                            data-bs-toggle="tooltip"
-                                            data-bs-placement="top"
-                                            title="Delete weight/feed entry"
-                                            onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+
+            {# --- Weight & Feed Accordion Item --- #}
+            <div class="accordion-item shadow-sm">
+                <h2 class="accordion-header" id="headingWeightFeed">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#collapseWeightFeed"
+                            aria-expanded="false"
+                            aria-controls="collapseWeightFeed">
+                        <i class="fas fa-weight me-2"></i> Weight & Feed
+                    </button>
+                </h2>
+                <div id="collapseWeightFeed" class="accordion-collapse collapse"
+                     aria-labelledby="headingWeightFeed">
+                    <div class="accordion-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            {% if animal.baseline_weight %}
+                            <span>
+                                <span class="badge rounded-pill bg-primary">Baseline: {{ macros.format_int(animal.baseline_weight) }}g</span>
+                                <span class="badge rounded-pill bg-warning">80%: {{ macros.format_int(animal.baseline_weight*0.8) }}g</span>
+                                <span class="badge rounded-pill bg-danger">75%: {{ macros.format_int(animal.baseline_weight*0.75) }}g</span>
+                            </span>
+                            {% else %}
+                            <span></span>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="Add weight/feed entry"
+                                    onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')">
+                                <i class="fas fa-plus"></i> Add Entry
+                            </button>
+                        </div>
+                        <table class="table table-responsive small">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Weight (g)</th>
+                                    <th>Weight (%)</th>
+                                    <th>Feed (g)</th>
+                                    <th>Notes</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for date, data in animal.weight_feed_history().items() %}
+                                <tr class="{{ macros.get_weight_color(data['baseline_pct'], data['baseline'], 'table-') }} align-items-center">
+                                    <td>{{ date.strftime('%B %d, %Y') }}</td>
+                                    <td>{{ macros.format_int(data.weight) }}</td>
+                                    <td>{{ macros.format_int(data.baseline_pct) }}</td>
+                                    <td>{{ data.total_feed|round(1) or "—" }}</td>
+                                    <td>{{ data.notes or "—" }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-sm"
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-placement="top"
+                                                    title="Edit weight/feed entry"
+                                                    onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
+                                            <button class="btn btn-sm"
+                                                    data-bs-toggle="tooltip"
+                                                    data-bs-placement="top"
+                                                    title="Delete weight/feed entry"
+                                                    onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-
     </div>
 </div>
 {% endblock %}

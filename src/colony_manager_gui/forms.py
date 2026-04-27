@@ -119,6 +119,30 @@ class AnimalForm(AnimalCustomIDForm):
     )
 
 class AnimalEventForm(FlaskForm):
+    """Form for creating a new animal event.
+
+    Uses a single date field and a hidden 'action' field that is set by the
+    submit button the user clicks ('completed' or 'schedule').
+    """
+    procedure = QuerySelectField(
+        'Procedure',
+        query_factory=AnimalProcedure.get_ordered,
+        get_label='display_name',
+        allow_blank=False
+    )
+    procedure_target = QuerySelectField('Target', query_factory=animal_procedure_target_factory, get_label='name', allow_blank=False)
+    date = DateField('Date', default=date.today, validators=[DataRequired()])
+    action = HiddenField('action', default='completed')
+    notes = TextAreaField('Notes', validators=[Optional()])
+    tags = QuerySelectMultipleField(
+        'Tags',
+        query_factory=models.AnimalEventTag.get_ordered,
+        get_label='display_name',
+    )
+
+
+class AnimalEventEditForm(FlaskForm):
+    """Form for editing an existing animal event with full date control."""
     procedure = QuerySelectField(
         'Procedure',
         query_factory=AnimalProcedure.get_ordered,
@@ -134,16 +158,6 @@ class AnimalEventForm(FlaskForm):
         query_factory=models.AnimalEventTag.get_ordered,
         get_label='display_name',
     )
-
-class AnimalEventDeleteForm(AnimalEventForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self:
-            if field.type not in ['CSRFTokenField', 'SubmitField']:
-                if field.render_kw is None:
-                    field.render_kw = {}
-                field.render_kw['disabled'] = True
-
 class BreedingPairForm(FlaskForm):
     custom_id = StringField('Pair ID', validators=[DataRequired(), Length(min=1, max=50)])
     start_date = DateField('Pairing Start Date', default=date.today, validators=[DataRequired()])

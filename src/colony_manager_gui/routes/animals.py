@@ -5,7 +5,7 @@ from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, St
 
 from .. import db
 from .. import forms
-from ..forms import AnimalForm, AnimalEventForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
+from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
 from .util import flash_form_errors
 
 
@@ -159,18 +159,26 @@ def create_animal_event(animal_id):
     form = AnimalEventForm()
     if form.validate_on_submit():
         event = AnimalEvent(animal_id=animal_id)
-        form.populate_obj(event)
+        event.procedure = form.procedure.data
+        event.procedure_target = form.procedure_target.data
+        event.notes = form.notes.data
+        event.tags = form.tags.data
+        if form.action.data == 'schedule':
+            event.scheduled_date = form.date.data
+        else:
+            event.scheduled_date = form.date.data
+            event.completion_date = form.date.data
         db.session.add(event)
         db.session.commit()
         flash('Event created successfully.', 'success')
     else:
         flash_form_errors(form, f'Error creating event')
-    return redirect(request.referrer or url_for('animals.view_animal', animal_id=event.animal_id))
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
 @animals_bp.route('/events/<int:event_id>/update', methods=['POST'])
 def update_animal_event(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
-    form = AnimalEventForm()
+    form = AnimalEventEditForm()
     if form.validate_on_submit():
         form.populate_obj(event)
         db.session.commit()
@@ -327,20 +335,20 @@ def add_study_modal(animal_id):
 def create_animal_event_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalEventForm(animal=animal)
-    return render_template('partials/form_modal.html', form=form, item=animal,
+    return render_template('partials/form_event_modal.html', form=form, item=animal,
                            label=f'Create event for {animal.display_id}', submit_url=url_for('animals.create_animal_event', animal_id=animal.id))
 
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
-    form = AnimalEventForm(obj=event)
+    form = AnimalEventEditForm(obj=event)
     return render_template('partials/form_modal.html', form=form, item=event,
                            label=f'Edit event for {event.animal.display_id}', submit_url=url_for('animals.update_animal_event', event_id=event.id))
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
-    form = AnimalEventForm(obj=event)
+    form = AnimalEventEditForm(obj=event)
     mark_disabled(form)
     return render_template('partials/form_modal.html', form=form, item=event,
                            label=f'Remove event for {event.animal.display_id}', submit_url=url_for('animals.delete_animal_event', event_id=event.id))

@@ -17,12 +17,30 @@
 </div>
 {% endmacro %}
 
+{# Reusable AJAX status buttons for a data file. All three buttons are
+   rendered but visibility is toggled via data-status on the container. #}
+{% macro render_status_buttons(animal_id, data_file, size='sm') %}
+{% set url = url_for('animals.set_data_status', animal_id=animal_id, data_id=data_file.id) %}
+<span class="data-status-group d-inline-flex align-items-center gap-0" data-status="{{ data_file.status }}">
+    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-success data-status-btn"
+            data-url="{{ url }}" data-set-status="reviewed"
+            data-bs-toggle="tooltip" title="Mark reviewed"><i class="fas fa-check fa-xs"></i></button>
+    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-danger data-status-btn"
+            data-url="{{ url }}" data-set-status="exclude"
+            data-bs-toggle="tooltip" title="Exclude"><i class="fas fa-ban fa-xs"></i></button>
+    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-secondary data-status-btn"
+            data-url="{{ url }}" data-set-status="unreviewed"
+            data-bs-toggle="tooltip" title="Reset"><i class="fas fa-undo fa-xs"></i></button>
+</span>
+{% endmacro %}
+
 {% macro render_data_files(animal, files) %}
 	<ul class="list-group list-group-flush">
 		{% for data_file in files %}
 		<li
 			class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
-			<div class="flex-grow-1">
+			<div class="flex-grow-1 d-flex align-items-center gap-1">
+				<i class="fas fa-file-alt fa-xs data-file-icon text-{{ 'success' if data_file.status == 'reviewed' else 'danger' if data_file.status == 'exclude' else 'muted' }}"></i>
 				<span class="badge bg-secondary me-1">{{ data_file.datatype.name }}</span>
 				<span class="small">{{ data_file.name }}</span>
 				{% if data_file.date %}
@@ -57,46 +75,8 @@
 						</button>
 					</form>
 					{% endif %}
-
-					{% if data_file.status != 'reviewed' %}
-					<form
-						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
-						method="POST">
-						<input type="hidden" name="status" value="reviewed">
-						<button type="submit" class="btn btn-sm btn-secondary btn-success"
-							data-bs-toggle="tooltip" title="Mark as reviewed">
-							<i class="fas fa-check"></i>
-						</button>
-					</form>
-					{% endif %}
-					{% if data_file.status != 'exclude' %}
-					<form
-						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
-						method="POST">
-						<input type="hidden" name="status" value="exclude">
-						<button type="submit" class="btn btn-sm btn-secondary btn-danger"
-							data-bs-toggle="tooltip" title="Exclude this file">
-							<i class="fas fa-ban"></i>
-						</button>
-					</form>
-					{% endif %}
-					{% if data_file.status != 'unreviewed' %}
-					<form
-						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
-						method="POST" class="m-0">
-						<input type="hidden" name="status" value="unreviewed">
-						<button type="submit" class="btn btn-sm btn-secondary"
-							data-bs-toggle="tooltip" title="Reset to unreviewed">
-							<i class="fas fa-undo"></i>
-						</button>
-					</form>
+					{{ render_status_buttons(animal.id, data_file) }}
 				</div>
-				{% endif %}
-
-				<span
-					class="badge bg-">
-					{{ data_file.status|capitalize }}
-				</span>
 			</div>
 		</li>
 		{% endfor %}
@@ -112,63 +92,46 @@
     } %}
 
 {% macro render_event_list(animal) %}
-<div class="small" style="min-width: 220px;">
-    <ol class="list-group">
+<div class="small">
     {% for date, events in animal.events_by_date.items() %}
-        <li class="list-group-item">
-            <h3 class="text-uppercase fw-bold h6">{{ date.strftime('%B %d, %Y') }}</h3>
-            <ol class="list-group">
-                {% for event in events %}
-                    <li class="list-group-item {{ class_map[event.status] }}">
-                        <div class="btn-group float-end">
-                            <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-pencil"></i></button>
-                            <button class="btn btn-sm" onclick="openModal('{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-trash"></i></button>
-                        </div>
-                        <div><i class="fas fa-clipboard-list m-2"></i>{{ event.procedure.display_name }}</div>
-                        <div><i class="fas fa-location-dot m-2"></i>{{ event.procedure_target.name }}</div>
-                        <ul class="list-unstyled">
+        <div class="mb-2">
+            <div class="fw-bold text-muted text-uppercase mb-1" style="font-size: 0.7em; letter-spacing: 0.05em;">
+                {{ date.strftime('%B %d, %Y') }}
+            </div>
+            {% for event in events %}
+                <div class="d-flex align-items-start gap-1 py-1 px-2 rounded mb-1 {{ class_map[event.status] }}">
+                    <div class="flex-grow-1" style="min-width: 0;">
+                        <div class="d-flex align-items-center flex-wrap gap-1">
+                            <span class="fw-semibold">{{ event.procedure.display_name }}</span>
+                            <span class="text-muted">·</span>
+                            <span class="text-muted">{{ event.procedure_target.name }}</span>
                             {% for tag in event.tags %}
-                            <li><i class="fas fa-tag m-2"></i>{{ tag.display_name }}</li>
+                                <span class="badge bg-secondary bg-opacity-25 text-dark fw-normal" style="font-size: 0.75em;">{{ tag.display_name }}</span>
                             {% endfor %}
-                        </ul>
-                        <div class="small muted">{{ event.notes }}</div>
+                        </div>
+                        {% if event.notes %}
+                            <div class="text-muted fst-italic" style="font-size: 0.85em;">{{ event.notes }}</div>
+                        {% endif %}
                         {% if event.data_files.count() > 0 %}
-                            <div class="border-bottom">
-                                <ul class="list-unstyled">
-                                    {% for f in event.data_files %}
-                                        <li class="d-flex align-items-center">
-                                            <i class="fas fa-file me-1 text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'dark' }}"></i>
-                                            <span class="small flex-grow-1">{{ f.name }}</span>
-                                            {# Status flag buttons #}
-                                            {% if f.status != 'reviewed' %}
-											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
-                                                <input type="hidden" name="status" value="reviewed">
-                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Mark reviewed"><i class="fas fa-check"></i></button>
-                                            </form>
-                                            {% endif %}
-                                            {% if f.status != 'exclude' %}
-											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
-                                                <input type="hidden" name="status" value="exclude">
-                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Exclude"><i class="fas fa-ban"></i></button>
-                                            </form>
-                                            {% endif %}
-                                            {% if f.status != 'unreviewed' %}
-											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
-                                                <input type="hidden" name="status" value="unreviewed">
-                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Reset"><i class="fas fa-undo"></i></button>
-                                            </form>
-                                            {% endif %}
-                                        </li>
-                                    {% endfor %}
-                                </ul>
+                            <div class="mt-1">
+                                {% for f in event.data_files|sort(attribute='name') %}
+                                    <div class="d-flex align-items-center gap-1 ps-2" style="font-size: 0.85em;">
+                                        <i class="fas fa-file-alt fa-xs data-file-icon text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'muted' }}"></i>
+                                        <span class="text-truncate flex-grow-1" style="min-width: 0;">{{ f.name }}</span>
+                                        {{ render_status_buttons(event.animal_id, f) }}
+                                    </div>
+                                {% endfor %}
                             </div>
                         {% endif %}
-                    </li>
-                {% endfor %}
-            </ol>
-        </li>
+                    </div>
+                    <div class="btn-group btn-group-sm flex-shrink-0">
+                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" onclick="openModal('{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-pencil fa-xs"></i></button>
+                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" onclick="openModal('{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}')"><i class="fas fa-trash fa-xs"></i></button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% endfor %}
-    </ol>
 </div>
 {% endmacro %}
 

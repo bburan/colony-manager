@@ -24,6 +24,13 @@
         .popover-wide {
             max-width: 450px;
         }
+        
+        /* AJAX Status Button Visibility */
+        .data-status-group[data-status="reviewed"] button[data-set-status="reviewed"],
+        .data-status-group[data-status="exclude"] button[data-set-status="exclude"],
+        .data-status-group[data-status="unreviewed"] button[data-set-status="unreviewed"] {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -312,7 +319,60 @@
                 console.log(current_baseline_pct);
                 current_baseline_pct.value = Math.round(current_weight / current_baseline * 100);
             }
-        })
+        });
+
+        // Delegate click for dynamically rendered data-status-btn
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.data-status-btn');
+            if (!btn) return;
+            e.preventDefault();
+
+            const url = btn.getAttribute('data-url');
+            const setStatus = btn.getAttribute('data-set-status');
+            const group = btn.closest('.data-status-group');
+
+            try {
+                // Post data
+                const formData = new FormData();
+                formData.append('status', setStatus);
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    if (data.status === 'success') {
+                        // Update status logic in DOM
+                        group.setAttribute('data-status', data.new_status);
+                        
+                        // Handle icon color updating based on the new status
+                        const li = group.closest('li') || group.closest('.d-flex');
+                        if (li) {
+                            const icon = li.querySelector('.data-file-icon');
+                            if (icon) {
+                                icon.classList.remove('text-success', 'text-danger', 'text-muted');
+                                if (data.new_status === 'reviewed') {
+                                    icon.classList.add('text-success');
+                                } else if (data.new_status === 'exclude') {
+                                    icon.classList.add('text-danger');
+                                } else {
+                                    icon.classList.add('text-muted');
+                                }
+                            }
+                        }
+                    } else {
+                        console.error('Failed to update status', data);
+                    }
+                }
+            } catch (err) {
+                console.error('AJAX error', err);
+            }
+        });
 
     </script>
 

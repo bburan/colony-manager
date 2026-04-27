@@ -506,6 +506,10 @@ def set_data_status(animal_id, data_id):
     new_status = request.form.get('status', 'unreviewed')
     data_file.status = new_status
     db.session.commit()
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return {'status': 'success', 'new_status': data_file.status}
+
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])

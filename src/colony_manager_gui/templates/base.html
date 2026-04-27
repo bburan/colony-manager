@@ -21,6 +21,9 @@
 			top: 0;
 			z-index: 1;
 		}
+        .popover-wide {
+            max-width: 450px;
+        }
     </style>
 </head>
 <body>
@@ -152,7 +155,8 @@
                 // 1. Initialize the popover instance
                 const popover = new bootstrap.Popover(element, {
                     html: true,
-                    sanitize: false
+                    sanitize: false,
+                    customClass: 'popover-wide'
                 });
 
                 if (element.classList.contains('ajax-popover')) {
@@ -172,6 +176,7 @@
                                 popover.setContent({
                                     '.popover-body': data
                                 });
+                                popover.update();
                                 console.log('set data: ', data);
                             })
                             .catch(err => {

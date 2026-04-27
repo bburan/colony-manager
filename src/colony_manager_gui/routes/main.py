@@ -8,7 +8,7 @@ from colony_manager import models
 
 from .. import db
 from .. import forms
-from ..forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm
+from ..forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm, DataLocationForm
 from .util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
@@ -118,6 +118,10 @@ def list_settings():
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
+        datatypes=models.DataType.query.all(),
+        datatype_form=DataTypeForm(),
+        DataTypeForm=DataTypeForm,
+        datalocation_form=DataLocationForm(),
     )
 
 
@@ -206,4 +210,68 @@ def create_feed():
 @main_bp.route('/set-species/<species_id>')
 def set_species(species_id):
     session['selected_species'] = species_id
-    return redirect(request.referrer or url_for('view_dashboard'))
+    return redirect(request.referrer or url_for('main.view_dashboard'))
+
+@main_bp.route('/settings/datatype/create', methods=['POST'])
+def create_datatype():
+    form = DataTypeForm()
+    if form.validate_on_submit():
+        if models.DataType.query.filter_by(name=form.name.data).first():
+            flash('This DataType already exists.', 'danger')
+        else:
+            dt = models.DataType()
+            form.populate_obj(dt)
+            db.session.add(dt)
+            db.session.commit()
+            flash(f'DataType "{dt.name}" added.', 'success')
+    else:
+        flash_form_errors(form, title="Could not create DataType")
+    return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
+def update_datatype(datatype_id):
+    dt = models.DataType.query.get_or_404(datatype_id)
+    form = DataTypeForm()
+    if form.validate_on_submit():
+        form.populate_obj(dt)
+        db.session.commit()
+        flash("DataType updated successfully!", "success")
+    return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
+def delete_datatype(datatype_id):
+    dt = models.DataType.query.get_or_404(datatype_id)
+    if dt.data_files.count() > 0:
+        flash(f'Cannot delete DataType "{dt.name}" because it is currently linked to files.', 'danger')
+    else:
+        db.session.delete(dt)
+        db.session.commit()
+        flash(f'DataType "{dt.name}" deleted.', 'success')
+    return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datalocation/new/<int:datatype_id>', methods=['POST'])
+def add_datalocation(datatype_id):
+    form = DataLocationForm()
+    dt = models.DataType.query.get_or_404(datatype_id)
+    if form.validate_on_submit():
+        loc = models.DataLocation(base_path=form.base_path.data, datatype_id=dt.id)
+        db.session.add(loc)
+        db.session.commit()
+        flash(f'Location added to "{dt.name}".', 'success')
+    return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datalocation/<int:location_id>/update', methods=['POST'])
+def update_datalocation(location_id):
+    loc = models.DataLocation.query.get_or_404(location_id)
+    form = DataLocationForm()
+    if form.validate_on_submit():
+        form.populate_obj(loc)
+        db.session.commit()
+    return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datalocation/<int:location_id>/delete', methods=['POST'])
+def delete_datalocation(location_id):
+    loc = models.DataLocation.query.get_or_404(location_id)
+    db.session.delete(loc)
+    db.session.commit()
+    return redirect(url_for('main.list_settings'))

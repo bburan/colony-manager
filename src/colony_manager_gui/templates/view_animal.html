@@ -156,7 +156,47 @@
                     </div>
                 </div>
             </div>
+            <div class="card-body">
+                <table class="table table-responsive small">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Weight (g)</th>
+                            <th>Weight (%)</th>
+                            <th>Feed (g)</th>
+                            <th>Notes</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for date, data in animal.weight_feed_history().items() %}
+                        <tr class="{{ macros.get_weight_color(data['baseline_pct'], data['baseline'], 'table-') }} align-items-center">
+                            <td>{{ date.strftime('%B %d, %Y') }}</td>
+                            <td>{{ macros.format_int(data.weight) }}</td>
+                            <td>{{ macros.format_int(data.baseline_pct) }}</td>
+                            <td>{{ data.total_feed|round(1) or "—" }}</td>
+                            <td>{{ data.notes or "—" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-sm"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Edit weight/feed entry"
+                                            onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
+                                    <button class="btn btn-sm"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Delete weight/feed entry"
+                                            onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
+
     </div>
 </div>
 {% endblock %}

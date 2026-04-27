@@ -1,7 +1,8 @@
 import datetime
+import re
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog
+from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog, Data, DataType
 
 from .. import db
 from .. import forms
@@ -182,10 +183,35 @@ def update_animal_event(event_id):
     if form.validate_on_submit():
         form.populate_obj(event)
         db.session.commit()
+        _resync_event_files(event)
+        db.session.commit()
         flash('Event updated successfully.', 'success')
     else:
         flash_form_errors(form, f'Error updating event')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=event.animal_id))
+
+
+def _resync_event_files(event):
+    """Unlink files whose date no longer matches the event, then link matching unassigned files."""
+    new_date = event.completion_date or event.scheduled_date
+
+    # 1. Unlink files that no longer match this event's date
+    for f in list(event.data_files):
+        if f.date != new_date:
+            f.event_id = None
+
+    # 2. Link unassigned Data files that now match date + datatype.default_procedure + animal
+    animal_ids = [a.id for a in event.animal.cage.animals]
+    candidate_files = Data.query.filter(
+        Data.event_id == None,
+        Data.date == new_date,
+    ).all()
+    for f in candidate_files:
+        if f.datatype.default_procedure_id != event.procedure_id:
+            continue
+        # Check if any of the file's animals matches this event's animal
+        if any(a.id == event.animal_id for a in f.animals):
+            f.event_id = event.id
 
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -450,3 +476,74 @@ def view_animal_events_popover(animal_id):
         'partials/event_popover.html',
         animal=animal,
     )
+
+@animals_bp.route('/<int:animal_id>/data/<int:data_id>/reassign', methods=['POST'])
+def reassign_data(animal_id, data_id):
+    data_file = Data.query.get_or_404(data_id)
+    event_id = request.form.get('event_id')
+    if event_id and event_id != '__None':
+        data_file.event_id = int(event_id)
+        flash(f"File {data_file.name} attached to event.", "success")
+    else:
+        data_file.event_id = None
+        flash(f"File {data_file.name} detached from event.", "info")
+    db.session.commit()
+    return redirect(url_for('animals.view_animal', animal_id=animal_id))
+
+@animals_bp.route('/unmatched-data')
+def list_unmatched_data():
+    """Shows all data files that were not matched to any Animal custom_id."""
+    unmatched_files = Data.query.filter(~Data.animals.any()).all()
+    return render_template(
+        'unmatched_data.html',
+        files=unmatched_files
+    )
+
+@animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
+def set_data_status(animal_id, data_id):
+    """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""
+    data_file = Data.query.get_or_404(data_id)
+    new_status = request.form.get('status', 'unreviewed')
+    data_file.status = new_status
+    db.session.commit()
+    return redirect(url_for('animals.view_animal', animal_id=animal_id))
+
+@animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
+def auto_create_event(animal_id, data_id):
+    """Auto-create an AnimalEvent for an unassigned Data file, then link all matching files."""
+    data_file = Data.query.get_or_404(data_id)
+    datatype = data_file.datatype
+
+    if not datatype.default_procedure_id:
+        flash('Cannot auto-create: DataType has no Default Procedure configured.', 'danger')
+        return redirect(url_for('animals.view_animal', animal_id=animal_id))
+    if not data_file.date:
+        flash('Cannot auto-create: file has no parsed date.', 'danger')
+        return redirect(url_for('animals.view_animal', animal_id=animal_id))
+
+    # Create the event
+    event = AnimalEvent(
+        animal_id=animal_id,
+        procedure_id=datatype.default_procedure_id,
+        procedure_target_id=datatype.default_procedure_target_id,
+        scheduled_date=data_file.date,
+        completion_date=data_file.date,
+    )
+    db.session.add(event)
+    db.session.flush()  # get event.id before full commit
+
+    # Link all unassigned files with matching datatype, date, and animal
+    candidate_files = Data.query.filter(
+        Data.event_id == None,
+        Data.datatype_id == datatype.id,
+        Data.date == data_file.date,
+    ).all()
+    linked_count = 0
+    for f in candidate_files:
+        if any(a.id == animal_id for a in f.animals):
+            f.event_id = event.id
+            linked_count += 1
+
+    db.session.commit()
+    flash(f'Event created and {linked_count} file(s) linked.', 'success')
+    return redirect(url_for('animals.view_animal', animal_id=animal_id))

@@ -17,6 +17,93 @@
 </div>
 {% endmacro %}
 
+{% macro render_data_files(animal, files) %}
+	<ul class="list-group list-group-flush">
+		{% for data_file in files %}
+		<li
+			class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
+			<div class="flex-grow-1">
+				<span class="badge bg-secondary me-1">{{ data_file.datatype.name }}</span>
+				<span class="small">{{ data_file.name }}</span>
+				{% if data_file.date %}
+				<span class="text-muted small ms-2">{{ data_file.date.strftime('%Y-%m-%d') }}</span>
+				{% endif %}
+			</div>
+			<div class="d-flex align-items-center gap-1 flex-shrink-0">
+
+				{# ---- Event assignment dropdown ---- #}
+				<form
+					action="{{ url_for('animals.reassign_data', animal_id=animal.id, data_id=data_file.id) }}"
+					method="POST">
+					<select name="event_id" class="form-select form-select-sm"
+						onchange="this.form.submit()">
+						<option value="__None">— No Event —</option>
+						{% for event in animal.events %}
+						<option value="{{ event.id }}" {% if data_file.event_id==event.id %}selected{% endif %}>
+							{{ event.scheduled_date.strftime('%Y-%m-%d') }}: {{ event.procedure.display_name }}
+						</option>
+						{% endfor %}
+					</select>
+				</form>
+
+				<div class="btn-group" role="group">
+					{% if not data_file.event_id and data_file.datatype.default_procedure_id %}
+					<form
+						action="{{ url_for('animals.auto_create_event', animal_id=animal.id, data_id=data_file.id) }}"
+						method="POST">
+						<button type="submit" class="btn btn-sm btn-secondary" data-bs-toggle="tooltip"
+							title="Auto-create event from this file's date">
+							<i class="fas fa-magic"></i>
+						</button>
+					</form>
+					{% endif %}
+
+					{% if data_file.status != 'reviewed' %}
+					<form
+						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
+						method="POST">
+						<input type="hidden" name="status" value="reviewed">
+						<button type="submit" class="btn btn-sm btn-secondary btn-success"
+							data-bs-toggle="tooltip" title="Mark as reviewed">
+							<i class="fas fa-check"></i>
+						</button>
+					</form>
+					{% endif %}
+					{% if data_file.status != 'exclude' %}
+					<form
+						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
+						method="POST">
+						<input type="hidden" name="status" value="exclude">
+						<button type="submit" class="btn btn-sm btn-secondary btn-danger"
+							data-bs-toggle="tooltip" title="Exclude this file">
+							<i class="fas fa-ban"></i>
+						</button>
+					</form>
+					{% endif %}
+					{% if data_file.status != 'unreviewed' %}
+					<form
+						action="{{ url_for('animals.set_data_status', animal_id=animal.id, data_id=data_file.id) }}"
+						method="POST" class="m-0">
+						<input type="hidden" name="status" value="unreviewed">
+						<button type="submit" class="btn btn-sm btn-secondary"
+							data-bs-toggle="tooltip" title="Reset to unreviewed">
+							<i class="fas fa-undo"></i>
+						</button>
+					</form>
+				</div>
+				{% endif %}
+
+				<span
+					class="badge bg-">
+					{{ data_file.status|capitalize }}
+				</span>
+			</div>
+		</li>
+		{% endfor %}
+	</ul>
+{% endmacro %}
+
+
 {% set class_map = {
     'complete': 'bg-success-subtle',
     'overdue': 'bg-danger-subtle',
@@ -45,6 +132,37 @@
                             {% endfor %}
                         </ul>
                         <div class="small muted">{{ event.notes }}</div>
+                        {% if event.data_files.count() > 0 %}
+                            <div class="border-bottom">
+                                <ul class="list-unstyled">
+                                    {% for f in event.data_files %}
+                                        <li class="d-flex align-items-center">
+                                            <i class="fas fa-file me-1 text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'dark' }}"></i>
+                                            <span class="small flex-grow-1">{{ f.name }}</span>
+                                            {# Status flag buttons #}
+                                            {% if f.status != 'reviewed' %}
+											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
+                                                <input type="hidden" name="status" value="reviewed">
+                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Mark reviewed"><i class="fas fa-check"></i></button>
+                                            </form>
+                                            {% endif %}
+                                            {% if f.status != 'exclude' %}
+											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
+                                                <input type="hidden" name="status" value="exclude">
+                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Exclude"><i class="fas fa-ban"></i></button>
+                                            </form>
+                                            {% endif %}
+                                            {% if f.status != 'unreviewed' %}
+											<form action="{{ url_for('animals.set_data_status', animal_id=event.animal_id, data_id=f.id) }}" method="POST">
+                                                <input type="hidden" name="status" value="unreviewed">
+                                                <button type="submit" class="btn btn-sm" data-bs-toggle="tooltip" title="Reset"><i class="fas fa-undo"></i></button>
+                                            </form>
+                                            {% endif %}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
                     </li>
                 {% endfor %}
             </ol>

@@ -43,6 +43,11 @@ animal_event_tags = Table('animal_event_tags', Base.metadata,
     Column('tag_id', Integer, ForeignKey('animal_event_tag.id'), primary_key=True)
 )
 
+animal_data = Table('animal_data', Base.metadata,
+    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True),
+    Column('data_id', Integer, ForeignKey('data.id'), primary_key=True)
+)
+
 
 class VersionedModel(Base):
     """Base model that automatically adds created and updated timestamps."""
@@ -158,6 +163,47 @@ class AnimalProcedure(VersionedModel, NestedMixin):
     )
 
     events = relationship('AnimalEvent', backref='procedure', lazy=True)
+
+
+class DataType(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    filename_regex = Column(String(500), nullable=True)
+    loader_function = Column(String(200), nullable=True)
+    is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
+    default_procedure_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
+    default_procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id'), nullable=True)
+
+    locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+    default_procedure = relationship('AnimalProcedure', lazy=True)
+    default_procedure_target = relationship('AnimalProcedureTarget', lazy=True)
+    data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+
+class DataLocation(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
+    base_path = Column(String(1024), nullable=False)
+    data_files = relationship('Data', backref='location', lazy='dynamic', cascade="all, delete-orphan")
+
+class Data(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
+    location_id = Column(Integer, ForeignKey('data_location.id'), nullable=False)
+    event_id = Column(Integer, ForeignKey('animal_event.id'), nullable=True)
+    relative_path = Column(String(1024), nullable=False)
+    name = Column(String(255), nullable=False)
+    date = Column(Date, nullable=True)
+    status = Column(String(50), nullable=False, default='unreviewed')
+    notes = Column(Text, nullable=True)
+    
+    animals = relationship('Animal', secondary=animal_data, backref=backref('data_files', lazy='dynamic'))
+    event = relationship('AnimalEvent', backref=backref('data_files', lazy='dynamic'))
+
+    __table_args__ = (
+        UniqueConstraint('location_id', 'relative_path'),
+    )
+
 
 class AnimalProcedureTarget(VersionedModel):
     id = Column(Integer, primary_key=True)

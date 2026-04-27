@@ -55,6 +55,30 @@ class SimpleAddWithDescriptionForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Description', validators=[Optional()])
 
+class DataTypeForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    description = StringField('Description', validators=[Optional()])
+    filename_regex = StringField('Filename Regex', validators=[Optional()])
+    loader_function = StringField('Loader Function', validators=[Optional()])
+    is_folder = BooleanField('Is Folder?')
+    default_procedure = QuerySelectField(
+        'Default Procedure',
+        query_factory=AnimalProcedure.get_ordered,
+        get_label='display_name',
+        allow_blank=True,
+        blank_text='-- None --'
+    )
+    default_procedure_target = QuerySelectField(
+        'Default Procedure Target',
+        query_factory=animal_procedure_target_factory,
+        get_label='name',
+        allow_blank=True,
+        blank_text='-- None --'
+    )
+
+class DataLocationForm(FlaskForm):
+    base_path = StringField('Base Path', validators=[DataRequired()])
+
 class NoteForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
 

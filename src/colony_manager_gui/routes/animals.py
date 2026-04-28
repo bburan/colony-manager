@@ -1,7 +1,7 @@
 import datetime
 import re
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog, Data, DataType
 
 from .. import db
@@ -551,3 +551,29 @@ def auto_create_event(animal_id, data_id):
     db.session.commit()
     flash(f'Event created and {linked_count} file(s) linked.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
+
+@animals_bp.route('/data/<int:data_id>/plot')
+def plot_data(data_id):
+    """Invoke the datatype loader function and return plot data as JSON."""
+    data_file = Data.query.get_or_404(data_id)
+    loader_path = data_file.datatype.loader_function
+    if not loader_path:
+        return jsonify({'error': 'No loader function defined for this datatype.'}), 400
+
+    import importlib
+    try:
+        module_name, func_name = loader_path.rsplit('.', 1)
+        module = importlib.import_module(module_name)
+        loader = getattr(module, func_name)
+    except Exception as e:
+        return jsonify({'error': f'Failed to import loader function: {e}'}), 500
+
+    try:
+        plot_data_res = loader(data_file)
+        if hasattr(plot_data_res, 'to_json'):
+            # It's likely a Plotly Figure, which has .to_json()
+            return Response(plot_data_res.to_json(), mimetype='application/json')
+        else:
+            return jsonify(plot_data_res)
+    except Exception as e:
+        return jsonify({'error': f'Error loading plot data: {str(e)}'}), 500

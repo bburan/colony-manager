@@ -7,6 +7,7 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
     <style>
         body {
@@ -374,12 +375,72 @@
             }
         });
 
+        async function openPlotModal(url, title) {
+            const plotModalElement = document.getElementById('plotModal');
+            const plotModalTitle = document.getElementById('plotModalTitle');
+            const plotModalBody = document.getElementById('plotModalBody');
+            
+            // Get or create modal instance
+            let modalInstance = bootstrap.Modal.getInstance(plotModalElement);
+            if (!modalInstance) {
+                modalInstance = new bootstrap.Modal(plotModalElement);
+            }
+            
+            plotModalTitle.textContent = title || 'Data Plot';
+            plotModalBody.innerHTML = `
+                <div class="d-flex justify-content-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>`;
+            modalInstance.show();
+
+            try {
+                const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const contentType = response.headers.get("content-type");
+                if (!response.ok) {
+                    if (contentType && contentType.indexOf("application/json") !== -1) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || 'Server returned an error');
+                    } else {
+                        throw new Error('Network response was not ok');
+                    }
+                }
+                const plotData = await response.json();
+                
+                plotModalBody.innerHTML = '<div id="plotly-chart" style="width:100%; height: 600px;"></div>';
+                Plotly.newPlot('plotly-chart', plotData.data || plotData, plotData.layout || {}, {responsive: true});
+                
+            } catch (error) {
+                plotModalBody.innerHTML = `
+                    <div class="alert alert-danger m-3">
+                        Error loading plot: ${error.message}
+                    </div>`;
+            }
+        }
+
     </script>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-sm" id="modalBody">
             <div class="spinner-border"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="plotModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content shadow-sm">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title h6 fw-bold text-uppercase text-secondary" id="plotModalTitle">Data Plot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="plotModalBody" style="min-height: 400px;">
+                <div class="d-flex justify-content-center p-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
         </div>
       </div>
     </div>

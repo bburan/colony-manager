@@ -1,49 +1,66 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row g-4 mb-3">
-    {% for type, info in settings.items() %}
-        {% set form_class = info['form'] %}
-        {% set blank_form = form_class() %}
-        <div class="col-md-4">
-            <div class="card shadow-sm card-body">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
-                <form action="{{ url_for('main.create_setting', item_type=type) }}" method="POST" class="input-group input-group-sm mb-3">
-                    {{ blank_form.hidden_tag() }}
-                    {% for field in blank_form if field.widget_type != 'hidden' %}
-                        {{ field(class="form-control form-control-sm") }}
-                    {% endfor %}
-                    <button class="btn btn-primary">Add</button>
-                </form>
-
-                <ul class="list-group list-group-flush small">
-                    {% for item in info['items'] %}
-                        {% set form = form_class(obj=item) %}
-                        <li class="list-group-item d-flex align-items-center">
-                            <form id="update-setting-{{type}}-{{item.id}}"
-                                action="{{ url_for('main.update_setting', item_type=type, item_id=item.id) }}"
-                                method="POST" class="d-flex flex-grow-1 align-items-center">
-                                {{ form.hidden_tag() }}
-                                {% for field in form if field.widget_type != 'hidden' %}
-                                    {{ field(class="form-control form-control-sm border-0 fw-medium", oninput="markDirty(this)") }}
-                                {% endfor %}
-                                <button type="submit" id="update-setting-{{type}}-{{item.id}}-save" disabled class="btn btn-sm"><i class="fas fa-save"></i></button>
-                            </form>
-                            <form action="{{ url_for('main.delete_setting', item_type=type, item_id=item.id) }}"
-                                method="POST" onsubmit="return confirm('Delete setting?');">
-                                <button class="btn btn-sm"><i class="fas fa-trash"></i></button>
-                            </form>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
+<div class="row">
+    <!-- Left Navigation -->
+    <div class="col-md-3 d-none d-md-block">
+        <div class="list-group sticky-top shadow-sm" style="top: 1.5rem; z-index: 1;">
+            {% for type, info in settings.items()|sort %}
+            <a href="#setting-{{ type }}" class="list-group-item list-group-item-action small fw-bold text-secondary text-uppercase py-2">
+                {{ type.replace('_', ' ') }}
+            </a>
+            {% endfor %}
+            <a href="#setting-datatypes" class="list-group-item list-group-item-action small fw-bold text-secondary text-uppercase py-2">
+                Data Types & Parsers
+            </a>
         </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9">
+        <div class="row g-4 mb-3">
+            {% for type, info in settings.items()|sort %}
+            {% set form_class = info['form'] %}
+            {% set blank_form = form_class() %}
+            <div class="col-md-12" id="setting-{{ type }}" style="scroll-margin-top: 1.5rem;">
+                <div class="card shadow-sm card-body">
+                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
+                    <form action="{{ url_for('main.create_setting', item_type=type) }}" method="POST"
+                        class="input-group input-group-sm mb-3">
+                {{ blank_form.hidden_tag() }}
+                {% for field in blank_form if field.widget_type != 'hidden' %}
+                {{ field(class="form-control form-control-sm") }}
+                {% endfor %}
+                <button class="btn btn-primary">Add</button>
+            </form>
+
+            <ul class="list-group list-group-flush small">
+                {% for item in info['items'] %}
+                {% set form = form_class(obj=item) %}
+                <li class="list-group-item d-flex align-items-center">
+                    <form id="update-setting-{{type}}-{{item.id}}"
+                        action="{{ url_for('main.update_setting', item_type=type, item_id=item.id) }}" method="POST"
+                        class="d-flex flex-grow-1 align-items-center">
+                        {{ form.hidden_tag() }}
+                        {% for field in form if field.widget_type != 'hidden' %}
+                        {{ field(class="form-control form-control-sm border-0 fw-medium", oninput="markDirty(this)") }}
+                        {% endfor %}
+                        <button type="submit" id="update-setting-{{type}}-{{item.id}}-save" disabled
+                            class="btn btn-sm"><i class="fas fa-save"></i></button>
+                    </form>
+                    <form action="{{ url_for('main.delete_setting', item_type=type, item_id=item.id) }}" method="POST"
+                        onsubmit="return confirm('Delete setting?');">
+                        <button class="btn btn-sm"><i class="fas fa-trash"></i></button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
     {% endfor %}
-</div>
+        </div>
 
-
-
-<div class="card shadow-sm border-0 mt-5 mb-5">
+        <div class="card shadow-sm border-0 mt-5 mb-5" id="setting-datatypes" style="scroll-margin-top: 1.5rem;">
     <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">
         <h2 class="h5 mb-0 fw-bold">Data Types & Parsers</h2>
     </header>
@@ -90,20 +107,28 @@
         {% set dt_form = DataTypeForm(obj=dt) %}
         <article class="list-group-item p-4">
             <header class="d-flex justify-content-between align-items-center mb-3">
-                <form action="{{ url_for('main.update_datatype', datatype_id=dt.id) }}" method="POST" class="row g-2 align-items-center flex-grow-1">
+                <form action="{{ url_for('main.update_datatype', datatype_id=dt.id) }}" method="POST"
+                    class="row g-2 align-items-center flex-grow-1">
                     {{ dt_form.hidden_tag() }}
-                    <div class="col-md-2">{{ dt_form.name(class="form-control form-control-sm fw-bold border-0 bg-light", oninput="markDirty(this)") }}</div>
-                    <div class="col-md-2">{{ dt_form.filename_regex(class="form-control form-control-sm border-0 bg-light px-1 font-monospace", placeholder="Regex", oninput="markDirty(this)") }}</div>
-                    <div class="col-md-1">{{ dt_form.loader_function(class="form-control form-control-sm border-0 bg-light font-monospace", placeholder="load_f", oninput="markDirty(this)") }}</div>
-                    <div class="col-md-2">{{ dt_form.default_procedure(class="form-select form-select-sm border-0 bg-light", onchange="markDirty(this)") }}</div>
-                    <div class="col-md-2">{{ dt_form.default_procedure_target(class="form-select form-select-sm border-0 bg-light", onchange="markDirty(this)") }}</div>
+                    <div class="col-md-2">{{ dt_form.name(class="form-control form-control-sm fw-bold border-0
+                        bg-light", oninput="markDirty(this)") }}</div>
+                    <div class="col-md-2">{{ dt_form.filename_regex(class="form-control form-control-sm border-0
+                        bg-light px-1 font-monospace", placeholder="Regex", oninput="markDirty(this)") }}</div>
+                    <div class="col-md-1">{{ dt_form.loader_function(class="form-control form-control-sm border-0
+                        bg-light font-monospace", placeholder="load_f", oninput="markDirty(this)") }}</div>
+                    <div class="col-md-2">{{ dt_form.default_procedure(class="form-select form-select-sm border-0
+                        bg-light", onchange="markDirty(this)") }}</div>
+                    <div class="col-md-2">{{ dt_form.default_procedure_target(class="form-select form-select-sm border-0
+                        bg-light", onchange="markDirty(this)") }}</div>
                     <div class="col-md-1 text-center">
                         <small class="text-muted" style="font-size: 0.65em;">Folder</small><br>
                         {{ dt_form.is_folder(class="form-check-input", onchange="markDirty(this)") }}
                     </div>
-                    <div class="col-auto"><button type="submit" class="btn btn-link btn-sm save-btn p-0 text-success"><i class="fas fa-cloud-upload-alt"></i></button></div>
+                    <div class="col-auto"><button type="submit" class="btn btn-link btn-sm save-btn p-0 text-success"><i
+                                class="fas fa-cloud-upload-alt"></i></button></div>
                 </form>
-                <form action="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}" method="POST" onsubmit="return confirm('Delete DataType?');" class="ms-3">
+                <form action="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}" method="POST"
+                    onsubmit="return confirm('Delete DataType?');" class="ms-3">
                     <button class="btn btn-sm btn-link text-danger"><i class="fas fa-trash-alt"></i></button>
                 </form>
             </header>
@@ -113,25 +138,36 @@
                 <div class="d-flex flex-column gap-2 mb-3">
                     {% for loc in dt.locations %}
                     <div class="d-flex align-items-center bg-white border rounded px-2 py-1 shadow-sm w-100">
-                        <form action="{{ url_for('main.update_datalocation', location_id=loc.id) }}" method="POST" class="d-flex flex-grow-1 align-items-center">
+                        <form action="{{ url_for('main.update_datalocation', location_id=loc.id) }}" method="POST"
+                            class="d-flex flex-grow-1 align-items-center">
                             <span class="text-secondary small me-2"><i class="fas fa-folder-open"></i></span>
-                            <input type="text" name="base_path" value="{{ loc.base_path }}" class="font-monospace border-0 bg-transparent flex-grow-1 small" oninput="markDirty(this)">
-                            <button type="submit" class="btn btn-link btn-sm save-btn p-0 mx-2 text-success"><i class="fas fa-check-circle"></i></button>
+                            <input type="text" name="base_path" value="{{ loc.base_path }}"
+                                class="font-monospace border-0 bg-transparent flex-grow-1 small"
+                                oninput="markDirty(this)">
+                            <button type="submit" class="btn btn-link btn-sm save-btn p-0 mx-2 text-success"><i
+                                    class="fas fa-check-circle"></i></button>
                         </form>
-                        <form action="{{ url_for('main.delete_datalocation', location_id=loc.id) }}" method="POST" class="border-start ps-2">
+                        <form action="{{ url_for('main.delete_datalocation', location_id=loc.id) }}" method="POST"
+                            class="border-start ps-2">
                             <button class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times"></i></button>
                         </form>
                     </div>
                     {% endfor %}
                 </div>
-                <form action="{{ url_for('main.add_datalocation', datatype_id=dt.id) }}" method="POST" class="row g-2 opacity-75 focus-ring">
+                <form action="{{ url_for('main.add_datalocation', datatype_id=dt.id) }}" method="POST"
+                    class="row g-2 opacity-75 focus-ring">
                     {{ datalocation_form.hidden_tag() }}
-                    <div class="col-md-8"><input type="text" name="base_path" class="form-control form-control-sm font-monospace" placeholder="C:\Data\{{ dt.name }}"></div>
-                    <div class="col-md-2"><button type="submit" class="btn btn-secondary btn-sm w-100"><i class="fas fa-plus"></i> Add Path</button></div>
+                    <div class="col-md-8"><input type="text" name="base_path"
+                            class="form-control form-control-sm font-monospace" placeholder="C:\Data\{{ dt.name }}">
+                    </div>
+                    <div class="col-md-2"><button type="submit" class="btn btn-secondary btn-sm w-100"><i
+                                class="fas fa-plus"></i> Add Path</button></div>
                 </form>
             </div>
         </article>
         {% endfor %}
+    </div>
+        </div>
     </div>
 </div>
 {% endblock %}

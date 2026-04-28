@@ -12,7 +12,7 @@
     </div>
     <div class="btn-group btn-group-sm flex-shrink-0">
         <button class="btn btn-link btn-sm text-secondary p-0 px-2" onclick="openModal('{{ url_for('main.edit_datatype_modal', datatype_id=dt.id) }}')"><i class="fas fa-pencil"></i></button>
-        <form action="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}" method="POST" onsubmit="return confirm('Delete DataType?');" class="d-inline">
+        <form action="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}" method="POST" class="d-inline delete-form">
             <button class="btn btn-link btn-sm text-danger p-0 px-2"><i class="fas fa-trash"></i></button>
         </form>
     </div>

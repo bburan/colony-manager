@@ -176,8 +176,12 @@ def delete_setting(item_type, item_id):
     try:
         db.session.delete(item)
         db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Cannot delete {item_name} since other objects reference this setting.'}), 400
         flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -255,10 +259,14 @@ def update_datatype(datatype_id):
 def delete_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
     if dt.data_files.count() > 0:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Cannot delete DataType "{dt.name}" because it is currently linked to files.'}), 400
         flash(f'Cannot delete DataType "{dt.name}" because it is currently linked to files.', 'danger')
     else:
         db.session.delete(dt)
         db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash(f'DataType "{dt.name}" deleted.', 'success')
     return redirect(url_for('main.list_settings'))
 

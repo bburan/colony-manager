@@ -1,0 +1,16 @@
+<li class="list-group-item d-flex align-items-center" data-name="{{ item.name|lower }}">
+    <form id="update-setting-{{type}}-{{item.id}}" autocomplete="off"
+        action="{{ url_for('main.update_setting', item_type=type, item_id=item.id) }}" method="POST"
+        class="d-flex flex-grow-1 align-items-center">
+        {{ form.hidden_tag() }}
+        {% for field in form if field.widget_type != 'hidden' %}
+        {{ field(class="form-control form-control-sm border-0 fw-medium", oninput="markDirty(this)") }}
+        {% endfor %}
+        <button type="submit" id="update-setting-{{type}}-{{item.id}}-save" disabled
+            class="btn btn-sm"><i class="fas fa-save"></i></button>
+    </form>
+    <form action="{{ url_for('main.delete_setting', item_type=type, item_id=item.id) }}" method="POST"
+        onsubmit="return confirm('Delete setting?');">
+        <button class="btn btn-sm"><i class="fas fa-trash"></i></button>
+    </form>
+</li>

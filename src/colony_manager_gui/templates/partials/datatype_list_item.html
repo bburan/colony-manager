@@ -1,0 +1,19 @@
+<li class="list-group-item d-flex justify-content-between align-items-center py-3" id="datatype-{{ dt.id }}" data-name="{{ dt.name|lower }}">
+    <div>
+        <span class="fw-bold">{{ dt.name }}</span>
+        {% if dt.description %}<span class="text-muted ms-2 fst-italic">{{ dt.description }}</span>{% endif %}
+        <div class="mt-1">
+            {% if dt.is_folder %}
+            <span class="badge bg-secondary">Folder</span>
+            {% endif %}
+            <small class="text-muted font-monospace"><i class="fas fa-code"></i> {{ dt.loader_function or 'No loader' }}</small>
+            <small class="text-muted ms-2"><i class="fas fa-map-marker-alt"></i> {{ dt.locations.count() }} location(s)</small>
+        </div>
+    </div>
+    <div class="btn-group btn-group-sm flex-shrink-0">
+        <button class="btn btn-link btn-sm text-secondary p-0 px-2" onclick="openModal('{{ url_for('main.edit_datatype_modal', datatype_id=dt.id) }}')"><i class="fas fa-pencil"></i></button>
+        <form action="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}" method="POST" onsubmit="return confirm('Delete DataType?');" class="d-inline">
+            <button class="btn btn-link btn-sm text-danger p-0 px-2"><i class="fas fa-trash"></i></button>
+        </form>
+    </div>
+</li>

@@ -1,6 +1,6 @@
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 
@@ -131,14 +131,23 @@ def create_setting(item_type):
     form = SETTINGS_MAP[item_type]['form']()
     if form.validate_on_submit():
         if Model.query.filter(Model.name == form.name.data).first():
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'errors': {'name': ['It might already exist.']}}), 400
             flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
         else:
             item = Model()
             form.populate_obj(item)
             db.session.add(item)
             db.session.commit()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                # Create a blank form to pass to the partial template
+                display_form = SETTINGS_MAP[item_type]['form'](obj=item)
+                html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
+                return jsonify({'success': True, 'html': html})
             flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'errors': form.errors}), 400
         flash_form_errors(form, title="Could not create setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -150,8 +159,12 @@ def update_setting(item_type, item_id):
     if form.validate_on_submit():
         form.populate_obj(item)
         db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
         flash("Updated successfully!", "success")
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'errors': form.errors}), 400
         flash_form_errors(form, title="Could not update setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -196,14 +209,21 @@ def create_datatype():
     form = DataTypeForm()
     if form.validate_on_submit():
         if models.DataType.query.filter_by(name=form.name.data).first():
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'errors': {'name': ['This DataType already exists.']}}), 400
             flash('This DataType already exists.', 'danger')
         else:
             dt = models.DataType()
             form.populate_obj(dt)
             db.session.add(dt)
             db.session.commit()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                html = render_template('partials/datatype_list_item.html', dt=dt)
+                return jsonify({'success': True, 'html': html})
             flash(f'DataType "{dt.name}" added.', 'success')
     else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'errors': form.errors}), 400
         flash_form_errors(form, title="Could not create DataType")
     return redirect(url_for('main.list_settings'))
 
@@ -221,7 +241,14 @@ def update_datatype(datatype_id):
     if form.validate_on_submit():
         form.populate_obj(dt)
         db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            html = render_template('partials/datatype_list_item.html', dt=dt)
+            return jsonify({'success': True, 'html': html})
         flash("DataType updated successfully!", "success")
+    else:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'errors': form.errors}), 400
+        flash_form_errors(form, title="Could not update DataType")
     return redirect(url_for('main.list_settings'))
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])

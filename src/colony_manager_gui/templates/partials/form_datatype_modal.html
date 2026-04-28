@@ -3,7 +3,7 @@
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <div class="modal-body">
-    <form action="{% if dt %}{{ url_for('main.update_datatype', datatype_id=dt.id) }}{% else %}{{ url_for('main.create_datatype') }}{% endif %}" method="POST">
+    <form id="modal-datatype-form" data-is-update="{% if dt %}true{% else %}false{% endif %}" action="{% if dt %}{{ url_for('main.update_datatype', datatype_id=dt.id) }}{% else %}{{ url_for('main.create_datatype') }}{% endif %}" method="POST">
         {{ form.hidden_tag() }}
         <div class="mb-3">
             <label class="form-label fw-bold small text-muted">Name</label>

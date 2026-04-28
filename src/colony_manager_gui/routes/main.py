@@ -186,6 +186,11 @@ def set_species(species_id):
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
+@main_bp.route('/settings/datatype/create_modal')
+def create_datatype_modal():
+    form = DataTypeForm()
+    return render_template('partials/form_datatype_modal.html', form=form, dt=None, datalocation_form=None)
+
 @main_bp.route('/settings/datatype/create', methods=['POST'])
 def create_datatype():
     form = DataTypeForm()
@@ -201,6 +206,13 @@ def create_datatype():
     else:
         flash_form_errors(form, title="Could not create DataType")
     return redirect(url_for('main.list_settings'))
+
+@main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
+def edit_datatype_modal(datatype_id):
+    dt = models.DataType.query.get_or_404(datatype_id)
+    form = DataTypeForm(obj=dt)
+    datalocation_form = DataLocationForm()
+    return render_template('partials/form_datatype_modal.html', form=form, dt=dt, datalocation_form=datalocation_form)
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id):

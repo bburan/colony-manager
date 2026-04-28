@@ -625,14 +625,9 @@ class AnimalEvent(VersionedModel):
 class ImmunolabelingPanel(VersionedModel):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
-    reagents = relationship('Reagent', backref='panel', lazy='dynamic', cascade="all, delete-orphan")
-    ears = relationship('Ear', backref='panel', lazy=True)
-
-class Reagent(VersionedModel):
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-    panel_id = Column(Integer, ForeignKey('immunolabeling_panel.id'), nullable=False)
+    
+    ears = relationship('Ear', backref='panel', lazy=True)
 
 class Ear(VersionedModel):
     id = Column(Integer, primary_key=True)

@@ -41,55 +41,7 @@
     {% endfor %}
 </div>
 
-<div class="card shadow-sm border-0 mb-5">
-    <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">
-        <h2 class="h5 mb-0 fw-bold">Immunolabeling Panels</h2>
-        <form action="{{ url_for('main.create_setting', item_type='immunolabeling_panel') }}" method="POST" class="input-group input-group-sm w-auto">
-            {{ simple_add_form.hidden_tag() }}
-            <input type="text" name="name" class="form-control" placeholder="New Panel Name">
-            <button class="btn btn-primary">Create</button>
-        </form>
-    </header>
 
-    <div class="list-group list-group-flush">
-        {% for panel in panels %}
-        <article class="list-group-item p-4">
-            <header class="d-flex justify-content-between align-items-center mb-3">
-                <form action="{{ url_for('main.update_setting', item_type='immunolabeling_panel', item_id=panel.id) }}" method="POST" class="d-flex align-items-center">
-                    <input type="text" name="name" value="{{ panel.name }}" class="form-control form-control-sm fw-bold border-0 bg-light me-2" oninput="markDirty(this)">
-                    <button type="submit" class="btn btn-link btn-sm save-btn p-0"><i class="fas fa-cloud-upload-alt"></i></button>
-                </form>
-                <form action="{{ url_for('main.delete_panel', panel_id=panel.id) }}" method="POST" onsubmit="return confirm('Delete panel?');">
-                    <button class="btn btn-sm btn-link text-danger"><i class="fas fa-trash-alt"></i></button>
-                </form>
-            </header>
-
-            <div class="bg-light rounded p-3 border">
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                    {% for reagent in panel.reagents %}
-                    <span class="badge bg-white text-dark border d-flex align-items-center p-1 shadow-sm">
-                        <form action="{{ url_for('main.update_setting', item_type='reagent', item_id=reagent.id) }}" method="POST" class="d-flex align-items-center px-1">
-                            <input type="text" name="name" value="{{ reagent.name }}" class="border-0 bg-transparent fw-bold small" style="width: 80px;" oninput="markDirty(this)">
-                            <input type="text" name="description" value="{{ reagent.description }}" class="border-0 bg-transparent text-muted small ms-1" style="width: 50px;" oninput="markDirty(this)">
-                            <button type="submit" class="btn btn-link btn-sm save-btn p-0 ms-1"><i class="fas fa-check-circle"></i></button>
-                        </form>
-                        <form action="{{ url_for('main.delete_setting', item_type='reagent', item_id=reagent.id) }}" method="POST" class="ms-1 border-start ps-1">
-                            <button class="btn btn-link btn-sm text-danger p-0"><i class="fas fa-times"></i></button>
-                        </form>
-                    </span>
-                    {% endfor %}
-                </div>
-                <form action="{{ url_for('main.add_reagent', panel_id=panel.id) }}" method="POST" class="row g-2">
-                    {{ simple_add_with_description_form.hidden_tag() }}
-                    <div class="col-md-5"><input type="text" name="name" class="form-control form-control-sm" placeholder="Reagent"></div>
-                    <div class="col-md-4"><input type="text" name="description" class="form-control form-control-sm" placeholder="1:500"></div>
-                    <div class="col-md-3"><button class="btn btn-success btn-sm w-100">Add</button></div>
-                </form>
-            </div>
-        </article>
-        {% endfor %}
-    </div>
-</div>
 
 <div class="card shadow-sm border-0 mt-5 mb-5">
     <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">

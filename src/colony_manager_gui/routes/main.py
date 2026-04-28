@@ -23,6 +23,7 @@ SETTINGS_MAP = {
     'feed': {'model': models.Feed, 'form': forms.FeedForm},
     'animal_tag': {'model': models.AnimalTag, 'form': forms.create_nested_form(models.AnimalTag)},
     'animal_event_tag': {'model': models.AnimalEventTag, 'form': forms.create_nested_form(models.AnimalEventTag)},
+    'immunolabeling_panel': {'model': models.ImmunolabelingPanel, 'form': forms.SimpleAddWithDescriptionForm},
 }
 
 @main_bp.route('/')
@@ -114,7 +115,6 @@ def list_settings():
     settings = {k: {'items': v['model'].query.all(), 'form': v['form']} for k, v in SETTINGS_MAP.items()}
     return render_template(
         'view_settings.html',
-        panels=models.ImmunolabelingPanel.query.all(),
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
@@ -167,32 +167,6 @@ def delete_setting(item_type, item_id):
     except sqlalchemy.exc.IntegrityError:
         flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
     return redirect(request.referrer or url_for('main.list_settings'))
-
-
-@main_bp.route('/settings/panel/delete/<int:panel_id>', methods=['POST'])
-def delete_panel(panel_id):
-    panel = models.ImmunolabelingPanel.query.get_or_404(panel_id)
-    if panel.ears:
-        flash(f'Cannot delete "{panel.name}" because it is in use on at least one ear.', 'danger')
-        return redirect(url_for('settings'))
-    db.session.delete(panel)
-    db.session.commit()
-    flash(f'Panel "{panel.name}" deleted.', 'success')
-    return redirect(url_for('settings'))
-
-
-@main_bp.route('/settings/reagent/new/<int:panel_id>', methods=['POST'])
-def add_reagent(panel_id):
-    form = SimpleAddWithDescriptionForm()
-    panel = models.ImmunolabelingPanel.query.get_or_404(panel_id)
-    if form.validate_on_submit():
-        reagent = Reagent(name=form.name.data, description=form.description.data, panel_id=panel.id)
-        db.session.add(reagent)
-        db.session.commit()
-        flash(f'Reagent "{reagent.name}" added to panel "{panel.name}".', 'success')
-    else:
-        flash('Could not add reagent. Please check the form.', 'danger')
-    return redirect(url_for('settings'))
 
 @main_bp.route('/settings/feed/create', methods=['POST'])
 def create_feed():

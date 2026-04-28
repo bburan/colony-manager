@@ -1,7 +1,7 @@
 import datetime
 import re
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog, Data, DataType
 
 from .. import db
@@ -577,3 +577,28 @@ def plot_data(data_id):
             return jsonify(plot_data_res)
     except Exception as e:
         return jsonify({'error': f'Error loading plot data: {str(e)}'}), 500
+
+@animals_bp.route('/data/<int:data_id>/pdf')
+def view_data_pdf(data_id):
+    """Invoke the datatype pdf generator function and return the PDF file."""
+    data_file = Data.query.get_or_404(data_id)
+    pdf_func_path = data_file.datatype.pdf_generator_function
+    if not pdf_func_path:
+        return "No PDF generator function defined for this datatype.", 400
+
+    import importlib
+    import os
+    try:
+        module_name, func_name = pdf_func_path.rsplit('.', 1)
+        module = importlib.import_module(module_name)
+        generator = getattr(module, func_name)
+    except Exception as e:
+        return f"Failed to import PDF generator function: {e}", 500
+
+    try:
+        pdf_file_path = generator(data_file)
+        if not pdf_file_path or not isinstance(pdf_file_path, str) or not os.path.exists(pdf_file_path):
+            return f"PDF file not generated or not found: {pdf_file_path}", 404
+        return send_file(pdf_file_path, mimetype='application/pdf')
+    except Exception as e:
+        return f"Error generating PDF: {str(e)}", 500

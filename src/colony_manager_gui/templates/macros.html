@@ -81,6 +81,11 @@
 						<i class="fas fa-chart-line"></i>
 					</button>
 					{% endif %}
+					{% if data_file.datatype.pdf_generator_function %}
+					<a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id) }}" target="_blank" class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="View PDF">
+						<i class="fas fa-file-pdf"></i>
+					</a>
+					{% endif %}
 					{{ render_status_buttons(animal.id, data_file) }}
 				</div>
 			</div>
@@ -128,6 +133,11 @@
                                         <button type="button" class="btn btn-link btn-sm p-0 px-1 text-primary" data-bs-toggle="tooltip" title="View Plot" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=f.id) }}', '{{ f.name }}')">
                                             <i class="fas fa-chart-line fa-xs"></i>
                                         </button>
+                                        {% endif %}
+                                        {% if f.datatype.pdf_generator_function %}
+                                        <a href="{{ url_for('animals.view_data_pdf', data_id=f.id) }}" target="_blank" class="btn btn-link btn-sm p-0 px-1 text-danger" data-bs-toggle="tooltip" title="View PDF">
+                                            <i class="fas fa-file-pdf fa-xs"></i>
+                                        </a>
                                         {% endif %}
                                         {{ render_status_buttons(event.animal_id, f) }}
                                     </div>

@@ -60,6 +60,7 @@ class DataTypeForm(FlaskForm):
     description = StringField('Description', validators=[Optional()])
     filename_regex = StringField('Filename Regex', validators=[Optional()])
     loader_function = StringField('Loader Function', validators=[Optional()])
+    pdf_generator_function = StringField('PDF Generator Function', validators=[Optional()])
     is_folder = BooleanField('Is Folder?')
     default_procedure = QuerySelectField(
         'Default Procedure',

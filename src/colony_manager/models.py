@@ -171,6 +171,7 @@ class DataType(VersionedModel):
     description = Column(Text, nullable=True)
     filename_regex = Column(String(500), nullable=True)
     loader_function = Column(String(200), nullable=True)
+    pdf_generator_function = Column(String(200), nullable=True)
     is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
     default_procedure_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
     default_procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id'), nullable=True)

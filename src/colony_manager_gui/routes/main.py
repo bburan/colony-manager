@@ -131,23 +131,25 @@ def create_setting(item_type):
     form = SETTINGS_MAP[item_type]['form']()
     if form.validate_on_submit():
         if Model.query.filter(Model.name == form.name.data).first():
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': False, 'errors': {'name': ['It might already exist.']}}), 400
+            if request.headers.get('HX-Request'):
+                return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Already exists.</div>', 400
             flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
         else:
             item = Model()
             form.populate_obj(item)
             db.session.add(item)
             db.session.commit()
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                # Create a blank form to pass to the partial template
+            if request.headers.get('HX-Request'):
                 display_form = SETTINGS_MAP[item_type]['form'](obj=item)
                 html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                return jsonify({'success': True, 'html': html})
+                # Also return a fresh blank form to reset the creation form
+                blank_form = SETTINGS_MAP[item_type]['form']()
+                form_html = render_template('partials/setting_create_form.html', type=item_type, blank_form=blank_form)
+                return html + form_html
             flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
     else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'errors': form.errors}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">{form.errors}</div>', 400
         flash_form_errors(form, title="Could not create setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -159,12 +161,13 @@ def update_setting(item_type, item_id):
     if form.validate_on_submit():
         form.populate_obj(item)
         db.session.commit()
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+        if request.headers.get('HX-Request'):
+            display_form = SETTINGS_MAP[item_type]['form'](obj=item)
+            return render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
         flash("Updated successfully!", "success")
     else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'errors': form.errors}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger small py-1 mb-0">Update failed: {form.errors}</div>', 400
         flash_form_errors(form, title="Could not update setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -176,12 +179,12 @@ def delete_setting(item_type, item_id):
     try:
         db.session.delete(item)
         db.session.commit()
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+        if request.headers.get('HX-Request'):
+            return ''
         flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': f'Cannot delete {item_name} since other objects reference this setting.'}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Cannot delete {item_name} (referenced elsewhere).</div>', 400
         flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -213,8 +216,8 @@ def create_datatype():
     form = DataTypeForm()
     if form.validate_on_submit():
         if models.DataType.query.filter_by(name=form.name.data).first():
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': False, 'errors': {'name': ['This DataType already exists.']}}), 400
+            if request.headers.get('HX-Request'):
+                return '<div class="alert alert-danger py-2 small">This DataType already exists.</div>', 200, {'HX-Retarget': '#datatype-error'}
             flash('This DataType already exists.', 'danger')
         else:
             dt = models.DataType()
@@ -225,13 +228,15 @@ def create_datatype():
                 if path.strip():
                     db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
             db.session.commit()
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                html = render_template('partials/datatype_list_item.html', dt=dt)
-                return jsonify({'success': True, 'html': html})
+            if request.headers.get('HX-Request'):
+                # When creating, we might want to return the new item and close the modal
+                # HTMX can close the modal via a trigger or by returning a script/header
+                response = render_template('partials/datatype_list_item.html', dt=dt)
+                return response, {'HX-Trigger': 'datatype-created'}
             flash(f'DataType "{dt.name}" added.', 'success')
     else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'errors': form.errors}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger py-2 small">Validation failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not create DataType")
     return redirect(url_for('main.list_settings'))
 
@@ -261,13 +266,13 @@ def update_datatype(datatype_id):
                 db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
         
         db.session.commit()
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            html = render_template('partials/datatype_list_item.html', dt=dt)
-            return jsonify({'success': True, 'html': html})
+        if request.headers.get('HX-Request'):
+            response = render_template('partials/datatype_list_item.html', dt=dt)
+            return response, {'HX-Trigger': 'datatype-updated'}
         flash("DataType updated successfully!", "success")
     else:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'errors': form.errors}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not update DataType")
     return redirect(url_for('main.list_settings'))
 
@@ -275,14 +280,14 @@ def update_datatype(datatype_id):
 def delete_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
     if dt.data_files.count() > 0:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': f'Cannot delete DataType "{dt.name}" because it is currently linked to files.'}), 400
+        if request.headers.get('HX-Request'):
+            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-datatypes">Cannot delete (linked to files).</div>', 400
         flash(f'Cannot delete DataType "{dt.name}" because it is currently linked to files.', 'danger')
     else:
         db.session.delete(dt)
         db.session.commit()
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
+        if request.headers.get('HX-Request'):
+            return ''
         flash(f'DataType "{dt.name}" deleted.', 'success')
     return redirect(url_for('main.list_settings'))
 

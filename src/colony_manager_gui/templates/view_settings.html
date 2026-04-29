@@ -25,30 +25,28 @@
             <div class="col-md-12" id="setting-{{ type }}" style="scroll-margin-top: 1.5rem;">
                 <div class="card shadow-sm card-body">
                     <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
-                    <form id="create-setting-{{type}}" action="{{ url_for('main.create_setting', item_type=type) }}" method="POST"
-                        class="input-group input-group-sm mb-3">
-                {{ blank_form.hidden_tag() }}
-                {% for field in blank_form if field.widget_type != 'hidden' %}
-                {{ field(class="form-control form-control-sm") }}
-                {% endfor %}
-                <button class="btn btn-primary">Add</button>
-            </form>
 
-            <ul class="list-group list-group-flush small" id="list-{{ type }}">
-                {% for item in info['items']|sort(attribute='name', case_sensitive=False) %}
-                {% set form = form_class(obj=item) %}
-                    {% include 'partials/setting_list_item.html' %}
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-    {% endfor %}
+                    {% include 'partials/setting_create_form.html' %}
+
+                    <ul class="list-group list-group-flush small" id="list-{{ type }}">
+                        {% for item in info['items']|sort(attribute='name', case_sensitive=False) %}
+                        {% set form = form_class(obj=item) %}
+                            {% include 'partials/setting_list_item.html' %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
         </div>
 
         <div class="card shadow-sm border-0 mt-5 mb-5" id="setting-datatypes" style="scroll-margin-top: 1.5rem;">
             <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">
                 <h2 class="h5 mb-0 fw-bold text-uppercase text-secondary">Data Types & Parsers</h2>
-                <button class="btn btn-primary btn-sm" onclick="openModal('{{ url_for('main.create_datatype_modal') }}')"><i class="fas fa-plus"></i> Add DataType</button>
+                <button class="btn btn-primary btn-sm" 
+                        hx-get="{{ url_for('main.create_datatype_modal') }}" 
+                        hx-target="#modalBody">
+                    <i class="fas fa-plus"></i> Add DataType
+                </button>
             </header>
 
             <ul class="list-group list-group-flush small" id="list-datatypes">
@@ -61,240 +59,34 @@
                 {% endfor %}
             </ul>
         </div>
+        <div id="error-datatypes"></div>
     </div>
-</div>
+    </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.addEventListener('click', function(e) {
-        // Add Location Path
-        if (e.target && (e.target.id === 'add-location-btn' || e.target.closest('#add-location-btn'))) {
-            const list = document.getElementById('location-list');
-            if (list) {
-                const div = document.createElement('div');
-                div.className = 'input-group mb-2';
-                div.innerHTML = `
-                    <span class="input-group-text"><i class="fas fa-folder-open"></i></span>
-                    <input type="text" name="locations" class="form-control form-control-sm font-monospace" placeholder="e.g. C:\\Data\\Project">
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-location-btn"><i class="fas fa-trash"></i></button>
-                `;
-                list.appendChild(div);
-            }
-        }
-        
-        // Remove Location Path
-        if (e.target && (e.target.classList.contains('remove-location-btn') || e.target.closest('.remove-location-btn'))) {
-            const btn = e.target.classList.contains('remove-location-btn') ? e.target : e.target.closest('.remove-location-btn');
-            const group = btn.closest('.input-group');
-            if (group) group.remove();
-        }
+    <script>
+    // HTMX event listener to close modal and handle custom triggers if needed
+    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+    if (evt.detail.target.id === 'modalBody') {
+        const editModalElement = document.getElementById('editModal');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(editModalElement);
+        modalInstance.show();
+    }
     });
 
-    document.addEventListener('submit', function(e) {
-        if (e.target && e.target.id && e.target.id.startsWith('update-setting-')) {
-            e.preventDefault();
-            const form = e.target;
-            const btn = form.querySelector('button[type="submit"]');
-            const originalIcon = btn.innerHTML;
-            const formData = new FormData(form);
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            btn.disabled = true;
+    // Remove the 'No Data Types' message when a new one is added
+    document.body.addEventListener('datatype-created', function() {
+    const editModalElement = document.getElementById('editModal');
+    const modalInstance = bootstrap.Modal.getInstance(editModalElement);
+    if (modalInstance) modalInstance.hide();
 
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-                    setTimeout(() => {
-                        btn.innerHTML = originalIcon;
-                    }, 2000);
-                } else {
-                    btn.innerHTML = '<i class="fas fa-times text-danger"></i>';
-                    setTimeout(() => {
-                        btn.innerHTML = originalIcon;
-                        btn.disabled = false;
-                    }, 2000);
-                    alert("Error updating setting: " + JSON.stringify(data.errors));
-                }
-            })
-            .catch(error => {
-                btn.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i>';
-                setTimeout(() => {
-                    btn.innerHTML = originalIcon;
-                    btn.disabled = false;
-                }, 2000);
-                console.error('Error:', error);
-            });
-        }
-        else if (e.target && e.target.id && e.target.id.startsWith('create-setting-')) {
-            e.preventDefault();
-            const form = e.target;
-            const type = form.id.replace('create-setting-', '');
-            const btn = form.querySelector('button');
-            const originalText = btn.innerHTML;
-            const formData = new FormData(form);
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            btn.disabled = true;
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                if (data.success) {
-                    form.reset();
-                    const list = document.getElementById('list-' + type);
-                    
-                    const temp = document.createElement('div');
-                    temp.innerHTML = data.html.trim();
-                    const newItem = temp.firstChild;
-                    const newName = newItem.getAttribute('data-name');
-                    
-                    let inserted = false;
-                    for (let child of list.children) {
-                        const childName = child.getAttribute('data-name');
-                        if (childName && newName < childName) {
-                            list.insertBefore(newItem, child);
-                            inserted = true;
-                            break;
-                        }
-                    }
-                    if (!inserted) {
-                        list.appendChild(newItem);
-                    }
-                } else {
-                    alert("Error adding setting: " + (data.errors && data.errors.name ? data.errors.name[0] : JSON.stringify(data.errors)));
-                }
-            })
-            .catch(error => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                console.error('Error:', error);
-            });
-        }
-        else if (e.target && e.target.id === 'modal-datatype-form') {
-            e.preventDefault();
-            const form = e.target;
-            const btn = form.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            const formData = new FormData(form);
-            const isUpdate = form.getAttribute('data-is-update') === 'true';
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-            btn.disabled = true;
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                if (data.success) {
-                    const list = document.getElementById('list-datatypes');
-                    const noMsg = document.getElementById('no-datatypes-msg');
-                    if (noMsg) noMsg.remove();
-                    
-                    const temp = document.createElement('div');
-                    temp.innerHTML = data.html.trim();
-                    const newItem = temp.firstChild;
-                    
-                    if (isUpdate) {
-                        const existingItem = document.getElementById(newItem.id);
-                        if (existingItem) {
-                            existingItem.replaceWith(newItem);
-                        } else {
-                            list.appendChild(newItem);
-                        }
-                    } else {
-                        const newName = newItem.getAttribute('data-name');
-                        let inserted = false;
-                        for (let child of list.children) {
-                            const childName = child.getAttribute('data-name');
-                            if (childName && newName < childName) {
-                                list.insertBefore(newItem, child);
-                                inserted = true;
-                                break;
-                            }
-                        }
-                        if (!inserted) {
-                            list.appendChild(newItem);
-                        }
-                    }
-                    
-                    const editModalElement = document.getElementById('editModal');
-                    const modalInstance = bootstrap.Modal.getInstance(editModalElement);
-                    if (modalInstance) modalInstance.hide();
-                } else {
-                    alert("Error saving DataType: " + (data.errors && data.errors.name ? data.errors.name[0] : JSON.stringify(data.errors)));
-                }
-            })
-            .catch(error => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                console.error('Error:', error);
-            });
-        }
-        else if (e.target && e.target.classList && e.target.classList.contains('delete-form')) {
-            e.preventDefault();
-            if (!confirm('Are you sure you want to delete this?')) return;
-            
-            const form = e.target;
-            const btn = form.querySelector('button');
-            const originalText = btn.innerHTML;
-            const formData = new FormData(form);
-            
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-            btn.disabled = true;
-
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Remove the parent li element
-                    const li = form.closest('li.list-group-item');
-                    if (li) {
-                        li.style.transition = 'opacity 0.3s';
-                        li.style.opacity = '0';
-                        setTimeout(() => li.remove(), 300);
-                    }
-                } else {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    alert("Error deleting: " + (data.message || JSON.stringify(data.errors)));
-                }
-            })
-            .catch(error => {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-                console.error('Error:', error);
-            });
-        }
+    const noMsg = document.getElementById('no-datatypes-msg');
+    if (noMsg) noMsg.remove();
     });
-});
-</script>
-{% endblock %}
+
+    document.body.addEventListener('datatype-updated', function() {
+    const editModalElement = document.getElementById('editModal');
+    const modalInstance = bootstrap.Modal.getInstance(editModalElement);
+    if (modalInstance) modalInstance.hide();
+    });
+    </script>
+    {% endblock %}

@@ -206,7 +206,7 @@ def set_species(species_id):
 @main_bp.route('/settings/datatype/create_modal')
 def create_datatype_modal():
     form = DataTypeForm()
-    return render_template('partials/form_datatype_modal.html', form=form, dt=None, datalocation_form=None)
+    return render_template('partials/form_datatype_modal.html', form=form, dt=None)
 
 @main_bp.route('/settings/datatype/create', methods=['POST'])
 def create_datatype():
@@ -220,6 +220,10 @@ def create_datatype():
             dt = models.DataType()
             form.populate_obj(dt)
             db.session.add(dt)
+            db.session.flush()
+            for path in request.form.getlist('locations'):
+                if path.strip():
+                    db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
             db.session.commit()
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 html = render_template('partials/datatype_list_item.html', dt=dt)
@@ -235,8 +239,7 @@ def create_datatype():
 def edit_datatype_modal(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
     form = DataTypeForm(obj=dt)
-    datalocation_form = DataLocationForm()
-    return render_template('partials/form_datatype_modal.html', form=form, dt=dt, datalocation_form=datalocation_form)
+    return render_template('partials/form_datatype_modal.html', form=form, dt=dt)
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id):
@@ -244,6 +247,19 @@ def update_datatype(datatype_id):
     form = DataTypeForm()
     if form.validate_on_submit():
         form.populate_obj(dt)
+        
+        # Process locations
+        location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
+        # Remove old ones not in the new list
+        for loc in dt.locations.all():
+            if loc.base_path not in location_paths:
+                db.session.delete(loc)
+        # Add new ones
+        existing_paths = {loc.base_path for loc in dt.locations.all()}
+        for path in location_paths:
+            if path not in existing_paths:
+                db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
+        
         db.session.commit()
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             html = render_template('partials/datatype_list_item.html', dt=dt)
@@ -270,29 +286,4 @@ def delete_datatype(datatype_id):
         flash(f'DataType "{dt.name}" deleted.', 'success')
     return redirect(url_for('main.list_settings'))
 
-@main_bp.route('/settings/datalocation/new/<int:datatype_id>', methods=['POST'])
-def add_datalocation(datatype_id):
-    form = DataLocationForm()
-    dt = models.DataType.query.get_or_404(datatype_id)
-    if form.validate_on_submit():
-        loc = models.DataLocation(base_path=form.base_path.data, datatype_id=dt.id)
-        db.session.add(loc)
-        db.session.commit()
-        flash(f'Location added to "{dt.name}".', 'success')
-    return redirect(url_for('main.list_settings'))
 
-@main_bp.route('/settings/datalocation/<int:location_id>/update', methods=['POST'])
-def update_datalocation(location_id):
-    loc = models.DataLocation.query.get_or_404(location_id)
-    form = DataLocationForm()
-    if form.validate_on_submit():
-        form.populate_obj(loc)
-        db.session.commit()
-    return redirect(url_for('main.list_settings'))
-
-@main_bp.route('/settings/datalocation/<int:location_id>/delete', methods=['POST'])
-def delete_datalocation(location_id):
-    loc = models.DataLocation.query.get_or_404(location_id)
-    db.session.delete(loc)
-    db.session.commit()
-    return redirect(url_for('main.list_settings'))

@@ -1,0 +1,25 @@
+<div id="confocal-image-table-container">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>kHz</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for group in ear.confocal_images|groupby('image_type.name') %}
+                {% for img in group.list|sort(attribute='frequency') %}
+                    {% set show_type = loop.first %}
+                    {% include 'partials/confocal_image_row.html' %}
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No images added yet.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

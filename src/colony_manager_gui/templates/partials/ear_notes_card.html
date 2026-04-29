@@ -1,0 +1,17 @@
+<div class="card shadow-sm mb-4" id="ear-notes-card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h2 class="h6 fw-bold text-uppercase mb-0">Notes</h2>
+        <button class="btn btn-sm" 
+            hx-get="{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}"
+            hx-target="#modalBody"
+            title="Edit ear notes"><i class="fas fa-pencil"></i></button>
+    </div>
+    <div class="card-body">
+        <dl class="mb-0">
+            <dt class="small fw-bold text-muted text-uppercase">Animal</dt>
+            <dd>{{ ear.animal.notes or 'No notes' }}</dd>
+            <dt class="small fw-bold text-muted text-uppercase">Ear</dt>
+            <dd class="mb-0">{{ ear.notes or 'No notes' }}</dd>
+        </dl>
+    </div>
+</div>

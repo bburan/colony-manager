@@ -1,0 +1,54 @@
+{% import "macros.html" as macros %}
+<tr id="ear-row-{{ ear.id }}">
+    <td>
+        <button type="button"
+            class="btn btn-sm btn-{{ '' if ear.notes else 'outline-' }}secondary"
+            data-bs-toggle="popover"
+            data-bs-container="body"
+            data-bs-trigger="hover"
+            data-bs-content="<dl><dt>Cage</dt><dd>{{ ear.animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ ear.animal.notes or 'No notes' }}</dd><dt>Ear</dt><dd>{{ ear.notes or 'No notes' }}</dd></dl>"
+            hx-get="{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id, hx_target='#ear-row-' ~ ear.id) }}"
+            hx-target="#modalBody"
+        >
+        <i class="fas fa-sticky-note"></i>
+        </button>
+    </td>
+    <td><a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">{{ ear.animal.custom_id }} {{ ear.side }}</a></td>
+    <td>{{ ear.animal.termination_date.strftime('%B %d, %Y') if ear.animal.termination_date else '' }}</td>
+    <td>{{ macros.format_date(ear.cryoprotection_date) }}</td>
+    <td>{{ macros.format_date(ear.dissection_date) }}</td>
+    <td>{{ macros.format_date(ear.immunolabel_date) }}</td>
+    <td>{{ ear.panel.name if ear.panel else '' }}</td>
+    <td>
+        {% set img_count = ear.confocal_images|length %}
+        <button type="button"
+                class="ajax-popover btn btn-sm btn-{{ 'primary' if img_count > 0 else 'outline-secondary' }} px-2"
+                data-bs-toggle="popover"
+                data-bs-trigger="hover"
+                data-bs-html="true"
+                data-id="{{ url_for('histology.view_ear_images_popover', ear_id=ear.id) }}"
+                title="Images for {{ ear.animal.custom_id }}"
+        >
+            <i class="fas fa-camera me-1"></i>{{ img_count }}
+        </button>
+        <button type="button" class="btn btn-sm" 
+                hx-get="{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id, hx_target='#ear-row-' ~ ear.id) }}"
+                hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
+    </td>
+</tr>
+<script>
+    // Re-initialize popovers for the new row
+    (function() {
+        var row = document.getElementById('ear-row-{{ ear.id }}');
+        var popoverTriggerList = [].slice.call(row.querySelectorAll('[data-bs-toggle="popover"]'));
+        popoverTriggerList.forEach(function (popoverTriggerEl) {
+            new bootstrap.Popover(popoverTriggerEl);
+            if (popoverTriggerEl.classList.contains('ajax-popover')) {
+                // ... logic to handle ajax-popover if needed, 
+                // but standard base.html listener might catch it if it's delegated.
+                // Actually, the base.html listener is on DOMContentLoaded.
+                // I might need to make it more global.
+            }
+        });
+    })();
+</script>

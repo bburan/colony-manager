@@ -54,7 +54,7 @@ Histology
             </thead>
             <tbody>
             {% for ear in ears %}
-                <tr>
+                <tr id="ear-row-{{ ear.id }}">
                     <td>
                         <button type="button"
                             class="btn btn-sm btn-{{ '' if ear.notes else 'outline-' }}secondary"
@@ -62,17 +62,18 @@ Histology
                             data-bs-container="body"
                             data-bs-trigger="hover"
                             data-bs-content="<dl><dt>Cage</dt><dd>{{ ear.animal.cage.notes or 'No notes' }}</dd><dt>Animal</dt><dd>{{ ear.animal.notes or 'No notes' }}</dd><dt>Ear</dt><dd>{{ ear.notes or 'No notes' }}</dd></dl>"
-                            onclick="openModal('{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id) }}')"
+                            hx-get="{{ url_for('histology.edit_ear_note_modal', ear_id=ear.id, hx_target='#ear-row-' ~ ear.id) }}"
+                            hx-target="#modalBody"
                         >
                         <i class="fas fa-sticky-note"></i>
                         </button>
                     </td>
                     <td><a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">{{ ear.animal.custom_id }} {{ ear.side }}</a></td>
-                    <td>{{ ear.animal.termination_date.strftime('%B %d, %Y') }}</td>
+                    <td>{{ ear.animal.termination_date.strftime('%B %d, %Y') if ear.animal.termination_date else '' }}</td>
                     <td>{{ macros.format_date(ear.cryoprotection_date) }}</td>
                     <td>{{ macros.format_date(ear.dissection_date) }}</td>
                     <td>{{ macros.format_date(ear.immunolabel_date) }}</td>
-                    <td>{{ ear.panel.name }}</td>
+                    <td>{{ ear.panel.name if ear.panel else '' }}</td>
                     <td>
                         {% set img_count = ear.confocal_images|length %}
                         <button type="button"
@@ -85,7 +86,9 @@ Histology
                         >
                             <i class="fas fa-camera me-1"></i>{{ img_count }}
                         </button>
-                        <button type="button" class="btn btn-sm" onclick="openModal('{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id) }}')"><i class="fas fa-pencil"></i></button>
+                        <button type="button" class="btn btn-sm" 
+                                hx-get="{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id, hx_target='#ear-row-' ~ ear.id) }}"
+                                hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
                     </td>
                 </tr>
             {% endfor %}

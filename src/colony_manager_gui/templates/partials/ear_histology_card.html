@@ -1,0 +1,22 @@
+{% import "macros.html" as macros %}
+<div class="card shadow-sm mb-4" id="ear-histology-card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h2 class="h6 fw-bold text-uppercase mb-0">Ear</h2>
+        <button class="btn btn-sm" 
+            hx-get="{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id) }}"
+            hx-target="#modalBody"
+            title="Edit ear information"><i class="fas fa-pencil"></i></button>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-6 small fw-bold text-muted text-uppercase">Cryoprotection</dt>
+            <dd class="col-6">{{ macros.format_date(ear.cryoprotection_date) }}</dd>
+            <dt class="col-6 small fw-bold text-muted text-uppercase">Dissection</dt>
+            <dd class="col-6">{{ macros.format_date(ear.dissection_date) }}</dd>
+            <dt class="col-6 small fw-bold text-muted text-uppercase">Immunolabel</dt>
+            <dd class="col-6">{{ macros.format_date(ear.immunolabel_date) }}</dd>
+            <dt class="col-6 small fw-bold text-muted text-uppercase">Panel</dt>
+            <dd class="col-6 mb-0">{{ ear.panel.name if ear.panel else 'None' }}</dd>
+        </dl>
+    </div>
+</div>

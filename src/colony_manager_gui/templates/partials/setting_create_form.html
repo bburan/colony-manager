@@ -1,9 +1,11 @@
-<div id="create-setting-wrapper-{{type}}" hx-swap-oob="true">
+<div id="create-setting-wrapper-{{type}}">
     <form id="create-setting-{{type}}" 
           hx-post="{{ url_for('main.create_setting', item_type=type) }}" 
           hx-target="#list-{{ type }}" 
           hx-swap="beforeend"
           hx-indicator="#indicator-{{ type }}"
+          hx-on::after-request="if(event.detail.xhr.status === 200) this.reset()"
+          autocomplete="off"
           class="input-group input-group-sm mb-3">
         {{ blank_form.hidden_tag() }}
         {% for field in blank_form if field.widget_type != 'hidden' %}

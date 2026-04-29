@@ -132,24 +132,29 @@ def create_setting(item_type):
     if form.validate_on_submit():
         if Model.query.filter(Model.name == form.name.data).first():
             if request.headers.get('HX-Request'):
-                return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Already exists.</div>', 400
+                return f'<div class="alert alert-danger small py-1 mb-0">Already exists.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
             flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
         else:
-            item = Model()
-            form.populate_obj(item)
-            db.session.add(item)
-            db.session.commit()
-            if request.headers.get('HX-Request'):
-                display_form = SETTINGS_MAP[item_type]['form'](obj=item)
-                html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                # Also return a fresh blank form to reset the creation form
-                blank_form = SETTINGS_MAP[item_type]['form']()
-                form_html = render_template('partials/setting_create_form.html', type=item_type, blank_form=blank_form)
-                return html + form_html
-            flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
+            try:
+                item = Model()
+                form.populate_obj(item)
+                db.session.add(item)
+                db.session.commit()
+                if request.headers.get('HX-Request'):
+                    display_form = SETTINGS_MAP[item_type]['form'](obj=item)
+                    html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
+                    # Clear error div
+                    error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
+                    return html + error_clear
+                flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
+            except sqlalchemy.exc.IntegrityError:
+                db.session.rollback()
+                if request.headers.get('HX-Request'):
+                    return f'<div class="alert alert-danger small py-1 mb-0">Already exists or invalid data.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+                flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">{form.errors}</div>', 400
+            return f'<div class="alert alert-danger small py-1 mb-0">Validation failed: {form.errors}</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
         flash_form_errors(form, title="Could not create setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -160,14 +165,23 @@ def update_setting(item_type, item_id):
     form = SETTINGS_MAP[item_type]['form']()
     if form.validate_on_submit():
         form.populate_obj(item)
-        db.session.commit()
-        if request.headers.get('HX-Request'):
-            display_form = SETTINGS_MAP[item_type]['form'](obj=item)
-            return render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-        flash("Updated successfully!", "success")
+        try:
+            db.session.commit()
+            if request.headers.get('HX-Request'):
+                display_form = SETTINGS_MAP[item_type]['form'](obj=item)
+                html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
+                # Clear error too
+                error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
+                return html + error_clear
+            flash("Updated successfully!", "success")
+        except sqlalchemy.exc.IntegrityError:
+            db.session.rollback()
+            if request.headers.get('HX-Request'):
+                return f'<div class="alert alert-danger small py-1 mb-0">Update failed: It might already exist.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+            flash("Update failed: It might already exist.", "danger")
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0">Update failed: {form.errors}</div>', 400
+            return f'<div class="alert alert-danger small py-1 mb-0">Update failed: {form.errors}</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
         flash_form_errors(form, title="Could not update setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -184,7 +198,7 @@ def delete_setting(item_type, item_id):
         flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Cannot delete {item_name} (referenced elsewhere).</div>', 400
+            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Cannot delete {item_name} (referenced elsewhere).</div>', 200
         flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -220,25 +234,32 @@ def create_datatype():
                 return '<div class="alert alert-danger py-2 small">This DataType already exists.</div>', 200, {'HX-Retarget': '#datatype-error'}
             flash('This DataType already exists.', 'danger')
         else:
-            dt = models.DataType()
-            form.populate_obj(dt)
-            db.session.add(dt)
-            db.session.flush()
-            for path in request.form.getlist('locations'):
-                if path.strip():
-                    db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
-            db.session.commit()
-            if request.headers.get('HX-Request'):
-                # When creating, we might want to return the new item and close the modal
-                # HTMX can close the modal via a trigger or by returning a script/header
-                response = render_template('partials/datatype_list_item.html', dt=dt)
-                return response, {'HX-Trigger': 'datatype-created'}
-            flash(f'DataType "{dt.name}" added.', 'success')
+            try:
+                dt = models.DataType()
+                form.populate_obj(dt)
+                db.session.add(dt)
+                db.session.flush()
+                for path in request.form.getlist('locations'):
+                    if path.strip():
+                        db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
+                db.session.commit()
+                if request.headers.get('HX-Request'):
+                    # When creating, we might want to return the new item and close the modal
+                    # HTMX can close the modal via a trigger or by returning a script/header
+                    response = render_template('partials/datatype_list_item.html', dt=dt)
+                    return response, {'HX-Trigger': 'datatype-created'}
+                flash(f'DataType "{dt.name}" added.', 'success')
+            except sqlalchemy.exc.IntegrityError:
+                db.session.rollback()
+                if request.headers.get('HX-Request'):
+                    return '<div class="alert alert-danger py-2 small">Already exists or invalid data.</div>', 200, {'HX-Retarget': '#datatype-error'}
+                flash(f'Error adding DataType. It might already exist.', 'danger')
     else:
         if request.headers.get('HX-Request'):
             return f'<div class="alert alert-danger py-2 small">Validation failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not create DataType")
     return redirect(url_for('main.list_settings'))
+
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
 def edit_datatype_modal(datatype_id):
@@ -265,11 +286,17 @@ def update_datatype(datatype_id):
             if path not in existing_paths:
                 db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
         
-        db.session.commit()
-        if request.headers.get('HX-Request'):
-            response = render_template('partials/datatype_list_item.html', dt=dt)
-            return response, {'HX-Trigger': 'datatype-updated'}
-        flash("DataType updated successfully!", "success")
+        try:
+            db.session.commit()
+            if request.headers.get('HX-Request'):
+                response = render_template('partials/datatype_list_item.html', dt=dt)
+                return response, {'HX-Trigger': 'datatype-updated'}
+            flash("DataType updated successfully!", "success")
+        except sqlalchemy.exc.IntegrityError:
+            db.session.rollback()
+            if request.headers.get('HX-Request'):
+                return '<div class="alert alert-danger py-2 small">Update failed: It might already exist.</div>', 200, {'HX-Retarget': '#datatype-error'}
+            flash("Update failed: It might already exist.", "danger")
     else:
         if request.headers.get('HX-Request'):
             return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
@@ -281,7 +308,7 @@ def delete_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
     if dt.data_files.count() > 0:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-datatypes">Cannot delete (linked to files).</div>', 400
+            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-datatypes">Cannot delete (linked to files).</div>', 200
         flash(f'Cannot delete DataType "{dt.name}" because it is currently linked to files.', 'danger')
     else:
         db.session.delete(dt)

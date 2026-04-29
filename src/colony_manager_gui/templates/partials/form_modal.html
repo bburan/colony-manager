@@ -1,12 +1,13 @@
 {% import "macros.html" as macros %}
-<form action="{{ submit_url }}" method="POST">
+<form action="{{ submit_url }}" method="POST"
+      {% if hx_target %}hx-post="{{ submit_url }}" hx-target="{{ hx_target }}" hx-swap="{{ hx_swap or 'outerHTML' }}"{% endif %}>
     <header class="modal-header">
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
     </header>
     <main class="modal-body">
         {% block main %}
         {{ form.hidden_tag() }}
-        <input type="hidden" name="event_id" id="edit-event-id-{{ uid }}" value="">
         {%  for field in form if field.widget.input_type != 'hidden' %}
             {{ macros.render_field(field) }}
         {% endfor %}

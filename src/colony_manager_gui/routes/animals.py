@@ -600,7 +600,7 @@ def view_data_pdf(data_id, callback_id):
 
     try:
         pdf_file_path = generator(data_file)
-        if not pdf_file_path or not isinstance(pdf_file_path, str) or not os.path.exists(pdf_file_path):
+        if not pdf_file_path or not os.path.exists(pdf_file_path):
             return f"PDF file not generated or not found: {pdf_file_path}", 404
         return send_file(pdf_file_path, mimetype='application/pdf')
     except Exception as e:

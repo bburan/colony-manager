@@ -242,6 +242,17 @@ def create_datatype():
                 for path in request.form.getlist('locations'):
                     if path.strip():
                         db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
+                
+                # Process callbacks
+                names = request.form.getlist('callback_name')
+                funcs = request.form.getlist('callback_function')
+                types = request.form.getlist('callback_type')
+                for n, f, t in zip(names, funcs, types):
+                    if n.strip() and f.strip():
+                        cb = models.DataTypeCallback(datatype_id=dt.id, name=n.strip(), 
+                                                     callback_function=f.strip(), callback_type=t)
+                        db.session.add(cb)
+
                 db.session.commit()
                 if request.headers.get('HX-Request'):
                     # When creating, we might want to return the new item and close the modal
@@ -286,6 +297,20 @@ def update_datatype(datatype_id):
             if path not in existing_paths:
                 db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
         
+        # Process callbacks
+        # Simplest is to clear and re-add, since it's a small list
+        for cb in dt.callbacks.all():
+            db.session.delete(cb)
+        
+        names = request.form.getlist('callback_name')
+        funcs = request.form.getlist('callback_function')
+        types = request.form.getlist('callback_type')
+        for n, f, t in zip(names, funcs, types):
+            if n.strip() and f.strip():
+                cb = models.DataTypeCallback(datatype_id=dt.id, name=n.strip(), 
+                                             callback_function=f.strip(), callback_type=t)
+                db.session.add(cb)
+
         try:
             db.session.commit()
             if request.headers.get('HX-Request'):

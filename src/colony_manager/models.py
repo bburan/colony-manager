@@ -170,8 +170,6 @@ class DataType(VersionedModel):
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text, nullable=True)
     filename_regex = Column(String(500), nullable=True)
-    loader_function = Column(String(200), nullable=True)
-    pdf_generator_function = Column(String(200), nullable=True)
     is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
     default_procedure_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
     default_procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id'), nullable=True)
@@ -180,6 +178,14 @@ class DataType(VersionedModel):
     default_procedure = relationship('AnimalProcedure', lazy=True)
     default_procedure_target = relationship('AnimalProcedureTarget', lazy=True)
     data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+    callbacks = relationship('DataTypeCallback', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+
+class DataTypeCallback(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
+    name = Column(String(150), nullable=False)
+    callback_function = Column(String(200), nullable=False)
+    callback_type = Column(String(20), nullable=False) # 'plot' or 'pdf'
 
 class DataLocation(VersionedModel):
     id = Column(Integer, primary_key=True)

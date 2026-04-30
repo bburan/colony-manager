@@ -6,8 +6,12 @@
             {% if dt.is_folder %}
             <span class="badge bg-secondary">Folder</span>
             {% endif %}
-            <small class="text-muted font-monospace"><i class="fas fa-code"></i> {{ dt.loader_function or 'No loader' }}</small>
             <small class="text-muted ms-2"><i class="fas fa-map-marker-alt"></i> {{ dt.locations.count() }} location(s)</small>
+            {% for cb in dt.callbacks %}
+                <small class="text-muted ms-2" title="{{ cb.callback_function }}">
+                    <i class="fas fa-{{ 'chart-line' if cb.callback_type == 'plot' else 'file-pdf' }}"></i> {{ cb.name }}
+                </small>
+            {% endfor %}
         </div>
     </div>
     <div class="btn-group btn-group-sm flex-shrink-0">

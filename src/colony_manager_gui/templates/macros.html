@@ -75,17 +75,18 @@
 						</button>
 					</form>
 					{% endif %}
-					{% if data_file.datatype.loader_function %}
-					<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip"
-						title="View Plot" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id) }}', '{{ data_file.name }}')">
-						<i class="fas fa-chart-line"></i>
-					</button>
-					{% endif %}
-					{% if data_file.datatype.pdf_generator_function %}
-					<a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id) }}" target="_blank" class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="View PDF">
-						<i class="fas fa-file-pdf"></i>
-					</a>
-					{% endif %}
+					{% for cb in data_file.datatype.callbacks %}
+                        {% if cb.callback_type == 'plot' %}
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip"
+                            title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
+                            <i class="fas fa-chart-line"></i>
+                        </button>
+                        {% elif cb.callback_type == 'pdf' %}
+                        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                        {% endif %}
+					{% endfor %}
 					{{ render_status_buttons(animal.id, data_file) }}
 				</div>
 			</div>
@@ -129,16 +130,17 @@
                                     <div class="d-flex align-items-center gap-1 ps-2" style="font-size: 0.85em;">
                                         <i class="fas fa-file-alt fa-xs data-file-icon text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'muted' }}"></i>
                                         <span class="text-truncate flex-grow-1" style="min-width: 0;">{{ f.name }}</span>
-                                        {% if f.datatype.loader_function %}
-                                        <button type="button" class="btn btn-link btn-sm p-0 px-1 text-primary" data-bs-toggle="tooltip" title="View Plot" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=f.id) }}', '{{ f.name }}')">
-                                            <i class="fas fa-chart-line fa-xs"></i>
-                                        </button>
-                                        {% endif %}
-                                        {% if f.datatype.pdf_generator_function %}
-                                        <a href="{{ url_for('animals.view_data_pdf', data_id=f.id) }}" target="_blank" class="btn btn-link btn-sm p-0 px-1 text-danger" data-bs-toggle="tooltip" title="View PDF">
-                                            <i class="fas fa-file-pdf fa-xs"></i>
-                                        </a>
-                                        {% endif %}
+                                        {% for cb in f.datatype.callbacks %}
+                                            {% if cb.callback_type == 'plot' %}
+                                            <button type="button" class="btn btn-link btn-sm p-0 px-1 text-primary" data-bs-toggle="tooltip" title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=f.id, callback_id=cb.id) }}', '{{ f.name }}: {{ cb.name }}')">
+                                                <i class="fas fa-chart-line fa-xs"></i>
+                                            </button>
+                                            {% elif cb.callback_type == 'pdf' %}
+                                            <a href="{{ url_for('animals.view_data_pdf', data_id=f.id, callback_id=cb.id) }}" target="_blank" class="btn btn-link btn-sm p-0 px-1 text-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
+                                                <i class="fas fa-file-pdf fa-xs"></i>
+                                            </a>
+                                            {% endif %}
+                                        {% endfor %}
                                         {{ render_status_buttons(event.animal_id, f) }}
                                     </div>
                                 {% endfor %}

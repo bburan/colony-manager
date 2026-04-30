@@ -6,6 +6,7 @@ from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, St
 
 from .. import db
 from .. import forms
+from .. import models
 from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
 from .util import flash_form_errors
 
@@ -552,21 +553,22 @@ def auto_create_event(animal_id, data_id):
     flash(f'Event created and {linked_count} file(s) linked.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
-@animals_bp.route('/data/<int:data_id>/plot')
-def plot_data(data_id):
-    """Invoke the datatype loader function and return plot data as JSON."""
+@animals_bp.route('/data/<int:data_id>/plot/<int:callback_id>')
+def plot_data(data_id, callback_id):
+    """Invoke the datatype callback function and return plot data as JSON."""
     data_file = Data.query.get_or_404(data_id)
-    loader_path = data_file.datatype.loader_function
-    if not loader_path:
-        return jsonify({'error': 'No loader function defined for this datatype.'}), 400
+    callback = models.DataTypeCallback.query.get_or_404(callback_id)
+    
+    if callback.datatype_id != data_file.datatype_id:
+        return jsonify({'error': 'Callback does not belong to this datatype.'}), 400
 
     import importlib
     try:
-        module_name, func_name = loader_path.rsplit('.', 1)
+        module_name, func_name = callback.callback_function.rsplit('.', 1)
         module = importlib.import_module(module_name)
         loader = getattr(module, func_name)
     except Exception as e:
-        return jsonify({'error': f'Failed to import loader function: {e}'}), 500
+        return jsonify({'error': f'Failed to import callback function: {e}'}), 500
 
     try:
         plot_data_res = loader(data_file)
@@ -578,22 +580,23 @@ def plot_data(data_id):
     except Exception as e:
         return jsonify({'error': f'Error loading plot data: {str(e)}'}), 500
 
-@animals_bp.route('/data/<int:data_id>/pdf')
-def view_data_pdf(data_id):
-    """Invoke the datatype pdf generator function and return the PDF file."""
+@animals_bp.route('/data/<int:data_id>/pdf/<int:callback_id>')
+def view_data_pdf(data_id, callback_id):
+    """Invoke the datatype callback function and return the PDF file."""
     data_file = Data.query.get_or_404(data_id)
-    pdf_func_path = data_file.datatype.pdf_generator_function
-    if not pdf_func_path:
-        return "No PDF generator function defined for this datatype.", 400
+    callback = models.DataTypeCallback.query.get_or_404(callback_id)
+
+    if callback.datatype_id != data_file.datatype_id:
+        return "Callback does not belong to this datatype.", 400
 
     import importlib
     import os
     try:
-        module_name, func_name = pdf_func_path.rsplit('.', 1)
+        module_name, func_name = callback.callback_function.rsplit('.', 1)
         module = importlib.import_module(module_name)
         generator = getattr(module, func_name)
     except Exception as e:
-        return f"Failed to import PDF generator function: {e}", 500
+        return f"Failed to import callback function: {e}", 500
 
     try:
         pdf_file_path = generator(data_file)

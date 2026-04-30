@@ -2,7 +2,10 @@ import datetime
 import re
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
-from colony_manager.models import Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog, WeightLog, Data, DataType
+from colony_manager.models import (
+    Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog,
+    WeightLog, Data, DataType, AnimalEventData, ConfocalImageData,
+)
 
 from .. import db
 from .. import forms
@@ -196,23 +199,24 @@ def _resync_event_files(event):
     """Unlink files whose date no longer matches the event, then link matching unassigned files."""
     new_date = event.completion_date or event.scheduled_date
 
-    # 1. Unlink files that no longer match this event's date
+    # 1. Unlink files (this event only) where date no longer matches
     for f in list(event.data_files):
         if f.date != new_date:
-            f.event_id = None
+            f.events.remove(event)
 
-    # 2. Link unassigned Data files that now match date + datatype.default_procedure + animal
-    animal_ids = [a.id for a in event.animal.cage.animals]
-    candidate_files = Data.query.filter(
-        Data.event_id == None,
-        Data.date == new_date,
+    # 2. Link AnimalEventData files matching date, animal candidacy, and the
+    #    DataType's default procedure.
+    candidate_files = AnimalEventData.query.filter(
+        AnimalEventData.date == new_date,
     ).all()
     for f in candidate_files:
-        if f.datatype.default_procedure_id != event.procedure_id:
+        dt = f.datatype
+        if getattr(dt, 'default_procedure_id', None) != event.procedure_id:
             continue
-        # Check if any of the file's animals matches this event's animal
-        if any(a.id == event.animal_id for a in f.animals):
-            f.event_id = event.id
+        if event in f.events:
+            continue
+        if any(a.id == event.animal_id for a in f.candidate_animals):
+            f.events.append(event)
 
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -480,25 +484,32 @@ def view_animal_events_popover(animal_id):
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/reassign', methods=['POST'])
 def reassign_data(animal_id, data_id):
-    data_file = Data.query.get_or_404(data_id)
+    """Attach/detach an AnimalEventData row to a single event for this animal."""
+    data_file = AnimalEventData.query.get_or_404(data_id)
     event_id = request.form.get('event_id')
+
+    # Drop any existing link to events belonging to this animal so we don't
+    # leave duplicates after the user picks a different one.
+    for ev in list(data_file.events):
+        if ev.animal_id == animal_id:
+            data_file.events.remove(ev)
+
     if event_id and event_id != '__None':
-        data_file.event_id = int(event_id)
+        event = AnimalEvent.query.get_or_404(int(event_id))
+        data_file.events.append(event)
         flash(f"File {data_file.name} attached to event.", "success")
     else:
-        data_file.event_id = None
         flash(f"File {data_file.name} detached from event.", "info")
     db.session.commit()
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
+
 @animals_bp.route('/unmatched-data')
 def list_unmatched_data():
-    """Shows all data files that were not matched to any Animal custom_id."""
-    unmatched_files = Data.query.filter(~Data.animals.any()).all()
-    return render_template(
-        'unmatched_data.html',
-        files=unmatched_files
-    )
+    """Files where the sync script could not link to any target."""
+    event_files = AnimalEventData.query.filter(~AnimalEventData.events.any()).all()
+    image_files = ConfocalImageData.query.filter(~ConfocalImageData.confocal_images.any()).all()
+    return render_template('unmatched_data.html', files=event_files + image_files)
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):
@@ -515,18 +526,17 @@ def set_data_status(animal_id, data_id):
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
 def auto_create_event(animal_id, data_id):
-    """Auto-create an AnimalEvent for an unassigned Data file, then link all matching files."""
-    data_file = Data.query.get_or_404(data_id)
+    """Auto-create an AnimalEvent for an unassigned AnimalEventData file, then link matching files."""
+    data_file = AnimalEventData.query.get_or_404(data_id)
     datatype = data_file.datatype
 
-    if not datatype.default_procedure_id:
+    if not getattr(datatype, 'default_procedure_id', None):
         flash('Cannot auto-create: DataType has no Default Procedure configured.', 'danger')
         return redirect(url_for('animals.view_animal', animal_id=animal_id))
     if not data_file.date:
         flash('Cannot auto-create: file has no parsed date.', 'danger')
         return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
-    # Create the event
     event = AnimalEvent(
         animal_id=animal_id,
         procedure_id=datatype.default_procedure_id,
@@ -535,73 +545,90 @@ def auto_create_event(animal_id, data_id):
         completion_date=data_file.date,
     )
     db.session.add(event)
-    db.session.flush()  # get event.id before full commit
+    db.session.flush()
 
-    # Link all unassigned files with matching datatype, date, and animal
-    candidate_files = Data.query.filter(
-        Data.event_id == None,
-        Data.datatype_id == datatype.id,
-        Data.date == data_file.date,
+    # Link all candidate files for this animal that don't yet have an event
+    # for the matching datatype/date.
+    candidate_files = AnimalEventData.query.filter(
+        AnimalEventData.datatype_id == datatype.id,
+        AnimalEventData.date == data_file.date,
     ).all()
     linked_count = 0
     for f in candidate_files:
-        if any(a.id == animal_id for a in f.animals):
-            f.event_id = event.id
+        if event in f.events:
+            continue
+        if any(a.id == animal_id for a in f.candidate_animals):
+            f.events.append(event)
             linked_count += 1
 
     db.session.commit()
     flash(f'Event created and {linked_count} file(s) linked.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
-@animals_bp.route('/data/<int:data_id>/plot/<int:callback_id>')
-def plot_data(data_id, callback_id):
-    """Invoke the datatype callback function and return plot data as JSON."""
+def _resolve_callback(data_id, callback_id):
+    """Look up a Data row + DataTypeCallback, returning (data_file, fn) or (response, status)."""
+    import importlib
     data_file = Data.query.get_or_404(data_id)
     callback = models.DataTypeCallback.query.get_or_404(callback_id)
-    
     if callback.datatype_id != data_file.datatype_id:
-        return jsonify({'error': 'Callback does not belong to this datatype.'}), 400
-
-    import importlib
+        return None, ('Callback does not belong to this datatype.', 400)
     try:
         module_name, func_name = callback.callback_function.rsplit('.', 1)
         module = importlib.import_module(module_name)
-        loader = getattr(module, func_name)
+        fn = getattr(module, func_name)
     except Exception as e:
-        return jsonify({'error': f'Failed to import callback function: {e}'}), 500
+        return None, (f'Failed to import callback function: {e}', 500)
+    return (data_file, fn), None
 
+
+@animals_bp.route('/data/<int:data_id>/plot/<int:callback_id>')
+def plot_data(data_id, callback_id):
+    """Invoke a plot callback and return JSON (Plotly figure or arbitrary dict)."""
+    pair, err = _resolve_callback(data_id, callback_id)
+    if err:
+        msg, status = err
+        return jsonify({'error': msg}), status
+    data_file, loader = pair
     try:
-        plot_data_res = loader(data_file)
-        if hasattr(plot_data_res, 'to_json'):
-            # It's likely a Plotly Figure, which has .to_json()
-            return Response(plot_data_res.to_json(), mimetype='application/json')
-        else:
-            return jsonify(plot_data_res)
+        result = loader(data_file)
+        if hasattr(result, 'to_json'):
+            return Response(result.to_json(), mimetype='application/json')
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': f'Error loading plot data: {str(e)}'}), 500
 
+
 @animals_bp.route('/data/<int:data_id>/pdf/<int:callback_id>')
 def view_data_pdf(data_id, callback_id):
-    """Invoke the datatype callback function and return the PDF file."""
-    data_file = Data.query.get_or_404(data_id)
-    callback = models.DataTypeCallback.query.get_or_404(callback_id)
-
-    if callback.datatype_id != data_file.datatype_id:
-        return "Callback does not belong to this datatype.", 400
-
-    import importlib
+    """Invoke a PDF callback and stream the resulting file."""
     import os
+    pair, err = _resolve_callback(data_id, callback_id)
+    if err:
+        msg, status = err
+        return msg, status
+    data_file, generator = pair
     try:
-        module_name, func_name = callback.callback_function.rsplit('.', 1)
-        module = importlib.import_module(module_name)
-        generator = getattr(module, func_name)
-    except Exception as e:
-        return f"Failed to import callback function: {e}", 500
-
-    try:
-        pdf_file_path = generator(data_file)
-        if not pdf_file_path or not os.path.exists(pdf_file_path):
-            return f"PDF file not generated or not found: {pdf_file_path}", 404
-        return send_file(pdf_file_path, mimetype='application/pdf')
+        pdf_path = generator(data_file)
+        if not pdf_path or not os.path.exists(pdf_path):
+            return f"PDF file not generated or not found: {pdf_path}", 404
+        return send_file(pdf_path, mimetype='application/pdf')
     except Exception as e:
         return f"Error generating PDF: {str(e)}", 500
+
+
+@animals_bp.route('/data/<int:data_id>/image/<int:callback_id>')
+def view_data_image(data_id, callback_id):
+    """Invoke an image callback and stream the resulting JPG."""
+    import os
+    pair, err = _resolve_callback(data_id, callback_id)
+    if err:
+        msg, status = err
+        return msg, status
+    data_file, generator = pair
+    try:
+        image_path = generator(data_file)
+        if not image_path or not os.path.exists(image_path):
+            return f"Image not found: {image_path}", 404
+        return send_file(image_path, mimetype='image/jpeg')
+    except Exception as e:
+        return f"Error loading image: {str(e)}", 500

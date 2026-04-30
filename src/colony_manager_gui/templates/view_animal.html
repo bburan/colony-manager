@@ -81,7 +81,13 @@
                         </div>
                         {{ macros.render_event_list(animal) }}
 
-                        {% set unassigned_files = animal.data_files | selectattr('event_id', 'none') | list %}
+                        {% set unassigned_files = [] %}
+                        {% for f in animal.candidate_data_files %}
+                            {% if f.target_type == 'animal_event' %}
+                                {% set linked = f.events|selectattr('animal_id', 'equalto', animal.id)|list %}
+                                {% if not linked %}{% set _ = unassigned_files.append(f) %}{% endif %}
+                            {% endif %}
+                        {% endfor %}
                         {% if unassigned_files %}
                             {{ macros.render_data_files(animal, unassigned_files) }}
                         {% else %}

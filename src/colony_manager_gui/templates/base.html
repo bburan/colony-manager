@@ -472,5 +472,39 @@
       </div>
     </div>
 
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content shadow-sm">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title h6 fw-bold text-uppercase text-secondary" id="imageModalTitle">Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3" id="imageModalBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    function openImageModal(url, title) {
+        const modalElement = document.getElementById('imageModal');
+        const titleEl = document.getElementById('imageModalTitle');
+        const bodyEl = document.getElementById('imageModalBody');
+        titleEl.textContent = title || 'Image';
+        bodyEl.innerHTML = '<div class="d-flex justify-content-center p-5"><div class="spinner-border text-primary" role="status"></div></div>';
+        const inst = bootstrap.Modal.getOrCreateInstance(modalElement);
+        inst.show();
+        const img = new Image();
+        img.onload = function() {
+            bodyEl.innerHTML = '';
+            img.className = 'img-fluid';
+            bodyEl.appendChild(img);
+        };
+        img.onerror = function() {
+            bodyEl.innerHTML = '<div class="alert alert-danger m-3">Failed to load image.</div>';
+        };
+        img.src = url;
+    }
+    </script>
+
 </body>
 </html>

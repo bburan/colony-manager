@@ -43,9 +43,19 @@ animal_event_tags = Table('animal_event_tags', Base.metadata,
     Column('tag_id', Integer, ForeignKey('animal_event_tag.id'), primary_key=True)
 )
 
-animal_data = Table('animal_data', Base.metadata,
-    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True),
-    Column('data_id', Integer, ForeignKey('data.id'), primary_key=True)
+data_candidate_animals = Table('data_candidate_animals', Base.metadata,
+    Column('data_id', Integer, ForeignKey('data.id'), primary_key=True),
+    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True)
+)
+
+animal_event_data_targets = Table('animal_event_data_targets', Base.metadata,
+    Column('animal_event_data_id', Integer, ForeignKey('animal_event_data.id'), primary_key=True),
+    Column('animal_event_id', Integer, ForeignKey('animal_event.id'), primary_key=True)
+)
+
+confocal_image_data_targets = Table('confocal_image_data_targets', Base.metadata,
+    Column('confocal_image_data_id', Integer, ForeignKey('confocal_image_data.id'), primary_key=True),
+    Column('confocal_image_id', Integer, ForeignKey('confocal_image.id'), primary_key=True)
 )
 
 
@@ -166,26 +176,125 @@ class AnimalProcedure(VersionedModel, NestedMixin):
 
 
 class DataType(VersionedModel):
+    """Polymorphic base. Subclasses target specific model types."""
+    __tablename__ = 'data_type'
+
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text, nullable=True)
-    filename_regex = Column(String(500), nullable=True)
+    target_type = Column(String(50), nullable=False)
     is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
+    parse_function = Column(String(200), nullable=True)
+
+    locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+    callbacks = relationship('DataTypeCallback', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+    data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+
+    __mapper_args__ = {
+        'polymorphic_on': target_type,
+        'polymorphic_identity': 'datatype',
+    }
+
+    TARGET_LABEL = 'Generic'
+
+    def match_targets(self, parsed):
+        """Resolve a parsed metadata dict to a list of target model instances.
+
+        Subclasses override. Return an empty list if nothing matched.
+        """
+        return []
+
+
+class AnimalEventDataType(DataType):
+    __tablename__ = 'animal_event_data_type'
+
+    id = Column(Integer, ForeignKey('data_type.id'), primary_key=True)
     default_procedure_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
     default_procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id'), nullable=True)
 
-    locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
     default_procedure = relationship('AnimalProcedure', lazy=True)
     default_procedure_target = relationship('AnimalProcedureTarget', lazy=True)
-    data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
-    callbacks = relationship('DataTypeCallback', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+
+    __mapper_args__ = {'polymorphic_identity': 'animal_event'}
+
+    TARGET_LABEL = 'Animal Event'
+
+    def match_targets(self, parsed):
+        animal_ids = parsed.get('animal_id') or []
+        if isinstance(animal_ids, str):
+            animal_ids = [animal_ids]
+        target_date = parsed.get('date')
+        if not animal_ids or not target_date or not self.default_procedure_id:
+            return []
+        events = []
+        for aid in animal_ids:
+            animal = Animal.query.filter_by(custom_id=aid).first()
+            if not animal:
+                continue
+            event = AnimalEvent.query.filter_by(
+                animal_id=animal.id,
+                procedure_id=self.default_procedure_id,
+            ).filter(
+                or_(
+                    AnimalEvent.scheduled_date == target_date,
+                    AnimalEvent.completion_date == target_date,
+                )
+            ).first()
+            if event:
+                events.append(event)
+        return events
+
+
+class ConfocalImageDataType(DataType):
+    __tablename__ = 'confocal_image_data_type'
+
+    id = Column(Integer, ForeignKey('data_type.id'), primary_key=True)
+
+    __mapper_args__ = {'polymorphic_identity': 'confocal_image'}
+
+    TARGET_LABEL = 'Confocal Image'
+
+    def match_targets(self, parsed):
+        animal_ids = parsed.get('animal_id') or []
+        if isinstance(animal_ids, str):
+            animal_ids = [animal_ids]
+        side = parsed.get('side')
+        frequency = parsed.get('frequency')
+        image_type_name = parsed.get('image_type')
+        if not (animal_ids and side and frequency is not None and image_type_name):
+            return []
+        image_type = ConfocalImageType.query.filter_by(name=image_type_name).first()
+        if not image_type:
+            return []
+        images = []
+        for aid in animal_ids:
+            animal = Animal.query.filter_by(custom_id=aid).first()
+            if not animal:
+                continue
+            image = ConfocalImage.query.join(Ear).filter(
+                Ear.animal_id == animal.id,
+                Ear.side == side,
+                ConfocalImage.frequency == float(frequency),
+                ConfocalImage.image_type_id == image_type.id,
+            ).first()
+            if image:
+                images.append(image)
+        return images
+
+
+DATATYPE_SUBCLASSES = {
+    'animal_event': AnimalEventDataType,
+    'confocal_image': ConfocalImageDataType,
+}
+
 
 class DataTypeCallback(VersionedModel):
     id = Column(Integer, primary_key=True)
     datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
     name = Column(String(150), nullable=False)
     callback_function = Column(String(200), nullable=False)
-    callback_type = Column(String(20), nullable=False) # 'plot' or 'pdf'
+    callback_type = Column(String(20), nullable=False)  # 'plot', 'pdf', or 'image'
+
 
 class DataLocation(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -193,23 +302,84 @@ class DataLocation(VersionedModel):
     base_path = Column(String(1024), nullable=False)
     data_files = relationship('Data', backref='location', lazy='dynamic', cascade="all, delete-orphan")
 
+
 class Data(VersionedModel):
+    """Polymorphic base for files discovered by the sync script."""
+    __tablename__ = 'data'
+
     id = Column(Integer, primary_key=True)
     datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
     location_id = Column(Integer, ForeignKey('data_location.id'), nullable=False)
-    event_id = Column(Integer, ForeignKey('animal_event.id'), nullable=True)
+    target_type = Column(String(50), nullable=False)
     relative_path = Column(String(1024), nullable=False)
     name = Column(String(255), nullable=False)
     date = Column(Date, nullable=True)
     status = Column(String(50), nullable=False, default='unreviewed')
     notes = Column(Text, nullable=True)
-    
-    animals = relationship('Animal', secondary=animal_data, backref=backref('data_files', lazy='dynamic'))
-    event = relationship('AnimalEvent', backref=backref('data_files', lazy='dynamic'))
+
+    candidate_animals = relationship(
+        'Animal',
+        secondary=data_candidate_animals,
+        backref=backref('candidate_data_files', lazy='dynamic'),
+    )
 
     __table_args__ = (
         UniqueConstraint('location_id', 'relative_path'),
     )
+
+    __mapper_args__ = {
+        'polymorphic_on': target_type,
+        'polymorphic_identity': 'data',
+    }
+
+    @property
+    def targets(self):
+        """List of resolved target instances. Overridden by subclasses."""
+        return []
+
+    @property
+    def is_unmatched(self):
+        return len(self.targets) == 0
+
+
+class AnimalEventData(Data):
+    __tablename__ = 'animal_event_data'
+
+    id = Column(Integer, ForeignKey('data.id'), primary_key=True)
+    events = relationship(
+        'AnimalEvent',
+        secondary=animal_event_data_targets,
+        backref=backref('data_files', lazy='dynamic'),
+    )
+
+    __mapper_args__ = {'polymorphic_identity': 'animal_event'}
+
+    @property
+    def targets(self):
+        return list(self.events)
+
+
+class ConfocalImageData(Data):
+    __tablename__ = 'confocal_image_data'
+
+    id = Column(Integer, ForeignKey('data.id'), primary_key=True)
+    confocal_images = relationship(
+        'ConfocalImage',
+        secondary=confocal_image_data_targets,
+        backref=backref('data_files', lazy='dynamic'),
+    )
+
+    __mapper_args__ = {'polymorphic_identity': 'confocal_image'}
+
+    @property
+    def targets(self):
+        return list(self.confocal_images)
+
+
+DATA_SUBCLASSES = {
+    'animal_event': AnimalEventData,
+    'confocal_image': ConfocalImageData,
+}
 
 
 class AnimalProcedureTarget(VersionedModel):

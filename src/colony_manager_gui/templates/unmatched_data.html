@@ -7,7 +7,7 @@ Unmatched Data Files
 {% block content %}
 <div class="card shadow-sm">
     <div class="card-header">
-        Files without a known Animal ID
+        Files that did not link to a target
     </div>
     <div class="card-body">
         {% if files|length > 0 %}
@@ -15,9 +15,11 @@ Unmatched Data Files
             <thead>
                 <tr>
                     <th>Data Type</th>
+                    <th>Target</th>
                     <th>Filename</th>
                     <th>Location</th>
-                    <th>Extracted Date</th>
+                    <th>Date</th>
+                    <th>Candidates</th>
                     <th>Status</th>
                 </tr>
             </thead>
@@ -25,9 +27,17 @@ Unmatched Data Files
                 {% for f in files %}
                 <tr>
                     <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
+                    <td><span class="badge bg-info text-dark">{{ f.datatype.TARGET_LABEL }}</span></td>
                     <td>{{ f.name }}</td>
                     <td><span class="small text-muted">{{ f.relative_path }}</span></td>
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
+                    <td class="small">
+                        {% for a in f.candidate_animals %}
+                            <span class="badge bg-light text-dark">{{ a.display_id }}</span>
+                        {% else %}
+                            <span class="text-muted">none</span>
+                        {% endfor %}
+                    </td>
                     <td>
                         <span class="badge bg-{{ 'success' if f.status == 'reviewed' else 'warning text-dark' if f.status == 'unreviewed' else 'danger' }}">
                             {{ f.status|capitalize }}
@@ -38,7 +48,7 @@ Unmatched Data Files
             </tbody>
         </table>
         {% else %}
-        <p class="text-muted">All files matched successfully to an animal.</p>
+        <p class="text-muted">All files matched successfully.</p>
         {% endif %}
     </div>
 </div>

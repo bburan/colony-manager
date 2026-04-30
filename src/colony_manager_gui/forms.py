@@ -56,10 +56,14 @@ class SimpleAddWithDescriptionForm(FlaskForm):
     description = StringField('Description', validators=[Optional()])
 
 class DataTypeForm(FlaskForm):
+    """Base fields shared by every DataType subclass."""
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Description', validators=[Optional()])
-    filename_regex = StringField('Filename Regex', validators=[Optional()])
+    parse_function = StringField('Parse Function', validators=[Optional()])
     is_folder = BooleanField('Is Folder?')
+
+
+class AnimalEventDataTypeForm(DataTypeForm):
     default_procedure = QuerySelectField(
         'Default Procedure',
         query_factory=AnimalProcedure.get_ordered,
@@ -74,6 +78,29 @@ class DataTypeForm(FlaskForm):
         allow_blank=True,
         blank_text='-- None --'
     )
+
+
+class ConfocalImageDataTypeForm(DataTypeForm):
+    pass
+
+
+DATATYPE_FORMS = {
+    'animal_event': AnimalEventDataTypeForm,
+    'confocal_image': ConfocalImageDataTypeForm,
+}
+
+DATATYPE_TARGET_LABELS = [
+    ('animal_event', 'Animal Event'),
+    ('confocal_image', 'Confocal Image'),
+]
+
+
+def datatype_form_for(target_type, *args, **kwargs):
+    form_cls = DATATYPE_FORMS.get(target_type)
+    if form_cls is None:
+        raise ValueError(f"Unknown DataType target_type: {target_type!r}")
+    return form_cls(*args, **kwargs)
+
 
 class DataLocationForm(FlaskForm):
     base_path = StringField('Base Path', validators=[DataRequired()])

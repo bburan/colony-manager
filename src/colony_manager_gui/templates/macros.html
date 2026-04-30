@@ -34,9 +34,30 @@
 </span>
 {% endmacro %}
 
+{% macro render_callback_buttons(data_file, size='sm') %}
+    {% for cb in data_file.datatype.callbacks %}
+        {% if cb.callback_type == 'plot' %}
+        <button type="button" class="btn btn-{{ size }} btn-outline-primary" data-bs-toggle="tooltip"
+            title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
+            <i class="fas fa-chart-line"></i>
+        </button>
+        {% elif cb.callback_type == 'pdf' %}
+        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-{{ size }} btn-outline-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
+            <i class="fas fa-file-pdf"></i>
+        </a>
+        {% elif cb.callback_type == 'image' %}
+        <button type="button" class="btn btn-{{ size }} btn-outline-success" data-bs-toggle="tooltip"
+            title="{{ cb.name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
+            <i class="fas fa-image"></i>
+        </button>
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+
 {% macro render_data_files(animal, files) %}
 	<ul class="list-group list-group-flush">
 		{% for data_file in files %}
+		{% set linked_event = data_file.events|selectattr('animal_id', 'equalto', animal.id)|first if data_file.target_type == 'animal_event' else None %}
 		<li
 			class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
 			<div class="flex-grow-1 d-flex align-items-center gap-1">
@@ -48,8 +69,7 @@
 				{% endif %}
 			</div>
 			<div class="d-flex align-items-center gap-1 flex-shrink-0">
-
-				{# ---- Event assignment dropdown ---- #}
+				{% if data_file.target_type == 'animal_event' %}
 				<form
 					action="{{ url_for('animals.reassign_data', animal_id=animal.id, data_id=data_file.id) }}"
 					method="POST">
@@ -57,15 +77,16 @@
 						onchange="this.form.submit()">
 						<option value="__None">— No Event —</option>
 						{% for event in animal.events %}
-						<option value="{{ event.id }}" {% if data_file.event_id==event.id %}selected{% endif %}>
+						<option value="{{ event.id }}" {% if linked_event and linked_event.id == event.id %}selected{% endif %}>
 							{{ event.scheduled_date.strftime('%Y-%m-%d') }}: {{ event.procedure.display_name }}
 						</option>
 						{% endfor %}
 					</select>
 				</form>
+				{% endif %}
 
 				<div class="btn-group" role="group">
-					{% if not data_file.event_id and data_file.datatype.default_procedure_id %}
+					{% if data_file.target_type == 'animal_event' and not linked_event and data_file.datatype.default_procedure_id %}
 					<form
 						action="{{ url_for('animals.auto_create_event', animal_id=animal.id, data_id=data_file.id) }}"
 						method="POST">
@@ -75,18 +96,7 @@
 						</button>
 					</form>
 					{% endif %}
-					{% for cb in data_file.datatype.callbacks %}
-                        {% if cb.callback_type == 'plot' %}
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip"
-                            title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
-                            <i class="fas fa-chart-line"></i>
-                        </button>
-                        {% elif cb.callback_type == 'pdf' %}
-                        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
-                            <i class="fas fa-file-pdf"></i>
-                        </a>
-                        {% endif %}
-					{% endfor %}
+					{{ render_callback_buttons(data_file) }}
 					{{ render_status_buttons(animal.id, data_file) }}
 				</div>
 			</div>
@@ -139,6 +149,10 @@
                                             <a href="{{ url_for('animals.view_data_pdf', data_id=f.id, callback_id=cb.id) }}" target="_blank" class="btn btn-link btn-sm p-0 px-1 text-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
                                                 <i class="fas fa-file-pdf fa-xs"></i>
                                             </a>
+                                            {% elif cb.callback_type == 'image' %}
+                                            <button type="button" class="btn btn-link btn-sm p-0 px-1 text-success" data-bs-toggle="tooltip" title="{{ cb.name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=f.id, callback_id=cb.id) }}', '{{ f.name }}: {{ cb.name }}')">
+                                                <i class="fas fa-image fa-xs"></i>
+                                            </button>
                                             {% endif %}
                                         {% endfor %}
                                         {{ render_status_buttons(event.animal_id, f) }}

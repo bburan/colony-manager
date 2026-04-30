@@ -8,7 +8,10 @@ from colony_manager import models
 
 from .. import db
 from .. import forms
-from ..forms import FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm, DataLocationForm
+from ..forms import (
+    FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
+    DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
+)
 from .util import flash_form_errors
 
 main_bp = Blueprint('main', __name__)
@@ -119,9 +122,6 @@ def list_settings():
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
         datatypes=models.DataType.query.all(),
-        datatype_form=DataTypeForm(),
-        DataTypeForm=DataTypeForm,
-        datalocation_form=DataLocationForm(),
     )
 
 
@@ -220,14 +220,59 @@ def set_species(species_id):
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
+def _save_datatype_children(dt):
+    """Persist DataLocation rows and DataTypeCallback rows from request.form."""
+    location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
+    for loc in dt.locations.all():
+        if loc.base_path not in location_paths:
+            db.session.delete(loc)
+    existing_paths = {loc.base_path for loc in dt.locations.all()}
+    for path in location_paths:
+        if path not in existing_paths:
+            db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
+
+    for cb in dt.callbacks.all():
+        db.session.delete(cb)
+    names = request.form.getlist('callback_name')
+    funcs = request.form.getlist('callback_function')
+    types = request.form.getlist('callback_type')
+    for n, f, t in zip(names, funcs, types):
+        if n.strip() and f.strip():
+            db.session.add(models.DataTypeCallback(
+                datatype_id=dt.id,
+                name=n.strip(),
+                callback_function=f.strip(),
+                callback_type=t,
+            ))
+
+
 @main_bp.route('/settings/datatype/create_modal')
 def create_datatype_modal():
-    form = DataTypeForm()
-    return render_template('partials/form_datatype_modal.html', form=form, dt=None)
+    target_type = request.args.get('target_type')
+    if target_type:
+        form = datatype_form_for(target_type)
+        return render_template(
+            'partials/form_datatype_modal.html',
+            form=form, dt=None, target_type=target_type,
+            target_labels=DATATYPE_TARGET_LABELS,
+        )
+    return render_template(
+        'partials/form_datatype_modal.html',
+        form=None, dt=None, target_type=None,
+        target_labels=DATATYPE_TARGET_LABELS,
+    )
+
 
 @main_bp.route('/settings/datatype/create', methods=['POST'])
 def create_datatype():
-    form = DataTypeForm()
+    target_type = request.form.get('target_type')
+    if target_type not in DATATYPE_FORMS:
+        if request.headers.get('HX-Request'):
+            return '<div class="alert alert-danger py-2 small">Pick a target type first.</div>', 200, {'HX-Retarget': '#datatype-error'}
+        flash('Pick a target type first.', 'danger')
+        return redirect(url_for('main.list_settings'))
+
+    form = datatype_form_for(target_type)
     if form.validate_on_submit():
         if models.DataType.query.filter_by(name=form.name.data).first():
             if request.headers.get('HX-Request'):
@@ -235,28 +280,14 @@ def create_datatype():
             flash('This DataType already exists.', 'danger')
         else:
             try:
-                dt = models.DataType()
+                dt_class = models.DATATYPE_SUBCLASSES[target_type]
+                dt = dt_class()
                 form.populate_obj(dt)
                 db.session.add(dt)
                 db.session.flush()
-                for path in request.form.getlist('locations'):
-                    if path.strip():
-                        db.session.add(models.DataLocation(base_path=path.strip(), datatype_id=dt.id))
-                
-                # Process callbacks
-                names = request.form.getlist('callback_name')
-                funcs = request.form.getlist('callback_function')
-                types = request.form.getlist('callback_type')
-                for n, f, t in zip(names, funcs, types):
-                    if n.strip() and f.strip():
-                        cb = models.DataTypeCallback(datatype_id=dt.id, name=n.strip(), 
-                                                     callback_function=f.strip(), callback_type=t)
-                        db.session.add(cb)
-
+                _save_datatype_children(dt)
                 db.session.commit()
                 if request.headers.get('HX-Request'):
-                    # When creating, we might want to return the new item and close the modal
-                    # HTMX can close the modal via a trigger or by returning a script/header
                     response = render_template('partials/datatype_list_item.html', dt=dt)
                     return response, {'HX-Trigger': 'datatype-created'}
                 flash(f'DataType "{dt.name}" added.', 'success')
@@ -275,42 +306,21 @@ def create_datatype():
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
 def edit_datatype_modal(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
-    form = DataTypeForm(obj=dt)
-    return render_template('partials/form_datatype_modal.html', form=form, dt=dt)
+    form = datatype_form_for(dt.target_type, obj=dt)
+    return render_template(
+        'partials/form_datatype_modal.html',
+        form=form, dt=dt, target_type=dt.target_type,
+        target_labels=DATATYPE_TARGET_LABELS,
+    )
+
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
-    form = DataTypeForm()
+    form = datatype_form_for(dt.target_type)
     if form.validate_on_submit():
         form.populate_obj(dt)
-        
-        # Process locations
-        location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
-        # Remove old ones not in the new list
-        for loc in dt.locations.all():
-            if loc.base_path not in location_paths:
-                db.session.delete(loc)
-        # Add new ones
-        existing_paths = {loc.base_path for loc in dt.locations.all()}
-        for path in location_paths:
-            if path not in existing_paths:
-                db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
-        
-        # Process callbacks
-        # Simplest is to clear and re-add, since it's a small list
-        for cb in dt.callbacks.all():
-            db.session.delete(cb)
-        
-        names = request.form.getlist('callback_name')
-        funcs = request.form.getlist('callback_function')
-        types = request.form.getlist('callback_type')
-        for n, f, t in zip(names, funcs, types):
-            if n.strip() and f.strip():
-                cb = models.DataTypeCallback(datatype_id=dt.id, name=n.strip(), 
-                                             callback_function=f.strip(), callback_type=t)
-                db.session.add(cb)
-
+        _save_datatype_children(dt)
         try:
             db.session.commit()
             if request.headers.get('HX-Request'):
@@ -327,6 +337,7 @@ def update_datatype(datatype_id):
             return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not update DataType")
     return redirect(url_for('main.list_settings'))
+
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
 def delete_datatype(datatype_id):

@@ -1,22 +1,48 @@
 <div class="modal-header">
-    <h5 class="modal-title">{% if dt %}Edit DataType: {{ dt.name }}{% else %}New DataType{% endif %}</h5>
+    <h5 class="modal-title">
+        {% if dt %}Edit DataType: {{ dt.name }}
+        {% else %}New DataType{% endif %}
+    </h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
-<div class="modal-body" x-data="{ 
-    locations: [{% for loc in (dt.locations if dt else []) %}'{{ loc.base_path }}',{% endfor %}],
-    callbacks: [
-        {% for cb in (dt.callbacks if dt else []) %}
-        { name: '{{ cb.name }}', func: '{{ cb.callback_function }}', type: '{{ cb.callback_type }}' },
-        {% endfor %}
-    ]
-}">
+<div class="modal-body">
     <div id="datatype-error"></div>
-    <form id="modal-datatype-form" 
-          hx-post="{% if dt %}{{ url_for('main.update_datatype', datatype_id=dt.id) }}{% else %}{{ url_for('main.create_datatype') }}{% endif %}" 
-          hx-target="{% if dt %}#datatype-{{ dt.id }}{% else %}#list-datatypes{% endif %}" 
+
+    {% if not target_type %}
+    {# Step 1: pick a target type. HTMX swaps in the real form once chosen. #}
+    <p class="small text-muted">What kind of object should files of this DataType be associated with?</p>
+    <div class="d-grid gap-2">
+        {% for tt, label in target_labels %}
+        <button type="button" class="btn btn-outline-primary"
+                hx-get="{{ url_for('main.create_datatype_modal', target_type=tt) }}"
+                hx-target="#modalBody">
+            {{ label }}
+        </button>
+        {% endfor %}
+    </div>
+    {% else %}
+    <form id="modal-datatype-form"
+          x-data="{
+            locations: [{% for loc in (dt.locations if dt else []) %}'{{ loc.base_path }}',{% endfor %}],
+            callbacks: [
+                {% for cb in (dt.callbacks if dt else []) %}
+                { name: '{{ cb.name }}', func: '{{ cb.callback_function }}', type: '{{ cb.callback_type }}' },
+                {% endfor %}
+            ]
+          }"
+          hx-post="{% if dt %}{{ url_for('main.update_datatype', datatype_id=dt.id) }}{% else %}{{ url_for('main.create_datatype') }}{% endif %}"
+          hx-target="{% if dt %}#datatype-{{ dt.id }}{% else %}#list-datatypes{% endif %}"
           hx-swap="{% if dt %}outerHTML{% else %}beforeend{% endif %}"
           hx-indicator="#datatype-save-indicator">
         {{ form.hidden_tag() }}
+        <input type="hidden" name="target_type" value="{{ target_type }}">
+
+        <div class="mb-2 small text-muted">
+            Target: <span class="badge bg-info text-dark">
+                {% for tt, label in target_labels %}{% if tt == target_type %}{{ label }}{% endif %}{% endfor %}
+            </span>
+        </div>
+
         <div class="mb-3">
             <label class="form-label fw-bold small text-muted">Name</label>
             {{ form.name(class="form-control", placeholder="e.g. Physiology") }}
@@ -26,10 +52,12 @@
             {{ form.description(class="form-control") }}
         </div>
         <div class="mb-3">
-            <label class="form-label fw-bold small text-muted">Filename Regex</label>
-            {{ form.filename_regex(class="form-control font-monospace", placeholder="e.g. .*\\.csv") }}
+            <label class="form-label fw-bold small text-muted">Parse Function</label>
+            {{ form.parse_function(class="form-control font-monospace", placeholder="module.path.parse_filename") }}
+            <small class="text-muted">Dotted path to a callable that maps a relative path to a metadata dict.</small>
         </div>
 
+        {% if target_type == 'animal_event' %}
         <div class="row mb-3">
             <div class="col-md-6">
                 <label class="form-label fw-bold small text-muted">Default Procedure</label>
@@ -40,13 +68,15 @@
                 {{ form.default_procedure_target(class="form-select") }}
             </div>
         </div>
+        {% endif %}
+
         <div class="mb-3 form-check">
             {{ form.is_folder(class="form-check-input") }}
             <label class="form-check-label fw-bold small text-muted">Is Folder?</label>
         </div>
 
         <div class="mb-4">
-            <label class="form-label fw-bold small text-muted">Callbacks (Plots / PDFs)</label>
+            <label class="form-label fw-bold small text-muted">Callbacks (Plots / PDFs / Images)</label>
             <div class="border rounded p-2 bg-light">
                 <template x-for="(cb, index) in callbacks" :key="index">
                     <div class="row g-2 mb-2 align-items-center">
@@ -60,6 +90,7 @@
                             <select name="callback_type" x-model="cb.type" class="form-select form-select-sm">
                                 <option value="plot">Plot</option>
                                 <option value="pdf">PDF</option>
+                                <option value="image">Image</option>
                             </select>
                         </div>
                         <div class="col-1 text-end">
@@ -97,4 +128,5 @@
             </button>
         </div>
     </form>
+    {% endif %}
 </div>

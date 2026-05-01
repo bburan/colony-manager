@@ -19,7 +19,13 @@
     <div class="btn-group btn-group-sm flex-shrink-0">
         <button class="btn btn-link btn-sm text-secondary p-0 px-2"
                 hx-get="{{ url_for('main.edit_datatype_modal', datatype_id=dt.id) }}"
-                hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
+                hx-target="#modalBody"
+                data-bs-toggle="tooltip" title="Edit DataType"><i class="fas fa-pencil"></i></button>
+        <form method="POST" action="{{ url_for('main.rematch_datatype', datatype_id=dt.id) }}"
+              onsubmit="return confirm('Re-run target matching for all unmatched files in {{ dt.name }}?')">
+            <button class="btn btn-link btn-sm text-primary p-0 px-2"
+                    data-bs-toggle="tooltip" title="Re-run matching for unmatched files"><i class="fas fa-sync-alt"></i></button>
+        </form>
         <form hx-post="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}"
               hx-target="closest li"
               hx-swap="outerHTML swap:300ms"

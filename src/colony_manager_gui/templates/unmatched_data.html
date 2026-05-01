@@ -5,16 +5,50 @@ Unmatched Data Files
 {% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
-    <div class="card-header">
-        Files that did not link to a target
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-1">Target Type</label>
+                <select name="target_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if filters.target_type == 'all' %}selected{% endif %}>All Types</option>
+                    <option value="animal_event" {% if filters.target_type == 'animal_event' %}selected{% endif %}>Animal Event</option>
+                    <option value="confocal_image" {% if filters.target_type == 'confocal_image' %}selected{% endif %}>Confocal Image</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">DataType</label>
+                <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All DataTypes</option>
+                    {% for dt in datatypes %}
+                    <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-1">Per page</label>
+                <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                    {% for n in [25, 50, 100, 200] %}
+                    <option value="{{ n }}" {% if filters.per_page == n %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="hidden" name="page" value="1">
+        </form>
     </div>
-    <div class="card-body">
-        {% if files|length > 0 %}
-        <table class="table table-hover">
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Files that did not link to a target</span>
+        <span class="badge bg-secondary">{{ pagination.total }} total</span>
+    </div>
+    <div class="card-body p-0">
+        {% if files %}
+        <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th>Data Type</th>
+                    <th>DataType</th>
                     <th>Target</th>
                     <th>Filename</th>
                     <th>Location</th>
@@ -48,8 +82,36 @@ Unmatched Data Files
             </tbody>
         </table>
         {% else %}
-        <p class="text-muted">All files matched successfully.</p>
+        <div class="p-4">
+            <p class="text-muted mb-0">No unmatched files found for the current filters.</p>
+        </div>
         {% endif %}
     </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Unmatched files pagination">
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.prev_num, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">«</a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=p, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.next_num, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">»</a>
+                </li>
+            </ul>
+        </nav>
+        <p class="text-center text-muted small mt-1 mb-0">
+            Page {{ pagination.page }} of {{ pagination.pages }}
+        </p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

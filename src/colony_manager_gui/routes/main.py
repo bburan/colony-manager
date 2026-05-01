@@ -1,3 +1,4 @@
+import importlib
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
@@ -336,6 +337,59 @@ def update_datatype(datatype_id):
         if request.headers.get('HX-Request'):
             return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not update DataType")
+    return redirect(url_for('main.list_settings'))
+
+
+@main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
+def rematch_datatype(datatype_id):
+    """Re-run target matching for all unmatched Data files of a DataType."""
+    dt = models.DataType.query.get_or_404(datatype_id)
+
+    if not dt.parse_function:
+        flash(f'DataType "{dt.name}" has no parse_function configured.', 'warning')
+        return redirect(url_for('main.list_settings'))
+
+    try:
+        module_name, func_name = dt.parse_function.rsplit('.', 1)
+        module = importlib.import_module(module_name)
+        parser = getattr(module, func_name)
+    except Exception as e:
+        flash(f'Could not load parse_function for "{dt.name}": {e}', 'danger')
+        return redirect(url_for('main.list_settings'))
+
+    data_class = models.DATA_SUBCLASSES.get(dt.target_type)
+    if data_class is None:
+        flash(f'Unknown target_type: {dt.target_type}', 'danger')
+        return redirect(url_for('main.list_settings'))
+
+    if dt.target_type == 'animal_event':
+        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.events.any()).all()
+    elif dt.target_type == 'confocal_image':
+        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.confocal_images.any()).all()
+    else:
+        unmatched = []
+
+    matched_count = 0
+    for data_file in unmatched:
+        try:
+            parsed = parser(data_file.relative_path, data_file.location)
+        except Exception:
+            continue
+        if not parsed:
+            continue
+        targets = dt.match_targets(parsed)
+        if targets:
+            if dt.target_type == 'animal_event':
+                data_file.events = list(targets)
+            elif dt.target_type == 'confocal_image':
+                data_file.confocal_images = list(targets)
+            matched_count += 1
+
+    db.session.commit()
+    flash(
+        f'Rematch complete for "{dt.name}": {matched_count} of {len(unmatched)} files matched.',
+        'success' if matched_count > 0 else 'info',
+    )
     return redirect(url_for('main.list_settings'))
 
 

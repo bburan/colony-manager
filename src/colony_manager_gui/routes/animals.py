@@ -507,9 +507,42 @@ def reassign_data(animal_id, data_id):
 @animals_bp.route('/unmatched-data')
 def list_unmatched_data():
     """Files where the sync script could not link to any target."""
-    event_files = AnimalEventData.query.filter(~AnimalEventData.events.any()).all()
-    image_files = ConfocalImageData.query.filter(~ConfocalImageData.confocal_images.any()).all()
-    return render_template('unmatched_data.html', files=event_files + image_files)
+    from colony_manager.models import DataType, DATA_SUBCLASSES
+    from sqlalchemy import union_all
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    target_type_filter = request.args.get('target_type', 'all')
+    datatype_id_filter = request.args.get('datatype_id', None, type=int)
+
+    if target_type_filter == 'animal_event':
+        query = AnimalEventData.query.filter(~AnimalEventData.events.any())
+    elif target_type_filter == 'confocal_image':
+        query = ConfocalImageData.query.filter(~ConfocalImageData.confocal_images.any())
+    else:
+        unmatched_ae_ids = db.session.query(AnimalEventData.id).filter(~AnimalEventData.events.any())
+        unmatched_ci_ids = db.session.query(ConfocalImageData.id).filter(~ConfocalImageData.confocal_images.any())
+        combined = union_all(unmatched_ae_ids, unmatched_ci_ids).subquery()
+        query = Data.query.filter(Data.id.in_(combined))
+
+    if datatype_id_filter:
+        query = query.filter(Data.datatype_id == datatype_id_filter)
+
+    query = query.order_by(Data.date.desc(), Data.name)
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    datatypes = DataType.query.order_by(DataType.name).all()
+    return render_template(
+        'unmatched_data.html',
+        files=pagination.items,
+        pagination=pagination,
+        filters={
+            'target_type': target_type_filter,
+            'datatype_id': datatype_id_filter,
+            'per_page': per_page,
+        },
+        datatypes=datatypes,
+    )
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):

@@ -258,10 +258,10 @@ class ConfocalImageDataType(DataType):
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
-        side = parsed.get('side')
+        ear = parsed.get('ear')
         frequency = parsed.get('frequency')
         image_type_name = parsed.get('image_type')
-        if not (animal_ids and side and frequency is not None and image_type_name):
+        if not (animal_ids and ear and frequency is not None and image_type_name):
             return []
         image_type = ConfocalImageType.query.filter_by(name=image_type_name).first()
         if not image_type:
@@ -273,7 +273,7 @@ class ConfocalImageDataType(DataType):
                 continue
             image = ConfocalImage.query.join(Ear).filter(
                 Ear.animal_id == animal.id,
-                Ear.side == side,
+                Ear.side == ear,
                 ConfocalImage.frequency == float(frequency),
                 ConfocalImage.image_type_id == image_type.id,
             ).first()

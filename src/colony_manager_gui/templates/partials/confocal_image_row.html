@@ -31,36 +31,42 @@
                :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
     </td>
     <td class="text-end">
-        <div class="d-flex flex-column align-items-end gap-1">
+        <div class="d-flex justify-content-end align-items-center gap-1">
+            <button class="btn btn-sm save-btn text-muted"
+                    x-ref="saveBtn"
+                    :class="{ 'is-dirty': isDirty }"
+                    :disabled="!isDirty"
+                    hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
+                    hx-include="#confocal-image-{{ img.id }} input, #confocal-image-{{ img.id }} select"
+                    hx-swap="none"
+                    @click="isDirty = false"
+                    @htmx:before-request="isSaving = true; success = false; error = false"
+                    @htmx:after-request="isSaving = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 2000) } else { error = true }">
+                <i class="fas" :class="isSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+            </button>
+            <button class="btn btn-sm text-danger"
+                    hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
+                    hx-target="#confocal-image-{{ img.id }}, #confocal-image-{{ img.id }}-files"
+                    hx-swap="outerHTML swap:300ms"
+                    hx-confirm="Delete image record?">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </td>
+</tr>
+<tr id="confocal-image-{{ img.id }}-files" class="table-light border-0">
+    <td colspan="5" class="pt-0 pb-2 border-0">
+        {% if img.data_files %}
+        <div class="d-flex flex-wrap gap-2 ps-2">
             {% for f in img.data_files %}
-            <div class="d-flex align-items-center gap-1">
-                <span class="text-muted small text-truncate" style="max-width: 200px" title="{{ f.relative_path }}">{{ f.name }}</span>
+            <div class="d-flex align-items-center gap-1 border rounded px-2 py-1 bg-white">
+                <span class="text-muted small" title="{{ f.relative_path }}">{{ f.name }}</span>
                 {{ macros.render_callback_buttons(f, size='sm') }}
             </div>
-            {% else %}
-            <span class="text-muted small fst-italic">No files</span>
             {% endfor %}
-            <div class="d-flex align-items-center gap-1 mt-1">
-                <button class="btn btn-sm save-btn text-muted"
-                        x-ref="saveBtn"
-                        :class="{ 'is-dirty': isDirty }"
-                        :disabled="!isDirty"
-                        hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
-                        hx-include="#confocal-image-{{ img.id }} input, #confocal-image-{{ img.id }} select"
-                        hx-swap="none"
-                        @click="isDirty = false"
-                        @htmx:before-request="isSaving = true; success = false; error = false"
-                        @htmx:after-request="isSaving = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 2000) } else { error = true }">
-                    <i class="fas" :class="isSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-                </button>
-                <button class="btn btn-sm text-danger"
-                        hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
-                        hx-target="#confocal-image-{{ img.id }}"
-                        hx-swap="outerHTML swap:300ms"
-                        hx-confirm="Delete image record?">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
         </div>
+        {% else %}
+        <span class="text-muted small fst-italic ps-2">No files matched</span>
+        {% endif %}
     </td>
 </tr>

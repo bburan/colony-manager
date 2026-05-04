@@ -659,9 +659,11 @@ def view_data_image(data_id, callback_id):
         return msg, status
     data_file, generator = pair
     try:
-        image_path = generator(data_file)
-        if not image_path or not os.path.exists(image_path):
-            return f"Image not found: {image_path}", 404
-        return send_file(image_path, mimetype='image/jpeg')
+        result = generator(data_file)
+        if hasattr(result, 'read'):
+            return send_file(result, mimetype='image/jpeg')
+        if not result or not os.path.exists(result):
+            return f"Image not found: {result}", 404
+        return send_file(result, mimetype='image/jpeg')
     except Exception as e:
         return f"Error loading image: {str(e)}", 500

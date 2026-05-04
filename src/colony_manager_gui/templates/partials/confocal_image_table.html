@@ -1,18 +1,22 @@
 <div id="confocal-image-table-container">
-    <table class="table table-striped">
+    <table class="table table-sm align-middle mb-0">
         <thead>
-            <tr>
-                <th>Type</th>
-                <th>kHz</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th class="text-end">Action</th>
+            <tr class="text-muted small text-uppercase">
+                <th style="width: 5rem;">kHz</th>
+                <th style="width: 11rem;">Status</th>
+                <th>Files</th>
+                <th style="width: 22%;">Notes</th>
+                <th class="text-end" style="width: 5rem;">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for group in ear.confocal_images|groupby('image_type.name') %}
+                <tr class="table-light">
+                    <td colspan="5" class="fw-semibold small text-uppercase text-muted py-1">
+                        {{ group.grouper }}
+                    </td>
+                </tr>
                 {% for img in group.list|sort(attribute='frequency') %}
-                    {% set show_type = loop.first %}
                     {% include 'partials/confocal_image_row.html' %}
                 {% endfor %}
             {% else %}

@@ -1,26 +1,42 @@
 {% set image_options = {
-    'pending': 'Pending',
-    'imaged': 'Imaged',
-    'analyzed': 'Analyzed',
-    'region_missing': 'Region Missing',
-    'region_bad': 'Poor histology',
-    'need_review': 'Needs review',
+    'pending': ('Pending', 'secondary'),
+    'imaged': ('Imaged', 'info'),
+    'analyzed': ('Analyzed', 'success'),
+    'region_missing': ('Region Missing', 'warning'),
+    'region_bad': ('Poor histology', 'warning'),
+    'need_review': ('Needs review', 'warning'),
     }
 %}
 {% import 'macros.html' as macros %}
 <tr id="confocal-image-{{ img.id }}"
     x-data="{ isSaving: false, success: false, error: false, isDirty: false }"
     @keydown.enter="if(isDirty) $refs.saveBtn.click()">
-    <td>{{ img.image_type.name if show_type else "" }}</td>
-    <td>{{ img.frequency }}</td>
+    <td class="fw-semibold">{{ img.frequency }}</td>
     <td>
-        <select name="status" autocomplete="off" class="form-select form-select-sm border-0 bg-light"
+        <select name="status" autocomplete="off"
+                class="form-select form-select-sm border-start border-4 border-{{ image_options[img.status][1] }}"
                 @change="isDirty = true"
                 :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
-            {% for value, label in image_options.items() %}
+            {% for value, (label, _color) in image_options.items() %}
                 <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
         </select>
+    </td>
+    <td>
+        {% if img.data_files %}
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            {% for f in img.data_files %}
+            <span class="d-inline-flex align-items-center gap-1 badge bg-light text-dark border fw-normal"
+                  data-bs-toggle="tooltip" title="{{ f.relative_path }}">
+                <i class="fas fa-file-alt text-muted"></i>
+                <span>{{ f.datatype.name }}</span>
+                {{ macros.render_callback_buttons(f, size='sm') }}
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <span class="text-muted small fst-italic">No files matched</span>
+        {% endif %}
     </td>
     <td>
         <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
@@ -46,28 +62,11 @@
             </button>
             <button class="btn btn-sm text-danger"
                     hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
-                    hx-target="#confocal-image-{{ img.id }}, #confocal-image-{{ img.id }}-files"
+                    hx-target="#confocal-image-{{ img.id }}"
                     hx-swap="outerHTML swap:300ms"
                     hx-confirm="Delete image record?">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
-    </td>
-</tr>
-<tr id="confocal-image-{{ img.id }}-files">
-    <td colspan="2" class="pt-0 pb-2 border-0"></td>
-    <td colspan="3" class="pt-0 pb-2 border-0">
-        {% if img.data_files %}
-        <div class="d-flex flex-wrap gap-2">
-            {% for f in img.data_files %}
-            <div class="d-flex align-items-center gap-1 border rounded px-2 py-1 bg-white">
-                <span class="text-muted small" title="{{ f.relative_path }}">{{ f.name }}</span>
-                {{ macros.render_callback_buttons(f, size='sm') }}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <span class="text-muted small fst-italic">No files matched</span>
-        {% endif %}
     </td>
 </tr>

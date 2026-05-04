@@ -54,10 +54,11 @@
         </div>
     </td>
 </tr>
-<tr id="confocal-image-{{ img.id }}-files" class="table-light border-0">
-    <td colspan="5" class="pt-0 pb-2 border-0">
+<tr id="confocal-image-{{ img.id }}-files">
+    <td colspan="2" class="pt-0 pb-2 border-0"></td>
+    <td colspan="3" class="pt-0 pb-2 border-0">
         {% if img.data_files %}
-        <div class="d-flex flex-wrap gap-2 ps-2">
+        <div class="d-flex flex-wrap gap-2">
             {% for f in img.data_files %}
             <div class="d-flex align-items-center gap-1 border rounded px-2 py-1 bg-white">
                 <span class="text-muted small" title="{{ f.relative_path }}">{{ f.name }}</span>
@@ -66,7 +67,7 @@
             {% endfor %}
         </div>
         {% else %}
-        <span class="text-muted small fst-italic ps-2">No files matched</span>
+        <span class="text-muted small fst-italic">No files matched</span>
         {% endif %}
     </td>
 </tr>

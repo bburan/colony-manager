@@ -1,4 +1,5 @@
 import importlib
+import os
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
@@ -14,6 +15,7 @@ from ..forms import (
     DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
 )
 from .util import flash_form_errors, render_error_alert
+from colony_manager.datatypes import load_description_class
 
 main_bp = Blueprint('main', __name__)
 
@@ -222,7 +224,7 @@ def set_species(species_id):
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
 def _save_datatype_children(dt):
-    """Persist DataLocation rows and DataTypeCallback rows from request.form."""
+    """Persist DataLocation rows from request.form."""
     location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
     for loc in dt.locations.all():
         if loc.base_path not in location_paths:
@@ -231,20 +233,6 @@ def _save_datatype_children(dt):
     for path in location_paths:
         if path not in existing_paths:
             db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
-
-    for cb in dt.callbacks.all():
-        db.session.delete(cb)
-    names = request.form.getlist('callback_name')
-    funcs = request.form.getlist('callback_function')
-    types = request.form.getlist('callback_type')
-    for n, f, t in zip(names, funcs, types):
-        if n.strip() and f.strip():
-            db.session.add(models.DataTypeCallback(
-                datatype_id=dt.id,
-                name=n.strip(),
-                callback_function=f.strip(),
-                callback_type=t,
-            ))
 
 
 @main_bp.route('/settings/datatype/create_modal')
@@ -345,16 +333,14 @@ def rematch_datatype(datatype_id):
     """Re-run target matching for all unmatched Data files of a DataType."""
     dt = models.DataType.query.get_or_404(datatype_id)
 
-    if not dt.parse_function:
-        flash(f'DataType "{dt.name}" has no parse_function configured.', 'warning')
+    if not dt.description_class:
+        flash(f'DataType "{dt.name}" has no description_class configured.', 'warning')
         return redirect(url_for('main.list_settings'))
 
     try:
-        module_name, func_name = dt.parse_function.rsplit('.', 1)
-        module = importlib.import_module(module_name)
-        parser = getattr(module, func_name)
+        desc_cls = load_description_class(dt.description_class)
     except Exception as e:
-        flash(f'Could not load parse_function for "{dt.name}": {e}', 'danger')
+        flash(f'Could not load description_class for "{dt.name}": {e}', 'danger')
         return redirect(url_for('main.list_settings'))
 
     data_class = models.DATA_SUBCLASSES.get(dt.target_type)
@@ -375,8 +361,10 @@ def rematch_datatype(datatype_id):
 
     matched_count = 0
     for data_file in unmatched:
+        full_path = os.path.join(data_file.location.base_path, data_file.relative_path)
         try:
-            parsed = parser(data_file.relative_path, data_file.location)
+            desc = desc_cls(full_path)
+            parsed = desc.parse()
         except Exception:
             continue
         if not parsed:

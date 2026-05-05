@@ -69,7 +69,7 @@ class DataTypeForm(FlaskForm):
     """Base fields shared by every DataType subclass."""
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Description', validators=[Optional()])
-    parse_function = StringField('Parse Function', validators=[Optional()])
+    description_class = StringField('Description Class', validators=[Optional()])
     is_folder = BooleanField('Is Folder?')
 
 

@@ -35,24 +35,28 @@
 {% endmacro %}
 
 {% macro render_callback_buttons(data_file, size='sm') %}
-    {% for cb in data_file.datatype.callbacks %}
-        {% if cb.callback_type == 'plot' %}
-        <button type="button" class="btn btn-{{ size }} data-bs-toggle="tooltip"
-            title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
+    {% if data_file.datatype.description_class %}
+    {% set callbacks = data_file.datatype.get_description_callbacks() %}
+    {% for cb_name, cb_info in callbacks.items() %}
+        {% if cb_info.type == 'plot' %}
+        <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
+            title="{{ cb_name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
             <i class="fas fa-chart-line"></i>
         </button>
-        {% elif cb.callback_type == 'pdf' %}
-        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-{{ size }} data-bs-toggle="tooltip" title="{{ cb.name }}">
+        {% elif cb_info.type == 'pdf' %}
+        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_name=cb_name) }}" target="_blank" class="btn btn-{{ size }}" data-bs-toggle="tooltip" title="{{ cb_name }}">
             <i class="fas fa-file-pdf"></i>
         </a>
-        {% elif cb.callback_type == 'image' %}
+        {% elif cb_info.type == 'image' %}
         <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
-            title="{{ cb.name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
+            title="{{ cb_name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
             <i class="fas fa-image"></i>
         </button>
         {% endif %}
     {% endfor %}
+    {% endif %}
 {% endmacro %}
+
 
 {% macro render_data_files(animal, files) %}
 	<ul class="list-group list-group-flush">

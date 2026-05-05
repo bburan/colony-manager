@@ -194,10 +194,9 @@ class DataType(VersionedModel):
     description = Column(Text, nullable=True)
     target_type = Column(String(50), nullable=False)
     is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
-    parse_function = Column(String(200), nullable=True)
+    description_class = Column(String(200), nullable=True)
 
     locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
-    callbacks = relationship('DataTypeCallback', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
     data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
 
     __mapper_args__ = {
@@ -206,6 +205,24 @@ class DataType(VersionedModel):
     }
 
     TARGET_LABEL = 'Generic'
+
+    def get_description_callbacks(self):
+        """Introspect callbacks from the associated DataTypeDescription class.
+
+        Returns
+        -------
+        dict
+            ``{friendly_name: {'type': str, 'method_name': str}}``, or
+            an empty dict if no description class is configured.
+        """
+        if not self.description_class:
+            return {}
+        from colony_manager.datatypes import load_description_class
+        try:
+            cls = load_description_class(self.description_class)
+            return cls.get_callbacks()
+        except Exception:
+            return {}
 
     def match_targets(self, parsed):
         """Resolve a parsed metadata dict to a list of target model instances.
@@ -352,12 +369,6 @@ DATATYPE_SUBCLASSES = {
 }
 
 
-class DataTypeCallback(VersionedModel):
-    id = Column(Integer, primary_key=True)
-    datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
-    name = Column(String(150), nullable=False)
-    callback_function = Column(String(200), nullable=False)
-    callback_type = Column(String(20), nullable=False)  # 'plot', 'pdf', or 'image'
 
 
 class DataLocation(VersionedModel):
@@ -376,6 +387,7 @@ class Data(VersionedModel):
     location_id = Column(Integer, ForeignKey('data_location.id'), nullable=False)
     target_type = Column(String(50), nullable=False)
     relative_path = Column(String(1024), nullable=False)
+    file_hash = Column(String(64), nullable=True)
     name = Column(String(255), nullable=False)
     date = Column(Date, nullable=True)
     status = Column(String(50), nullable=False, default='unreviewed')

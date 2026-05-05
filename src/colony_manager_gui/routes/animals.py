@@ -635,32 +635,43 @@ def auto_create_event(animal_id, data_id):
     flash(f'Event created and {linked_count} file(s) linked.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
-def _resolve_callback(data_id, callback_id):
-    """Look up a Data row + DataTypeCallback, returning (data_file, fn) or (response, status)."""
-    import importlib
+def _resolve_callback(data_id, callback_name):
+    """Look up a Data row + DataTypeDescription callback.
+
+    Returns ``(description_instance, callback_info)`` on success, or
+    ``(None, (error_message, status_code))`` on failure.
+    """
+    import os
+    from colony_manager.datatypes import load_description_class
+
     data_file = Data.query.get_or_404(data_id)
-    callback = models.DataTypeCallback.query.get_or_404(callback_id)
-    if callback.datatype_id != data_file.datatype_id:
-        return None, ('Callback does not belong to this datatype.', 400)
+    dt = data_file.datatype
+    if not dt.description_class:
+        return None, ('No description class configured for this datatype.', 400)
     try:
-        module_name, func_name = callback.callback_function.rsplit('.', 1)
-        module = importlib.import_module(module_name)
-        fn = getattr(module, func_name)
+        desc_cls = load_description_class(dt.description_class)
     except Exception as e:
-        return None, (f'Failed to import callback function: {e}', 500)
-    return (data_file, fn), None
+        return None, (f'Failed to load description class: {e}', 500)
+
+    callbacks = desc_cls.get_callbacks()
+    if callback_name not in callbacks:
+        return None, (f'Unknown callback: {callback_name}', 404)
+
+    full_path = os.path.join(data_file.location.base_path, data_file.relative_path)
+    desc = desc_cls(full_path)
+    return (desc, callbacks[callback_name]), None
 
 
-@animals_bp.route('/data/<int:data_id>/plot/<int:callback_id>')
-def plot_data(data_id, callback_id):
+@animals_bp.route('/data/<int:data_id>/plot/<path:callback_name>')
+def plot_data(data_id, callback_name):
     """Invoke a plot callback and return JSON (Plotly figure or arbitrary dict)."""
-    pair, err = _resolve_callback(data_id, callback_id)
+    pair, err = _resolve_callback(data_id, callback_name)
     if err:
         msg, status = err
         return jsonify({'error': msg}), status
-    data_file, loader = pair
+    desc, cb_info = pair
     try:
-        result = loader(data_file)
+        result = desc.invoke_callback(callback_name)
         if hasattr(result, 'to_json'):
             return Response(result.to_json(), mimetype='application/json')
         return jsonify(result)
@@ -668,17 +679,17 @@ def plot_data(data_id, callback_id):
         return jsonify({'error': f'Error loading plot data: {str(e)}'}), 500
 
 
-@animals_bp.route('/data/<int:data_id>/pdf/<int:callback_id>')
-def view_data_pdf(data_id, callback_id):
+@animals_bp.route('/data/<int:data_id>/pdf/<path:callback_name>')
+def view_data_pdf(data_id, callback_name):
     """Invoke a PDF callback and stream the resulting file."""
     import os
-    pair, err = _resolve_callback(data_id, callback_id)
+    pair, err = _resolve_callback(data_id, callback_name)
     if err:
         msg, status = err
         return msg, status
-    data_file, generator = pair
+    desc, cb_info = pair
     try:
-        pdf_path = generator(data_file)
+        pdf_path = desc.invoke_callback(callback_name)
         if not pdf_path or not os.path.exists(pdf_path):
             return f"PDF file not generated or not found: {pdf_path}", 404
         return send_file(pdf_path, mimetype='application/pdf')
@@ -686,17 +697,17 @@ def view_data_pdf(data_id, callback_id):
         return f"Error generating PDF: {str(e)}", 500
 
 
-@animals_bp.route('/data/<int:data_id>/image/<int:callback_id>')
-def view_data_image(data_id, callback_id):
+@animals_bp.route('/data/<int:data_id>/image/<path:callback_name>')
+def view_data_image(data_id, callback_name):
     """Invoke an image callback and stream the resulting JPG."""
     import os
-    pair, err = _resolve_callback(data_id, callback_id)
+    pair, err = _resolve_callback(data_id, callback_name)
     if err:
         msg, status = err
         return msg, status
-    data_file, generator = pair
+    desc, cb_info = pair
     try:
-        result = generator(data_file)
+        result = desc.invoke_callback(callback_name)
         if hasattr(result, 'read'):
             return send_file(result, mimetype='image/jpeg')
         if not result or not os.path.exists(result):

@@ -4,9 +4,6 @@ import os
 import sys
 from sqlalchemy.orm import joinedload
 
-# Add src directories to sys.path so we can import the app
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-
 from colony_manager_gui import create_app
 from colony_manager_gui import db
 from colony_manager.models import (

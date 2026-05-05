@@ -125,6 +125,10 @@ def sync_locations(dry_run=False):
                     new_data.events = list(targets)
                 elif datatype.target_type == 'confocal_image':
                     new_data.confocal_images = list(targets)
+                elif datatype.target_type == 'animal':
+                    new_data.animals = list(targets)
+                elif datatype.target_type == 'ear':
+                    new_data.ears = list(targets)
                 new_data.candidate_animals = candidate_animals
                 db.session.add(new_data)
                 added_count += 1

@@ -10,6 +10,10 @@ Two flavors:
     - animal_event:    {'animal_id': 'A001' | ['A001', 'A002'], 'date': date}
     - confocal_image:  {'animal_id': ..., 'side': 'L'|'R', 'frequency': 8.0,
                         'image_type': 'CtBP2', 'date': date (optional)}
+    - animal:          {'animal_id': 'A001' | ['A001', 'A002'],
+                        'date': date (optional)}
+    - ear:             {'animal_id': ..., 'side': 'Left'|'Right',
+                        'date': date (optional)}
 
 * **Display callbacks** — invoked by the UI to render plots, PDFs, or images
   for a Data row. Take a ``Data`` instance and return a Plotly figure (plot),
@@ -84,6 +88,68 @@ def parse_confocal_image_filename(relative_path, location):
         'frequency': frequency,
         'image_type': image_type,
     }
+
+
+def parse_animal_image_filename(relative_path, location):
+    """Default parser for animal-attached image files.
+
+    Pulls every animal ID it can find in the basename so a single image can be
+    associated with multiple animals (e.g., a litter portrait). Animal IDs may
+    be separated by ``,``, ``+``, ``&`` or ``|``. An optional date substring
+    is parsed if present.
+    """
+    name = os.path.basename(relative_path)
+    stem, _ = os.path.splitext(name)
+
+    animal_match = re.search(r'([A-Za-z]+\d+(?:[,+&|][A-Za-z]+\d+)*)', stem)
+    if not animal_match:
+        return None
+    animal_ids = [a.strip() for a in re.split(r'[,+&|]', animal_match.group(1)) if a.strip()]
+    if not animal_ids:
+        return None
+
+    parsed_date = None
+    date_match = re.search(r'(\d{4}[-_]?\d{2}[-_]?\d{2})', stem)
+    if date_match:
+        parsed_date = _parse_date(date_match.group(1))
+
+    return {'animal_id': animal_ids, 'date': parsed_date}
+
+
+def parse_ear_image_filename(relative_path, location):
+    """Default parser for ear-attached image files.
+
+    Expects the side as a standalone ``L``/``R``/``Left``/``Right`` token in
+    the basename, plus one or more animal IDs. Files are attached to one ear
+    per matched animal.
+    """
+    name = os.path.basename(relative_path)
+    stem, _ = os.path.splitext(name)
+
+    animal_match = re.search(r'([A-Za-z]+\d+(?:[,+&|][A-Za-z]+\d+)*)', stem)
+    if not animal_match:
+        return None
+    animal_ids = [a.strip() for a in re.split(r'[,+&|]', animal_match.group(1)) if a.strip()]
+    if not animal_ids:
+        return None
+
+    side = None
+    for token in re.split(r'[_\-\s]+', stem):
+        if token in ('L', 'Left'):
+            side = 'Left'
+            break
+        if token in ('R', 'Right'):
+            side = 'Right'
+            break
+    if side is None:
+        return None
+
+    parsed_date = None
+    date_match = re.search(r'(\d{4}[-_]?\d{2}[-_]?\d{2})', stem)
+    if date_match:
+        parsed_date = _parse_date(date_match.group(1))
+
+    return {'animal_id': animal_ids, 'side': side, 'date': parsed_date}
 
 
 # --- Display callbacks --------------------------------------------------------

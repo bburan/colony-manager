@@ -366,6 +366,10 @@ def rematch_datatype(datatype_id):
         unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.events.any()).all()
     elif dt.target_type == 'confocal_image':
         unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.confocal_images.any()).all()
+    elif dt.target_type == 'animal':
+        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.animals.any()).all()
+    elif dt.target_type == 'ear':
+        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.ears.any()).all()
     else:
         unmatched = []
 
@@ -383,6 +387,10 @@ def rematch_datatype(datatype_id):
                 data_file.events = list(targets)
             elif dt.target_type == 'confocal_image':
                 data_file.confocal_images = list(targets)
+            elif dt.target_type == 'animal':
+                data_file.animals = list(targets)
+            elif dt.target_type == 'ear':
+                data_file.ears = list(targets)
             matched_count += 1
 
     db.session.commit()

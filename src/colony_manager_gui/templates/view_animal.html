@@ -56,6 +56,31 @@
 
     <div class="col-8">
         <div class="accordion" id="animalDetailAccordion">
+            {# --- Files Accordion Item --- #}
+            <div class="accordion-item shadow-sm mb-3">
+                <h2 class="accordion-header" id="headingFiles">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#collapseFiles"
+                            aria-expanded="false"
+                            aria-controls="collapseFiles">
+                        <i class="fas fa-images me-2"></i> Files
+                        {% set animal_file_count = animal.data_files.count() %}
+                        {% if animal_file_count %}
+                        <span class="badge bg-secondary ms-2">{{ animal_file_count }}</span>
+                        {% endif %}
+                    </button>
+                </h2>
+                <div id="collapseFiles" class="accordion-collapse collapse"
+                     aria-labelledby="headingFiles">
+                    <div class="accordion-body">
+                        {% with files=animal.data_files|sort(attribute='name'), animal=animal %}
+                            {% include 'partials/entity_data_files.html' %}
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+
             {# --- Events Accordion Item --- #}
             <div class="accordion-item shadow-sm mb-3">
                 <h2 class="accordion-header" id="headingEvents">

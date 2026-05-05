@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog,
     WeightLog, Data, DataType, AnimalEventData, ConfocalImageData,
+    AnimalData, EarData,
 )
 
 from .. import db
@@ -519,10 +520,16 @@ def list_unmatched_data():
         query = AnimalEventData.query.filter(~AnimalEventData.events.any())
     elif target_type_filter == 'confocal_image':
         query = ConfocalImageData.query.filter(~ConfocalImageData.confocal_images.any())
+    elif target_type_filter == 'animal':
+        query = AnimalData.query.filter(~AnimalData.animals.any())
+    elif target_type_filter == 'ear':
+        query = EarData.query.filter(~EarData.ears.any())
     else:
         unmatched_ae_ids = db.session.query(AnimalEventData.id).filter(~AnimalEventData.events.any())
         unmatched_ci_ids = db.session.query(ConfocalImageData.id).filter(~ConfocalImageData.confocal_images.any())
-        combined = union_all(unmatched_ae_ids, unmatched_ci_ids).subquery()
+        unmatched_a_ids = db.session.query(AnimalData.id).filter(~AnimalData.animals.any())
+        unmatched_e_ids = db.session.query(EarData.id).filter(~EarData.ears.any())
+        combined = union_all(unmatched_ae_ids, unmatched_ci_ids, unmatched_a_ids, unmatched_e_ids).subquery()
         query = Data.query.filter(Data.id.in_(combined))
 
     if datatype_id_filter:

@@ -28,6 +28,7 @@ gui = [
 	"python-dotenv>=0.19",
 	"WTForms[email]>=3.0",
 	"wtforms-sqlalchemy",
+	"Pillow>=10.0",
 ]
 
 [build-system]

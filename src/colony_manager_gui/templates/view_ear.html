@@ -28,12 +28,27 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase mb-0">Files</h2>
+            </div>
+            <div class="card-body">
+                {% with files=ear.data_files|sort(attribute='name'), animal=ear.animal %}
+                    {% include 'partials/entity_data_files.html' %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase mb-0">Images</h2>
-                <button 
+                <button
                     hx-get="{{ url_for('histology.create_confocal_images_modal', ear_id=ear.id) }}"
                     hx-target="#modalBody"
                     title="Add images"

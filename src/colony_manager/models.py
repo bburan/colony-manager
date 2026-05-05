@@ -58,6 +58,16 @@ confocal_image_data_targets = Table('confocal_image_data_targets', Base.metadata
     Column('confocal_image_id', Integer, ForeignKey('confocal_image.id'), primary_key=True)
 )
 
+animal_data_targets = Table('animal_data_targets', Base.metadata,
+    Column('animal_data_id', Integer, ForeignKey('animal_data.id'), primary_key=True),
+    Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True)
+)
+
+ear_data_targets = Table('ear_data_targets', Base.metadata,
+    Column('ear_data_id', Integer, ForeignKey('ear_data.id'), primary_key=True),
+    Column('ear_id', Integer, ForeignKey('ear.id'), primary_key=True)
+)
+
 
 class VersionedModel(Base):
     """Base model that automatically adds created and updated timestamps."""
@@ -282,9 +292,59 @@ class ConfocalImageDataType(DataType):
         return images
 
 
+class AnimalDataType(DataType):
+    __tablename__ = 'animal_data_type'
+
+    id = Column(Integer, ForeignKey('data_type.id'), primary_key=True)
+
+    __mapper_args__ = {'polymorphic_identity': 'animal'}
+
+    TARGET_LABEL = 'Animal'
+
+    def match_targets(self, parsed):
+        animal_ids = parsed.get('animal_id') or []
+        if isinstance(animal_ids, str):
+            animal_ids = [animal_ids]
+        animals = []
+        for aid in animal_ids:
+            animal = Animal.query.filter_by(custom_id=aid).first()
+            if animal:
+                animals.append(animal)
+        return animals
+
+
+class EarDataType(DataType):
+    __tablename__ = 'ear_data_type'
+
+    id = Column(Integer, ForeignKey('data_type.id'), primary_key=True)
+
+    __mapper_args__ = {'polymorphic_identity': 'ear'}
+
+    TARGET_LABEL = 'Ear'
+
+    def match_targets(self, parsed):
+        animal_ids = parsed.get('animal_id') or []
+        if isinstance(animal_ids, str):
+            animal_ids = [animal_ids]
+        side = parsed.get('side')
+        if not animal_ids or side not in ('Left', 'Right'):
+            return []
+        ears = []
+        for aid in animal_ids:
+            animal = Animal.query.filter_by(custom_id=aid).first()
+            if not animal:
+                continue
+            ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
+            if ear:
+                ears.append(ear)
+        return ears
+
+
 DATATYPE_SUBCLASSES = {
     'animal_event': AnimalEventDataType,
     'confocal_image': ConfocalImageDataType,
+    'animal': AnimalDataType,
+    'ear': EarDataType,
 }
 
 
@@ -376,9 +436,45 @@ class ConfocalImageData(Data):
         return list(self.confocal_images)
 
 
+class AnimalData(Data):
+    __tablename__ = 'animal_data'
+
+    id = Column(Integer, ForeignKey('data.id'), primary_key=True)
+    animals = relationship(
+        'Animal',
+        secondary=animal_data_targets,
+        backref=backref('data_files', lazy='dynamic'),
+    )
+
+    __mapper_args__ = {'polymorphic_identity': 'animal'}
+
+    @property
+    def targets(self):
+        return list(self.animals)
+
+
+class EarData(Data):
+    __tablename__ = 'ear_data'
+
+    id = Column(Integer, ForeignKey('data.id'), primary_key=True)
+    ears = relationship(
+        'Ear',
+        secondary=ear_data_targets,
+        backref=backref('data_files', lazy='dynamic'),
+    )
+
+    __mapper_args__ = {'polymorphic_identity': 'ear'}
+
+    @property
+    def targets(self):
+        return list(self.ears)
+
+
 DATA_SUBCLASSES = {
     'animal_event': AnimalEventData,
     'confocal_image': ConfocalImageData,
+    'animal': AnimalData,
+    'ear': EarData,
 }
 
 

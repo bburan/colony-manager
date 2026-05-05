@@ -88,14 +88,26 @@ class ConfocalImageDataTypeForm(DataTypeForm):
     pass
 
 
+class AnimalDataTypeForm(DataTypeForm):
+    pass
+
+
+class EarDataTypeForm(DataTypeForm):
+    pass
+
+
 DATATYPE_FORMS = {
     'animal_event': AnimalEventDataTypeForm,
     'confocal_image': ConfocalImageDataTypeForm,
+    'animal': AnimalDataTypeForm,
+    'ear': EarDataTypeForm,
 }
 
 DATATYPE_TARGET_LABELS = [
     ('animal_event', 'Animal Event'),
     ('confocal_image', 'Confocal Image'),
+    ('animal', 'Animal'),
+    ('ear', 'Ear'),
 ]
 
 

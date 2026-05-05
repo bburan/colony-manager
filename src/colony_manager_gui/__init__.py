@@ -1,5 +1,6 @@
 import os
 import datetime
+import tempfile
 from flask import Flask, session
 from flask_login import LoginManager
 from sqlalchemy import MetaData
@@ -27,6 +28,11 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-is-long-and-secure')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['THUMBNAIL_CACHE_DIR'] = os.environ.get(
+        'THUMBNAIL_CACHE_DIR',
+        os.path.join(tempfile.gettempdir(), 'colony_manager_thumbnails'),
+    )
+    app.config['THUMBNAIL_MAX_SIZE'] = int(os.environ.get('THUMBNAIL_MAX_SIZE', '300'))
 
     # Register Blueprints
     from colony_manager_gui.routes.main import main_bp
@@ -36,6 +42,7 @@ def create_app():
     from colony_manager_gui.routes.breeding import breeding_bp
     from colony_manager_gui.routes.histology import histology_bp
     from colony_manager_gui.routes.studies import studies_bp
+    from colony_manager_gui.routes.data_files import data_files_bp
     from colony_manager_gui.routes.util import AppQuery
 
     app.register_blueprint(main_bp)
@@ -45,6 +52,7 @@ def create_app():
     app.register_blueprint(breeding_bp, url_prefix='/breeding')
     app.register_blueprint(histology_bp, url_prefix='/histology')
     app.register_blueprint(studies_bp, url_prefix='/studies')
+    app.register_blueprint(data_files_bp)
 
     db.init_app(app)
     login_manager.init_app(app)

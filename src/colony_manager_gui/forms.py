@@ -15,18 +15,22 @@ from colony_manager.models import (
 )
 
 # --- Query Factories ---
-def species_factory(): return Species.query.order_by('name')
-def source_factory(): return Source.query.order_by('name')
-def study_factory(): return Study.query.order_by('name')
-def cage_factory(): return Cage.query.order_by('custom_id')
-def animal_procedure_factory(): return AnimalProcedure.query.order_by('name')
-def animal_procedure_target_factory(): return AnimalProcedureTarget.query.order_by('name')
-def panel_factory(): return ImmunolabelingPanel.query.order_by('name')
-def termination_reason_factory(): return TerminationReason.query.order_by(TerminationReason.name)
+def order_by(model, attr='name'):
+    return lambda: model.query.order_by(attr)
+
+species_factory = order_by(Species)
+source_factory = order_by(Source)
+study_factory = order_by(Study)
+cage_factory = order_by(Cage, 'custom_id')
+animal_procedure_factory = order_by(AnimalProcedure)
+animal_procedure_target_factory = order_by(AnimalProcedureTarget)
+panel_factory = order_by(ImmunolabelingPanel)
+termination_reason_factory = order_by(TerminationReason)
+confocal_image_type_factory = order_by(ConfocalImageType)
+
 def male_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='male').order_by(Animal.id)
 def female_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='female').order_by(Animal.id)
 def active_animal_factory(): return Animal.query.filter_by(termination_date=None)
-def confocal_image_type_factory(): return ConfocalImageType.query.order_by('name')
 
 # --- Widgets ---
 class ButtonGroupWidget:

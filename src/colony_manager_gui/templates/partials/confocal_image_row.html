@@ -1,72 +1,96 @@
 {% set image_options = {
-    'pending': ('Pending', 'secondary'),
-    'imaged': ('Imaged', 'info'),
-    'analyzed': ('Analyzed', 'success'),
-    'region_missing': ('Region Missing', 'warning'),
-    'region_bad': ('Poor histology', 'warning'),
-    'need_review': ('Needs review', 'warning'),
+    'pending': 'Pending',
+    'imaged': 'Imaged',
+    'analyzed': 'Analyzed',
+    'region_missing': 'Region Missing',
+    'region_bad': 'Poor histology',
+    'need_review': 'Needs review',
     }
 %}
 {% import 'macros.html' as macros %}
-<tr id="confocal-image-{{ img.id }}"
-    x-data="{ isSaving: false, success: false, error: false, isDirty: false }"
-    @keydown.enter="if(isDirty) $refs.saveBtn.click()">
-    <td class="fw-semibold">{{ img.frequency }}</td>
-    <td>
-        <select name="status" autocomplete="off"
-                class="form-select form-select-sm border-start border-4 border-{{ image_options[img.status][1] }}"
-                @change="isDirty = true"
-                :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
-            {% for value, (label, _color) in image_options.items() %}
-                <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
-    </td>
-    <td>
-        {% if img.data_files %}
-        <div class="d-flex flex-wrap align-items-center gap-2">
-            {% for f in img.data_files %}
-            <span class="d-inline-flex align-items-center gap-1 badge bg-light text-dark border fw-normal"
-                  data-bs-toggle="tooltip" title="{{ f.relative_path }}">
-                <i class="fas fa-file-alt text-muted"></i>
-                <span>{{ f.datatype.name }}</span>
-                {{ macros.render_callback_buttons(f, size='sm') }}
-            </span>
-            {% endfor %}
-        </div>
-        {% else %}
-        <span class="text-muted small fst-italic">No files matched</span>
-        {% endif %}
-    </td>
-    <td>
-        <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
-               value="{{ img.notes or '' }}"
-               autocomplete="off"
-               @input="isDirty = true"
-               placeholder="Add observations..."
-               :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
-    </td>
-    <td class="text-end">
-        <div class="d-flex justify-content-end align-items-center gap-1">
-            <button class="btn btn-sm save-btn text-muted"
-                    x-ref="saveBtn"
-                    :class="{ 'is-dirty': isDirty }"
-                    :disabled="!isDirty"
-                    hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
-                    hx-include="#confocal-image-{{ img.id }} input, #confocal-image-{{ img.id }} select"
-                    hx-swap="none"
-                    @click="isDirty = false"
-                    @htmx:before-request="isSaving = true; success = false; error = false"
-                    @htmx:after-request="isSaving = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 2000) } else { error = true }">
-                <i class="fas" :class="isSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+{% set data_files = img.data_files|list %}
+<tbody id="confocal-image-{{ img.id }}"
+       x-data="{ open: false, isSaving: false, success: false, error: false, isDirty: false }"
+       @keydown.enter="if(isDirty) $refs.saveBtn.click()">
+    <tr>
+        <td class="fw-semibold">{{ img.frequency }}</td>
+        <td>
+            <select name="status" autocomplete="off"
+                    class="form-select form-select-sm border-0 bg-light"
+                    @change="isDirty = true"
+                    :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
+                {% for value, label in image_options.items() %}
+                    <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            {% if data_files %}
+            <button type="button"
+                    class="btn btn-sm text-decoration-none text-reset p-0 d-inline-flex align-items-center gap-1"
+                    @click="open = !open" :aria-expanded="open">
+                <i class="fas fa-chevron-right fa-xs text-muted"
+                   :class="{ 'fa-rotate-90': open }"
+                   style="transition: transform 0.15s;"></i>
+                <span class="small">{{ data_files|length }} file{{ '' if data_files|length == 1 else 's' }}</span>
+                {% if data_files|selectattr('notes')|list %}
+                <i class="fas fa-note-sticky fa-xs" title="Has notes"></i>
+                {% endif %}
             </button>
-            <button class="btn btn-sm text-danger"
-                    hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
-                    hx-target="#confocal-image-{{ img.id }}"
-                    hx-swap="outerHTML swap:300ms"
-                    hx-confirm="Delete image record?">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-    </td>
-</tr>
+            {% else %}
+            <span class="text-muted small fst-italic">No files matched</span>
+            {% endif %}
+        </td>
+        <td>
+            <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
+                   value="{{ img.notes or '' }}"
+                   autocomplete="off"
+                   @input="isDirty = true"
+                   placeholder="Add observations..."
+                   :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
+        </td>
+        <td class="text-end">
+            <div class="d-flex justify-content-end align-items-center gap-1">
+                <button class="btn btn-sm save-btn text-muted"
+                        x-ref="saveBtn"
+                        :class="{ 'is-dirty': isDirty }"
+                        :disabled="!isDirty"
+                        hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
+                        hx-include="#confocal-image-{{ img.id }} input, #confocal-image-{{ img.id }} select"
+                        hx-swap="none"
+                        @click="isDirty = false"
+                        @htmx:before-request="isSaving = true; success = false; error = false"
+                        @htmx:after-request="isSaving = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 2000) } else { error = true }">
+                    <i class="fas" :class="isSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                </button>
+                <button class="btn btn-sm"
+                        hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
+                        hx-target="#confocal-image-{{ img.id }}"
+                        hx-swap="outerHTML swap:300ms"
+                        hx-confirm="Delete image record?">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+    {% if data_files %}
+    <tr x-show="open" x-cloak>
+        <td></td>
+        <td colspan="4" class="pt-2 pb-3">
+            <div class="d-flex flex-column gap-3">
+                {% for f in data_files %}
+                <div>
+                    <div class="d-flex gap-1 mb-1">
+                        <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;" title="{{ f.relative_path }}">{{ f.name }}</span>
+                        <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
+                    </div>
+                    {% with data_file=f, animal=ear.animal, show_header=False %}
+                        {% include 'partials/data_file_popup_content.html' %}
+                    {% endwith %}
+                </div>
+                {% endfor %}
+            </div>
+        </td>
+    </tr>
+    {% endif %}
+</tbody>

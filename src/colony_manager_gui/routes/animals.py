@@ -557,6 +557,15 @@ def set_data_status(animal_id, data_id):
 
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
+@animals_bp.route('/data/<int:data_id>/notes', methods=['POST'])
+def update_data_notes(data_id):
+    """Update the notes field on a Data file."""
+    data_file = Data.query.get_or_404(data_id)
+    data_file.notes = request.form.get('notes', '').strip() or None
+    db.session.commit()
+    return '', 204
+
+
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
 def auto_create_event(animal_id, data_id):
     """Auto-create an AnimalEvent for an unassigned AnimalEventData file, then link matching files."""

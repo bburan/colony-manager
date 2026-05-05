@@ -22,13 +22,13 @@
 {% macro render_status_buttons(animal_id, data_file, size='sm') %}
 {% set url = url_for('animals.set_data_status', animal_id=animal_id, data_id=data_file.id) %}
 <span class="data-status-group d-inline-flex align-items-center gap-0" data-status="{{ data_file.status }}">
-    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-success data-status-btn"
+    <button type="button" class="btn btn-{{ size }} p-0 px-1 data-status-btn"
             data-url="{{ url }}" data-set-status="reviewed"
             data-bs-toggle="tooltip" title="Mark reviewed"><i class="fas fa-check fa-xs"></i></button>
-    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-danger data-status-btn"
+    <button type="button" class="btn btn-{{ size }} p-0 px-1 data-status-btn"
             data-url="{{ url }}" data-set-status="exclude"
             data-bs-toggle="tooltip" title="Exclude"><i class="fas fa-ban fa-xs"></i></button>
-    <button type="button" class="btn btn-link btn-{{ size }} p-0 px-1 text-secondary data-status-btn"
+    <button type="button" class="btn btn-{{ size }} p-0 px-1 data-status-btn"
             data-url="{{ url }}" data-set-status="unreviewed"
             data-bs-toggle="tooltip" title="Reset"><i class="fas fa-undo fa-xs"></i></button>
 </span>
@@ -37,16 +37,16 @@
 {% macro render_callback_buttons(data_file, size='sm') %}
     {% for cb in data_file.datatype.callbacks %}
         {% if cb.callback_type == 'plot' %}
-        <button type="button" class="btn btn-{{ size }} btn-outline-primary" data-bs-toggle="tooltip"
+        <button type="button" class="btn btn-{{ size }} data-bs-toggle="tooltip"
             title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
             <i class="fas fa-chart-line"></i>
         </button>
         {% elif cb.callback_type == 'pdf' %}
-        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-{{ size }} btn-outline-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
+        <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_id=cb.id) }}" target="_blank" class="btn btn-{{ size }} data-bs-toggle="tooltip" title="{{ cb.name }}">
             <i class="fas fa-file-pdf"></i>
         </a>
         {% elif cb.callback_type == 'image' %}
-        <button type="button" class="btn btn-{{ size }} btn-outline-success" data-bs-toggle="tooltip"
+        <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
             title="{{ cb.name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_id=cb.id) }}', '{{ data_file.name }}: {{ cb.name }}')">
             <i class="fas fa-image"></i>
         </button>
@@ -57,48 +57,30 @@
 {% macro render_data_files(animal, files) %}
 	<ul class="list-group list-group-flush">
 		{% for data_file in files %}
-		{% set linked_event = data_file.events|selectattr('animal_id', 'equalto', animal.id)|first if data_file.target_type == 'animal_event' else None %}
-		<li
-			class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2 py-2 px-3">
-			<div class="flex-grow-1 d-flex align-items-center gap-1">
-				<i class="fas fa-file-alt fa-xs data-file-icon text-{{ 'success' if data_file.status == 'reviewed' else 'danger' if data_file.status == 'exclude' else 'muted' }}"></i>
-				<span class="badge bg-secondary me-1">{{ data_file.datatype.name }}</span>
-				<span class="small">{{ data_file.name }}</span>
-				{% if data_file.date %}
-				<span class="text-muted small ms-2">{{ data_file.date.strftime('%Y-%m-%d') }}</span>
-				{% endif %}
-			</div>
-			<div class="d-flex align-items-center gap-1 flex-shrink-0">
-				{% if data_file.target_type == 'animal_event' %}
-				<form
-					action="{{ url_for('animals.reassign_data', animal_id=animal.id, data_id=data_file.id) }}"
-					method="POST">
-					<select name="event_id" class="form-select form-select-sm"
-						onchange="this.form.submit()">
-						<option value="__None">— No Event —</option>
-						{% for event in animal.events %}
-						<option value="{{ event.id }}" {% if linked_event and linked_event.id == event.id %}selected{% endif %}>
-							{{ event.scheduled_date.strftime('%Y-%m-%d') }}: {{ event.procedure.display_name }}
-						</option>
-						{% endfor %}
-					</select>
-				</form>
-				{% endif %}
-
-				<div class="btn-group" role="group">
-					{% if data_file.target_type == 'animal_event' and not linked_event and data_file.datatype.default_procedure_id %}
-					<form
-						action="{{ url_for('animals.auto_create_event', animal_id=animal.id, data_id=data_file.id) }}"
-						method="POST">
-						<button type="submit" class="btn btn-sm btn-secondary" data-bs-toggle="tooltip"
-							title="Auto-create event from this file's date">
-							<i class="fas fa-magic"></i>
-						</button>
-					</form>
+		<li class="list-group-item p-0 df-row" x-data="{ open: false }">
+			<div class="d-flex align-items-center py-2 px-3 gap-2">
+				<button type="button"
+				        class="btn btn-link df-toggle p-0 d-flex align-items-center gap-2 flex-grow-1 text-start"
+				        @click="open = !open" :aria-expanded="open">
+					<i class="fas fa-chevron-right df-chevron flex-shrink-0"
+					   style="font-size: 0.65rem;"
+					   :class="{ 'open': open }"></i>
+					<i class="fas fa-file-alt df-status-icon flex-shrink-0 {{ 'reviewed' if data_file.status == 'reviewed' else 'excluded' if data_file.status == 'exclude' else 'unreviewed' }}"></i>
+					<span class="datatype-badge flex-shrink-0">{{ data_file.datatype.name }}</span>
+					<span class="df-filename flex-grow-1" style="min-width: 0; word-break: break-all;">{{ data_file.name }}</span>
+					{% if data_file.date %}
+					<span class="df-meta flex-shrink-0">{{ data_file.date.strftime('%Y-%m-%d') }}</span>
 					{% endif %}
-					{{ render_callback_buttons(data_file) }}
-					{{ render_status_buttons(animal.id, data_file) }}
-				</div>
+					{% if data_file.notes %}
+					<i class="fas fa-comment df-note-indicator flex-shrink-0" title="{{ data_file.notes }}"></i>
+					{% endif %}
+				</button>
+				<span class="flex-shrink-0">{{ render_callback_buttons(data_file) }}</span>
+			</div>
+			<div x-show="open" x-cloak class="df-body px-3 pt-2 pb-3">
+				{% with data_file=data_file, animal=animal, show_header=False %}
+					{% include 'partials/data_file_popup_content.html' %}
+				{% endwith %}
 			</div>
 		</li>
 		{% endfor %}
@@ -135,30 +117,32 @@
                             <div class="text-muted fst-italic" style="font-size: 0.85em;">{{ event.notes }}</div>
                         {% endif %}
                         {% if event.data_files.count() > 0 %}
-                            <div class="mt-1">
-                                {% for f in event.data_files|sort(attribute='name') %}
-                                    <div class="d-flex align-items-center gap-1 ps-2" style="font-size: 0.85em;">
-                                        <i class="fas fa-file-alt fa-xs data-file-icon text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'muted' }}"></i>
-                                        <span class="text-truncate flex-grow-1" style="min-width: 0;">{{ f.name }}</span>
-                                        {% for cb in f.datatype.callbacks %}
-                                            {% if cb.callback_type == 'plot' %}
-                                            <button type="button" class="btn btn-link btn-sm p-0 px-1 text-primary" data-bs-toggle="tooltip" title="{{ cb.name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=f.id, callback_id=cb.id) }}', '{{ f.name }}: {{ cb.name }}')">
-                                                <i class="fas fa-chart-line fa-xs"></i>
-                                            </button>
-                                            {% elif cb.callback_type == 'pdf' %}
-                                            <a href="{{ url_for('animals.view_data_pdf', data_id=f.id, callback_id=cb.id) }}" target="_blank" class="btn btn-link btn-sm p-0 px-1 text-danger" data-bs-toggle="tooltip" title="{{ cb.name }}">
-                                                <i class="fas fa-file-pdf fa-xs"></i>
-                                            </a>
-                                            {% elif cb.callback_type == 'image' %}
-                                            <button type="button" class="btn btn-link btn-sm p-0 px-1 text-success" data-bs-toggle="tooltip" title="{{ cb.name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=f.id, callback_id=cb.id) }}', '{{ f.name }}: {{ cb.name }}')">
-                                                <i class="fas fa-image fa-xs"></i>
-                                            </button>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {{ render_status_buttons(event.animal_id, f) }}
-                                    </div>
-                                {% endfor %}
-                            </div>
+						<div class="mt-1">
+							{% for f in event.data_files|sort(attribute='name') %}
+								<div x-data="{ open: false }">
+									<div class="d-flex gap-1">
+										<button type="button"
+												class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-1 flex-grow-1 text-start"
+												@click="open = !open" :aria-expanded="open">
+											<i class="fas fa-chevron-right fa-xs text-muted mt-1 flex-shrink-0"
+											   :class="{ 'fa-rotate-90': open }"
+											   style="transition: transform 0.15s;"></i>
+											<i class="fas fa-file-alt fa-xs data-file-icon mt-1 flex-shrink-0 text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'muted' }}"></i>
+											<span class="flex-grow-1" style="min-width: 0; word-break: break-all;">{{ f.name }}</span>
+											{% if f.notes %}
+											<i class="fas fa-comment fa-xs text-info mt-1 flex-shrink-0" title="{{ f.notes }}"></i>
+											{% endif %}
+										</button>
+										<span class="flex-shrink-0">{{ render_callback_buttons(f) }}</span>
+									</div>
+									<div x-show="open" x-cloak class="ms-3 mt-1 mb-2 px-2 py-2 border-start bg-light">
+										{% with data_file=f, animal=event.animal, show_header=False %}
+											{% include 'partials/data_file_popup_content.html' %}
+										{% endwith %}
+									</div>
+								</div>
+							{% endfor %}
+						</div>
                         {% endif %}
                     </div>
                     <div class="btn-group btn-group-sm flex-shrink-0">

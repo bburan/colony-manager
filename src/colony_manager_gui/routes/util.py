@@ -1,8 +1,17 @@
-from flask import flash
+from flask import flash, render_template
 from markupsafe import Markup
 
 from werkzeug.exceptions import NotFound
 from sqlalchemy.orm import Query
+
+
+def render_error_alert(message=None, form=None, alert_class='py-2 small', oob_id=None):
+    """Render the standard HTMX error alert partial."""
+    return render_template(
+        'partials/error_alert.html',
+        message=message, form=form,
+        alert_class=alert_class, oob_id=oob_id,
+    )
 
 
 class AppQuery(Query):

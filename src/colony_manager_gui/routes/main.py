@@ -13,7 +13,7 @@ from ..forms import (
     FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
     DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
 )
-from .util import flash_form_errors
+from .util import flash_form_errors, render_error_alert
 
 main_bp = Blueprint('main', __name__)
 
@@ -151,11 +151,11 @@ def create_setting(item_type):
             except sqlalchemy.exc.IntegrityError:
                 db.session.rollback()
                 if request.headers.get('HX-Request'):
-                    return f'<div class="alert alert-danger small py-1 mb-0">Already exists or invalid data.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+                    return render_error_alert(message='Already exists or invalid data.', alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
                 flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0">Validation failed: {form.errors}</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+            return render_error_alert(message='Validation failed', form=form, alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
         flash_form_errors(form, title="Could not create setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -178,11 +178,11 @@ def update_setting(item_type, item_id):
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
             if request.headers.get('HX-Request'):
-                return f'<div class="alert alert-danger small py-1 mb-0">Update failed: It might already exist.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+                return render_error_alert(message='Update failed: It might already exist.', alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
             flash("Update failed: It might already exist.", "danger")
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0">Update failed: {form.errors}</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
+            return render_error_alert(message='Update failed', form=form, alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
         flash_form_errors(form, title="Could not update setting")
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -199,7 +199,7 @@ def delete_setting(item_type, item_id):
         flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-{item_type}">Cannot delete {item_name} (referenced elsewhere).</div>', 200
+            return render_error_alert(message=f'Cannot delete {item_name} (referenced elsewhere).', alert_class='small py-1', oob_id=f'error-{item_type}'), 200
         flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
     return redirect(request.referrer or url_for('main.list_settings'))
 
@@ -269,7 +269,7 @@ def create_datatype():
     target_type = request.form.get('target_type')
     if target_type not in DATATYPE_FORMS:
         if request.headers.get('HX-Request'):
-            return '<div class="alert alert-danger py-2 small">Pick a target type first.</div>', 200, {'HX-Retarget': '#datatype-error'}
+            return render_error_alert(message='Pick a target type first.'), 200, {'HX-Retarget': '#datatype-error'}
         flash('Pick a target type first.', 'danger')
         return redirect(url_for('main.list_settings'))
 
@@ -277,7 +277,7 @@ def create_datatype():
     if form.validate_on_submit():
         if models.DataType.query.filter_by(name=form.name.data).first():
             if request.headers.get('HX-Request'):
-                return '<div class="alert alert-danger py-2 small">This DataType already exists.</div>', 200, {'HX-Retarget': '#datatype-error'}
+                return render_error_alert(message='This DataType already exists.'), 200, {'HX-Retarget': '#datatype-error'}
             flash('This DataType already exists.', 'danger')
         else:
             try:
@@ -295,11 +295,11 @@ def create_datatype():
             except sqlalchemy.exc.IntegrityError:
                 db.session.rollback()
                 if request.headers.get('HX-Request'):
-                    return '<div class="alert alert-danger py-2 small">Already exists or invalid data.</div>', 200, {'HX-Retarget': '#datatype-error'}
+                    return render_error_alert(message='Already exists or invalid data.'), 200, {'HX-Retarget': '#datatype-error'}
                 flash(f'Error adding DataType. It might already exist.', 'danger')
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger py-2 small">Validation failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
+            return render_error_alert(message='Validation failed', form=form), 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not create DataType")
     return redirect(url_for('main.list_settings'))
 
@@ -331,11 +331,11 @@ def update_datatype(datatype_id):
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
             if request.headers.get('HX-Request'):
-                return '<div class="alert alert-danger py-2 small">Update failed: It might already exist.</div>', 200, {'HX-Retarget': '#datatype-error'}
+                return render_error_alert(message='Update failed: It might already exist.'), 200, {'HX-Retarget': '#datatype-error'}
             flash("Update failed: It might already exist.", "danger")
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 200, {'HX-Retarget': '#datatype-error'}
+            return render_error_alert(message='Update failed', form=form), 200, {'HX-Retarget': '#datatype-error'}
         flash_form_errors(form, title="Could not update DataType")
     return redirect(url_for('main.list_settings'))
 

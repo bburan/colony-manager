@@ -9,21 +9,23 @@
                 <th class="text-end" style="width: 5rem;">Action</th>
             </tr>
         </thead>
-        <tbody>
-            {% for group in ear.confocal_images|groupby('image_type.name') %}
+        {% for group in ear.confocal_images|groupby('image_type.name') %}
+            <tbody>
                 <tr class="table-light">
                     <td colspan="5" class="fw-semibold small text-uppercase text-muted py-1">
                         {{ group.grouper }}
                     </td>
                 </tr>
-                {% for img in group.list|sort(attribute='frequency') %}
-                    {% include 'partials/confocal_image_row.html' %}
-                {% endfor %}
-            {% else %}
+            </tbody>
+            {% for img in group.list|sort(attribute='frequency') %}
+                {% include 'partials/confocal_image_row.html' %}
+            {% endfor %}
+        {% else %}
+            <tbody>
                 <tr>
                     <td colspan="5" class="text-center text-muted py-4">No images added yet.</td>
                 </tr>
-            {% endfor %}
-        </tbody>
+            </tbody>
+        {% endfor %}
     </table>
 </div>

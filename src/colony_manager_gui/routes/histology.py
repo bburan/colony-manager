@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from colony_manager.models import Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
-from .util import flash_form_errors
+from .util import flash_form_errors, render_error_alert
 
 histology_bp = Blueprint('histology', __name__)
 
@@ -92,7 +92,7 @@ def update_ear(ear_id):
         flash('Ear updated.', 'success')
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger py-2 small">Update failed: {form.errors}</div>', 400
+            return render_error_alert(message='Update failed', form=form), 400
         flash_form_errors(form, title="Error updating ear")
     return redirect(request.referrer or url_for('histology.list_histology'))
 
@@ -123,7 +123,7 @@ def create_confocal_image(ear_id):
         flash(f'Images added for {ear.animal.custom_id} {ear.side}', 'success')
     else:
         if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger py-2 small">Error adding images: {form.errors}</div>', 400
+            return render_error_alert(message='Error adding images', form=form), 400
         flash_form_errors(form, title="Error adding images")
     return redirect(request.referrer or url_for('histology.list_histology'))
 

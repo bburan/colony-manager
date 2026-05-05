@@ -1,0 +1,6 @@
+{% set alert_class = alert_class|default('py-2 small') %}
+<div class="alert alert-danger {{ alert_class }} mb-0"
+     {%- if oob_id %} id="{{ oob_id }}" hx-swap-oob="true"{% endif %}>
+{%- if message %}{{ message }}{% endif -%}
+{%- if form and form.errors %}{% if message %}: {% endif %}{{ form.errors }}{% endif -%}
+</div>

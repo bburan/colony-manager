@@ -1,0 +1,54 @@
+{# Args: data_file (Data), animal (Animal or None), show_header (bool, default True) #}
+{% import 'macros.html' as macros %}
+{% set linked_event = data_file.events|selectattr('animal_id', 'equalto', animal.id)|first if (animal and data_file.target_type == 'animal_event') else None %}
+
+<div class="d-flex align-items-center mb-2">
+	<div id="data-notes-{{ data_file.id }}" class="flex-grow-1"
+		 x-data="{ isSaving: false, success: false, error: false, isDirty: false }">
+		<input type="text" name="notes"
+			   class="form-control form-control-sm subtle-input"
+			   value="{{ data_file.notes or '' }}"
+			   placeholder="Add note…"
+			   autocomplete="off"
+			   @input="isDirty = true"
+			   @blur="if (isDirty) $refs.saveNote.click()"
+			   @keydown.enter.prevent="$refs.saveNote.click()"
+			   :class="{ 'is-saved': success, 'is-error': error }">
+		<button type="button" class="d-none"
+				x-ref="saveNote"
+				hx-post="{{ url_for('animals.update_data_notes', data_id=data_file.id) }}"
+				hx-include="#data-notes-{{ data_file.id }} input[name='notes']"
+				hx-swap="none"
+				@htmx:before-request="isSaving = true; success = false; error = false"
+				@htmx:after-request="isSaving = false; isDirty = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }"></button>
+	</div>
+	{% if animal %}
+		{{ macros.render_status_buttons(animal.id, data_file) }}
+	{% endif %}
+</div>
+
+{% if animal and data_file.target_type == 'animal_event' %}
+<form action="{{ url_for('animals.reassign_data', animal_id=animal.id, data_id=data_file.id) }}"
+      method="POST" class="mb-2">
+    <select name="event_id" class="form-select form-select-sm subtle-input" onchange="this.form.submit()">
+        <option value="__None">— No Event —</option>
+        {% for event in animal.events %}
+        <option value="{{ event.id }}" {% if linked_event and linked_event.id == event.id %}selected{% endif %}>
+            {{ event.scheduled_date.strftime('%Y-%m-%d') }}: {{ event.procedure.display_name }}
+        </option>
+        {% endfor %}
+    </select>
+</form>
+{% endif %}
+
+<div class="d-flex flex-wrap align-items-center gap-1">
+    {% if animal and data_file.target_type == 'animal_event' and not linked_event and data_file.datatype.default_procedure_id %}
+    <form action="{{ url_for('animals.auto_create_event', animal_id=animal.id, data_id=data_file.id) }}"
+          method="POST">
+        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                data-bs-toggle="tooltip" title="Auto-create event from this file's date">
+            <i class="fas fa-magic fa-xs"></i>
+        </button>
+    </form>
+    {% endif %}
+</div>

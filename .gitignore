@@ -2,6 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,flask,vim
 src/colony_manager/version.py
 
+.claude/*
+
 ### Flask ###
 instance/*
 !instance/.gitignore

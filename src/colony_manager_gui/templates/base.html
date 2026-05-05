@@ -94,8 +94,10 @@
             background-color: #fff;
             box-shadow: none;
         }
-        .subtle-input.is-saved { background-color: #e8f3ec; }
-        .subtle-input.is-error { background-color: #fbeaec; }
+        .subtle-input.is-saved,
+        .is-saved input, .is-saved select { background-color: #e8f3ec !important; transition: background-color 0.2s ease; }
+        .subtle-input.is-error,
+        .is-error input, .is-error select { background-color: #fbeaec !important; transition: background-color 0.2s ease; }
         .file-divider + .file-divider {
             border-top: 1px solid #eef0f2;
             margin-top: 0.625rem;

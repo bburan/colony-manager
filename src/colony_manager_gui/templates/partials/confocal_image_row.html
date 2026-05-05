@@ -10,14 +10,18 @@
 {% import 'macros.html' as macros %}
 {% set data_files = img.data_files|list %}
 <tbody id="confocal-image-{{ img.id }}"
-       x-data="{ open: false, isSaving: false, success: false, error: false, isDirty: false }"
-       @keydown.enter="if(isDirty) $refs.saveBtn.click()">
+       x-data="{ open: false, success: false, error: false }"
+       hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
+       hx-trigger="change delay:300ms, input changed delay:500ms"
+       hx-include="this"
+       hx-swap="none"
+       @htmx:before-request="success = false; error = false"
+       @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }">
     <tr>
         <td class="fw-semibold">{{ img.frequency }}</td>
         <td>
             <select name="status" autocomplete="off"
                     class="form-select form-select-sm border-0 bg-light"
-                    @change="isDirty = true"
                     :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
                 {% for value, label in image_options.items() %}
                     <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
@@ -45,24 +49,11 @@
             <input type="text" name="notes" class="form-control form-control-sm border-0 bg-light"
                    value="{{ img.notes or '' }}"
                    autocomplete="off"
-                   @input="isDirty = true"
                    placeholder="Add observations..."
                    :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
         </td>
         <td class="text-end">
             <div class="d-flex justify-content-end align-items-center gap-1">
-                <button class="btn btn-sm save-btn text-muted"
-                        x-ref="saveBtn"
-                        :class="{ 'is-dirty': isDirty }"
-                        :disabled="!isDirty"
-                        hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
-                        hx-include="#confocal-image-{{ img.id }} input, #confocal-image-{{ img.id }} select"
-                        hx-swap="none"
-                        @click="isDirty = false"
-                        @htmx:before-request="isSaving = true; success = false; error = false"
-                        @htmx:after-request="isSaving = false; if(evt.detail.successful) { success = true; setTimeout(() => success = false, 2000) } else { error = true }">
-                    <i class="fas" :class="isSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
-                </button>
                 <button class="btn btn-sm"
                         hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
                         hx-target="#confocal-image-{{ img.id }}"

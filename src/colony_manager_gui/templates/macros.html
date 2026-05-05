@@ -65,7 +65,6 @@
 					<i class="fas fa-chevron-right df-chevron flex-shrink-0"
 					   style="font-size: 0.65rem;"
 					   :class="{ 'open': open }"></i>
-					<i class="fas fa-file-alt df-status-icon flex-shrink-0 {{ 'reviewed' if data_file.status == 'reviewed' else 'excluded' if data_file.status == 'exclude' else 'unreviewed' }}"></i>
 					<span class="datatype-badge flex-shrink-0">{{ data_file.datatype.name }}</span>
 					<span class="df-filename flex-grow-1" style="min-width: 0; word-break: break-all;">{{ data_file.name }}</span>
 					{% if data_file.date %}
@@ -124,13 +123,12 @@
 										<button type="button"
 												class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-1 flex-grow-1 text-start"
 												@click="open = !open" :aria-expanded="open">
-											<i class="fas fa-chevron-right fa-xs text-muted mt-1 flex-shrink-0"
+											<i class="fas fa-chevron-right fa-xs text-muted mt-1 flex-shrink-0 mt-1"
 											   :class="{ 'fa-rotate-90': open }"
 											   style="transition: transform 0.15s;"></i>
-											<i class="fas fa-file-alt fa-xs data-file-icon mt-1 flex-shrink-0 text-{{ 'success' if f.status == 'reviewed' else 'danger' if f.status == 'exclude' else 'muted' }}"></i>
 											<span class="flex-grow-1" style="min-width: 0; word-break: break-all;">{{ f.name }}</span>
 											{% if f.notes %}
-											<i class="fas fa-comment fa-xs text-info mt-1 flex-shrink-0" title="{{ f.notes }}"></i>
+											<i class="fas fa-sticky-note fa-xs mt-1 flex-shrink-0" title="{{ f.notes }}"></i>
 											{% endif %}
 										</button>
 										<span class="flex-shrink-0">{{ render_callback_buttons(f) }}</span>

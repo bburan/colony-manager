@@ -1,16 +1,43 @@
 {% import "macros.html" as macros %}
-<form action="{{ submit_url }}" method="POST">
+{# Args:
+     form           — AnimalEventForm or AnimalEventEditForm
+     submit_url     — POST target
+     label          — modal title
+     target_requires_side — {target_id: bool} JSON map
+     is_edit        — bool (default False) — show single Save button vs. Schedule/Completed pair
+#}
+<form action="{{ submit_url }}" method="POST"
+      x-data='{
+        targetRequiresSide: {{ target_requires_side | tojson | safe }},
+        requiresSide: false,
+      }'
+      x-init="
+        const sel = $el.querySelector('[name=procedure_target]');
+        const update = () => { requiresSide = !!targetRequiresSide[sel.value]; };
+        sel.addEventListener('change', update);
+        update();
+      ">
     <header class="modal-header">
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
     </header>
     <main class="modal-body">
         {{ form.hidden_tag() }}
         {% for field in form if field.widget.input_type != 'hidden' %}
-            {{ macros.render_field(field) }}
+            {% if field.name == 'side' %}
+            <div x-show="requiresSide" x-cloak>
+                {{ macros.render_field(field) }}
+            </div>
+            {% else %}
+                {{ macros.render_field(field) }}
+            {% endif %}
         {% endfor %}
     </main>
     <footer class="modal-footer border-top-0 pb-4 px-4">
         <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        {% if is_edit %}
+        <button type="submit" class="btn btn-primary btn-sm px-3">Save</button>
+        {% else %}
         <button type="submit" class="btn btn-outline-primary btn-sm px-3"
                 onclick="document.getElementById('action').value='schedule'">
             <i class="fas fa-calendar-plus me-1"></i> Schedule
@@ -19,5 +46,6 @@
                 onclick="document.getElementById('action').value='completed'">
             <i class="fas fa-check me-1"></i> Completed
         </button>
+        {% endif %}
     </footer>
 </form>

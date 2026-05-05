@@ -12,7 +12,14 @@
 
         {{ form.hidden_tag() }}
         {% for field in form if field.widget_type != 'hidden' %}
-        {{ field(class="form-control form-control-sm border-0 fw-medium") }}
+            {% if field.type == 'BooleanField' %}
+            <div class="form-check form-switch ms-2 me-3 d-flex align-items-center gap-2 flex-shrink-0">
+                {{ field(class="form-check-input m-0") }}
+                <label class="form-check-label small text-muted mb-0" for="{{ field.id }}">{{ field.label.text }}</label>
+            </div>
+            {% else %}
+            {{ field(class="form-control form-control-sm border-0 fw-medium") }}
+            {% endif %}
         {% endfor %}
     </form>
     

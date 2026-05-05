@@ -104,7 +104,7 @@
                                 <i class="fas fa-calendar"></i> Add Event
                             </button>
                         </div>
-                        {{ macros.render_event_list(animal) }}
+                        {{ macros.render_event_list(animal.events_by_date) }}
 
                         {% set unassigned_files = [] %}
                         {% for f in animal.candidate_data_files %}

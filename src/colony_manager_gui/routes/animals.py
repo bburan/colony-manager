@@ -164,19 +164,23 @@ def terminate_animal(animal_id):
 def create_animal_event(animal_id):
     form = AnimalEventForm()
     if form.validate_on_submit():
-        event = AnimalEvent(animal_id=animal_id)
-        event.procedure = form.procedure.data
-        event.procedure_target = form.procedure_target.data
-        event.notes = form.notes.data
-        event.tags = form.tags.data
-        if form.action.data == 'schedule':
-            event.scheduled_date = form.date.data
-        else:
-            event.scheduled_date = form.date.data
-            event.completion_date = form.date.data
-        db.session.add(event)
+        sides = ['Left', 'Right'] if form.side.data == 'Both' else [form.side.data]
+        for side in sides:
+            event = AnimalEvent(animal_id=animal_id)
+            event.procedure = form.procedure.data
+            event.procedure_target = form.procedure_target.data
+            event.side = side
+            event.notes = form.notes.data
+            event.tags = form.tags.data
+            if form.action.data == 'schedule':
+                event.scheduled_date = form.date.data
+            else:
+                event.scheduled_date = form.date.data
+                event.completion_date = form.date.data
+            db.session.add(event)
         db.session.commit()
-        flash('Event created successfully.', 'success')
+        msg = 'Events created successfully.' if len(sides) > 1 else 'Event created successfully.'
+        flash(msg, 'success')
     else:
         flash_form_errors(form, f'Error creating event')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
@@ -363,19 +367,36 @@ def add_study_modal(animal_id):
         submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
 
 # --- Animal Event Modals ---
+def _target_requires_side_map():
+    return {
+        str(t.id): bool(t.requires_side)
+        for t in models.AnimalProcedureTarget.query.all()
+    }
+
+
 @animals_bp.route('/<int:animal_id>/events/create_modal')
 def create_animal_event_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalEventForm(animal=animal)
-    return render_template('partials/form_event_modal.html', form=form, item=animal,
-                           label=f'Create event for {animal.display_id}', submit_url=url_for('animals.create_animal_event', animal_id=animal.id))
+    return render_template(
+        'partials/form_event_modal.html', form=form, item=animal,
+        label=f'Create event for {animal.display_id}',
+        submit_url=url_for('animals.create_animal_event', animal_id=animal.id),
+        target_requires_side=_target_requires_side_map(),
+        is_edit=False,
+    )
 
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
     form = AnimalEventEditForm(obj=event)
-    return render_template('partials/form_modal.html', form=form, item=event,
-                           label=f'Edit event for {event.animal.display_id}', submit_url=url_for('animals.update_animal_event', event_id=event.id))
+    return render_template(
+        'partials/form_event_modal.html', form=form, item=event,
+        label=f'Edit event for {event.animal.display_id}',
+        submit_url=url_for('animals.update_animal_event', event_id=event.id),
+        target_requires_side=_target_requires_side_map(),
+        is_edit=True,
+    )
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):

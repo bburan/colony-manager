@@ -94,9 +94,9 @@
     '': '',
     } %}
 
-{% macro render_event_list(animal) %}
+{% macro render_event_list(events_by_date) %}
 <div class="small">
-    {% for date, events in animal.events_by_date.items() %}
+    {% for date, events in events_by_date.items() %}
         <div class="mb-2">
             <div class="fw-bold text-muted text-uppercase mb-1" style="font-size: 0.7em; letter-spacing: 0.05em;">
                 {{ date.strftime('%B %d, %Y') }}
@@ -108,6 +108,10 @@
                             <span class="fw-semibold">{{ event.procedure.display_name }}</span>
                             <span class="text-muted">·</span>
                             <span class="text-muted">{{ event.procedure_target.name }}</span>
+                            {% if event.side %}
+                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"
+                                  style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
+                            {% endif %}
                             {% for tag in event.tags %}
                                 <span class="badge bg-secondary bg-opacity-25 text-dark fw-normal" style="font-size: 0.75em;">{{ tag.display_name }}</span>
                             {% endfor %}

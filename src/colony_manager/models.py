@@ -236,12 +236,13 @@ class AnimalEventDataType(DataType):
         target_date = parsed.get('date')
         if not animal_ids or not target_date or not self.default_procedure_id:
             return []
+        side = parsed.get('side')
         events = []
         for aid in animal_ids:
             animal = Animal.query.filter_by(custom_id=aid).first()
             if not animal:
                 continue
-            event = AnimalEvent.query.filter_by(
+            query = AnimalEvent.query.filter_by(
                 animal_id=animal.id,
                 procedure_id=self.default_procedure_id,
             ).filter(
@@ -249,7 +250,10 @@ class AnimalEventDataType(DataType):
                     AnimalEvent.scheduled_date == target_date,
                     AnimalEvent.completion_date == target_date,
                 )
-            ).first()
+            )
+            if side is not None:
+                query = query.filter(AnimalEvent.side == side)
+            event = query.first()
             if event:
                 events.append(event)
         return events
@@ -482,6 +486,7 @@ class AnimalProcedureTarget(VersionedModel):
     id = Column(Integer, primary_key=True)
     name = Column(String(150), unique=True, nullable=False)
     description = Column(Text, nullable=True)
+    requires_side = Column(Boolean, nullable=False, default=False, server_default='false')
     events = relationship('AnimalEvent', backref='procedure_target', lazy=True)
 
 class TerminationReason(VersionedModel):
@@ -878,6 +883,7 @@ class AnimalEvent(VersionedModel):
     animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
     procedure_id = Column(Integer, ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
     procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id', use_alter=True), nullable=False)
+    side = Column(String(10), nullable=True)
     scheduled_date = Column(Date, nullable=False)
     completion_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
@@ -915,6 +921,21 @@ class Ear(VersionedModel):
     @property
     def full_display(self):
         return f'{self.animal.custom_id} {self.side}'
+
+    @property
+    def events(self):
+        """AnimalEvents tagged with this ear's side."""
+        return [e for e in self.animal.events if e.side == self.side]
+
+    @property
+    def events_by_date(self):
+        groups = {}
+        for e in self.events:
+            groups.setdefault(e.date, []).append(e)
+        return dict(
+            (d, sorted(groups[d], key=lambda x: x.procedure.name))
+            for d in sorted(groups.keys())
+        )
 
     def __eq__(self, other):
         if not isinstance(other, Ear): return NotImplemented

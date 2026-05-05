@@ -7,7 +7,8 @@ Two flavors:
   ``(relative_path, location)`` and return a metadata dict (or ``None`` to
   skip). Recognized keys depend on the DataType's ``target_type``:
 
-    - animal_event:    {'animal_id': 'A001' | ['A001', 'A002'], 'date': date}
+    - animal_event:    {'animal_id': 'A001' | ['A001', 'A002'], 'date': date,
+                        'side': 'Left'|'Right' (optional)}
     - confocal_image:  {'animal_id': ..., 'side': 'L'|'R', 'frequency': 8.0,
                         'image_type': 'CtBP2', 'date': date (optional)}
     - animal:          {'animal_id': 'A001' | ['A001', 'A002'],
@@ -44,6 +45,10 @@ def parse_animal_event_filename(relative_path, location):
     Looks for ``<animal_id>`` and ``<date>`` substrings anywhere in the
     relative path. Animal IDs may be separated by ``,``, ``+``, ``&`` or ``|``
     when a single file applies to multiple animals (e.g., group exposures).
+
+    If a standalone ``L``/``R``/``Left``/``Right`` token appears in the
+    basename, it is returned under ``side`` so the matcher can pick the
+    ear-specific event.
     """
     name = os.path.basename(relative_path)
     date_match = re.search(r'(\d{4}[-_]?\d{2}[-_]?\d{2})', name)
@@ -57,7 +62,21 @@ def parse_animal_event_filename(relative_path, location):
     animal_ids = []
     if animal_match:
         animal_ids = [a.strip() for a in re.split(r'[,+&|]', animal_match.group(1)) if a.strip()]
-    return {'animal_id': animal_ids, 'date': parsed_date}
+
+    stem, _ = os.path.splitext(name)
+    side = None
+    for token in re.split(r'[_\-\s]+', stem):
+        if token in ('L', 'Left'):
+            side = 'Left'
+            break
+        if token in ('R', 'Right'):
+            side = 'Right'
+            break
+
+    parsed = {'animal_id': animal_ids, 'date': parsed_date}
+    if side is not None:
+        parsed['side'] = side
+    return parsed
 
 
 def parse_confocal_image_filename(relative_path, location):

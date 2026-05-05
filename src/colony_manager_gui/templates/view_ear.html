@@ -6,6 +6,7 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
 {% endblock %}
 
 {% block content %}
+{% set ear_events_by_date = ear.events_by_date %}
 <div class="row g-4">
     <div class="col-4">
         {% include 'partials/ear_notes_card.html' %}
@@ -27,6 +28,21 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
         </div>
     </div>
 </div>
+
+{% if ear_events_by_date %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase mb-0">Events</h2>
+            </div>
+            <div class="card-body">
+                {{ macros.render_event_list(ear_events_by_date) }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="row mb-4">
     <div class="col-12">

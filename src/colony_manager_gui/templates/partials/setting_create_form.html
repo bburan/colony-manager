@@ -9,7 +9,14 @@
           class="input-group input-group-sm mb-3">
         {{ blank_form.hidden_tag() }}
         {% for field in blank_form if field.widget_type != 'hidden' %}
-        {{ field(class="form-control form-control-sm") }}
+            {% if field.type == 'BooleanField' %}
+            <div class="input-group-text">
+                {{ field(class="form-check-input mt-0 me-2") }}
+                <label class="small mb-0" for="{{ field.id }}">{{ field.label.text }}</label>
+            </div>
+            {% else %}
+            {{ field(class="form-control form-control-sm") }}
+            {% endif %}
         {% endfor %}
         <button class="btn btn-primary" type="submit">Add</button>
         <div id="indicator-{{ type }}" class="htmx-indicator spinner-border spinner-border-sm text-primary ms-2" role="status"></div>

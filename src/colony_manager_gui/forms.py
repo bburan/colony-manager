@@ -59,6 +59,12 @@ class SimpleAddWithDescriptionForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Description', validators=[Optional()])
 
+
+class ProcedureTargetForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    description = StringField('Description', validators=[Optional()])
+    requires_side = BooleanField('Requires side?')
+
 class DataTypeForm(FlaskForm):
     """Base fields shared by every DataType subclass."""
     name = StringField('Name', validators=[DataRequired()])
@@ -197,6 +203,12 @@ class AnimalEventForm(FlaskForm):
         allow_blank=False
     )
     procedure_target = QuerySelectField('Target', query_factory=animal_procedure_target_factory, get_label='name', allow_blank=False)
+    side = SelectField(
+        'Side',
+        choices=[('', '— side —'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')],
+        validators=[Optional()],
+        filters=[lambda v: v or None],
+    )
     date = DateField('Date', default=date.today, validators=[DataRequired()])
     action = HiddenField('action', default='completed')
     notes = TextAreaField('Notes', validators=[Optional()])
@@ -216,6 +228,12 @@ class AnimalEventEditForm(FlaskForm):
         allow_blank=False
     )
     procedure_target = QuerySelectField('Target', query_factory=animal_procedure_target_factory, get_label='name', allow_blank=False)
+    side = SelectField(
+        'Side',
+        choices=[('', '— side —'), ('Left', 'Left'), ('Right', 'Right')],
+        validators=[Optional()],
+        filters=[lambda v: v or None],
+    )
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     completion_date = DateField('Completed Date', default=None, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])

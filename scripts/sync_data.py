@@ -16,6 +16,7 @@ import argparse
 import logging
 import os
 import sys
+from datetime import datetime
 
 from sqlalchemy.orm import joinedload
 
@@ -44,6 +45,15 @@ def _candidate_animals_for(parsed):
         if animal:
             animals.append(animal)
     return animals
+
+
+def _stat_timestamps(full_path):
+    """Return ``(mtime, ctime)`` as datetimes, or ``(None, None)`` on failure."""
+    try:
+        st = os.stat(full_path)
+    except OSError:
+        return None, None
+    return datetime.fromtimestamp(st.st_mtime), datetime.fromtimestamp(st.st_ctime)
 
 
 def _find_orphaned_by_hash(file_hash, datatype_id, data_class):
@@ -198,6 +208,7 @@ def sync_locations(dry_run=False):
                     added_count += 1
                     continue
 
+                mtime, ctime = _stat_timestamps(full_path)
                 new_data = data_class(
                     datatype_id=datatype.id,
                     location_id=location.id,
@@ -206,6 +217,9 @@ def sync_locations(dry_run=False):
                     date=parsed.get('date'),
                     file_hash=file_hash,
                     status='unreviewed',
+                    mtime=mtime,
+                    ctime=ctime,
+                    discovered_at=datetime.now(),
                 )
                 # Subclass-specific target M2M assignment
                 if datatype.target_type == 'animal_event':

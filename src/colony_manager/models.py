@@ -4,7 +4,7 @@ from statistics import mean
 
 from sqlalchemy import (
     func, orm, UniqueConstraint, MetaData, Table, Column, Integer, String,
-    ForeignKey, Text, Boolean, Date, Float, and_, or_
+    ForeignKey, Text, Boolean, Date, DateTime, Float, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
                             backref)
@@ -185,6 +185,22 @@ class AnimalProcedure(VersionedModel, NestedMixin):
     events = relationship('AnimalEvent', backref='procedure', lazy=True)
 
 
+def _canonical_side(value):
+    """Normalize a side string to ``'Left'``/``'Right'`` regardless of case.
+
+    Returns ``None`` for falsy or unrecognized inputs so callers can use a
+    simple equality comparison against the column.
+    """
+    if not value:
+        return None
+    lowered = str(value).strip().lower()
+    if lowered in ('left', 'l'):
+        return 'Left'
+    if lowered in ('right', 'r'):
+        return 'Right'
+    return None
+
+
 class DataType(VersionedModel):
     """Polymorphic base. Subclasses target specific model types."""
     __tablename__ = 'data_type'
@@ -253,7 +269,7 @@ class AnimalEventDataType(DataType):
         target_date = parsed.get('date')
         if not animal_ids or not target_date or not self.default_procedure_id:
             return []
-        side = parsed.get('side')
+        side = _canonical_side(parsed.get('side'))
         events = []
         for aid in animal_ids:
             animal = Animal.query.filter_by(custom_id=aid).first()
@@ -289,7 +305,7 @@ class ConfocalImageDataType(DataType):
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
-        ear = parsed.get('ear')
+        ear = _canonical_side(parsed.get('ear'))
         frequency = parsed.get('frequency')
         image_type_name = parsed.get('image_type')
         if not (animal_ids and ear and frequency is not None and image_type_name):
@@ -347,7 +363,7 @@ class EarDataType(DataType):
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
-        side = parsed.get('side')
+        side = _canonical_side(parsed.get('side'))
         if not animal_ids or side not in ('Left', 'Right'):
             return []
         ears = []
@@ -392,6 +408,9 @@ class Data(VersionedModel):
     date = Column(Date, nullable=True)
     status = Column(String(50), nullable=False, default='unreviewed')
     notes = Column(Text, nullable=True)
+    mtime = Column(DateTime, nullable=True)
+    ctime = Column(DateTime, nullable=True)
+    discovered_at = Column(DateTime, nullable=True)
 
     candidate_animals = relationship(
         'Animal',

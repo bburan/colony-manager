@@ -48,6 +48,11 @@ data_candidate_animals = Table('data_candidate_animals', Base.metadata,
     Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True)
 )
 
+data_candidate_ears = Table('data_candidate_ears', Base.metadata,
+    Column('data_id', Integer, ForeignKey('data.id'), primary_key=True),
+    Column('ear_id', Integer, ForeignKey('ear.id'), primary_key=True)
+)
+
 animal_event_data_targets = Table('animal_event_data_targets', Base.metadata,
     Column('animal_event_data_id', Integer, ForeignKey('animal_event_data.id'), primary_key=True),
     Column('animal_event_id', Integer, ForeignKey('animal_event.id'), primary_key=True)
@@ -415,6 +420,12 @@ class Data(VersionedModel):
     candidate_animals = relationship(
         'Animal',
         secondary=data_candidate_animals,
+        backref=backref('candidate_data_files', lazy='dynamic'),
+    )
+
+    candidate_ears = relationship(
+        'Ear',
+        secondary=data_candidate_ears,
         backref=backref('candidate_data_files', lazy='dynamic'),
     )
 

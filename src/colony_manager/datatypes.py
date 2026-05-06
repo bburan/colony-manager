@@ -40,10 +40,19 @@ Use it::
     {'Waveforms': {'type': 'plot', 'method_name': 'load_waveforms'}, ...}
 """
 
-import hashlib
 import importlib
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+import xxhash
+
+
+# Files smaller than ``2 * HASH_CHUNK`` are hashed in full; larger files
+# fold size + first chunk + last chunk into the digest. For non-malicious
+# data the collision probability is effectively zero, and the cost is
+# constant (~2 MiB per file) regardless of file size.
+HASH_CHUNK = 1 << 20  # 1 MiB
 
 
 # ---------------------------------------------------------------------------
@@ -208,9 +217,19 @@ class DataTypeDescription(ABC):
     def compute_hash(cls, path):
         """Compute a stable content hash for the data at *path*.
 
-        Instantiates the description, calls ``hash_files()``, and
-        produces a hex-digest from the sorted concatenation of each
-        file's SHA-256.
+        Instantiates the description, calls ``hash_files()``, and folds
+        the sorted file list into a single 128-bit ``xxh3_128`` digest.
+        For each file, the size and head/tail bytes are mixed in:
+
+        * Files ≤ ``2 * HASH_CHUNK`` are read in full.
+        * Larger files contribute ``size`` + first ``HASH_CHUNK`` bytes
+          + last ``HASH_CHUNK`` bytes.
+
+        xxh3_128 is non-cryptographic but is typically 5–20× faster than
+        SHA-256 and disk-bound rather than CPU-bound. The head/tail
+        scheme keeps hashing cost roughly constant per file regardless
+        of size — appropriate for move-tracking, where collision
+        resistance on non-malicious data is the only concern.
 
         Parameters
         ----------
@@ -220,7 +239,7 @@ class DataTypeDescription(ABC):
         Returns
         -------
         str
-            Hex SHA-256 hash string.
+            32-character hex xxh3_128 digest.
 
         Raises
         ------
@@ -234,15 +253,27 @@ class DataTypeDescription(ABC):
                 f'{cls.__name__}.hash_files() returned an empty list for '
                 f'{path}; cannot compute a content hash.'
             )
-        hasher = hashlib.sha256()
+        hasher = xxhash.xxh3_128()
         for f in files:
-            with open(f, 'rb') as fh:
-                while True:
-                    chunk = fh.read(65536)
-                    if not chunk:
-                        break
-                    hasher.update(chunk)
+            _hash_file_into(hasher, f)
         return hasher.hexdigest()
+
+
+def _hash_file_into(hasher, path):
+    """Fold a single file's identity (size + head + tail) into *hasher*."""
+    size = os.path.getsize(path)
+    hasher.update(size.to_bytes(8, 'little'))
+    with open(path, 'rb') as fh:
+        if size <= 2 * HASH_CHUNK:
+            while True:
+                chunk = fh.read(HASH_CHUNK)
+                if not chunk:
+                    break
+                hasher.update(chunk)
+        else:
+            hasher.update(fh.read(HASH_CHUNK))
+            fh.seek(size - HASH_CHUNK)
+            hasher.update(fh.read(HASH_CHUNK))
 
 
 # ---------------------------------------------------------------------------

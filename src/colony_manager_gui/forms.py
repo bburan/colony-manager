@@ -310,7 +310,7 @@ class QuickAddToStudyForm(FlaskForm):
     study = QuerySelectField('Study', query_factory=study_factory, get_label='name', allow_blank=False)
 
 class ConfocalImageForm(FlaskForm):
-    FREQUENCIES = [0.5, 0.7, 1, 1.4, 2, 2.8, 4, 5.6, 8, 11.2, 16, 22.6, 32, 45.2, 64]
+    FREQUENCIES = [0.5, 0.7, 1, 1.4, 2, 2.8, 4, 5.7, 8, 11.3, 16, 22.6, 32, 45.3, 64]
     frequencies = SelectMultipleField(
         'Frequencies (kHz)',
         choices=[(str(f), str(f)) for f in FREQUENCIES],

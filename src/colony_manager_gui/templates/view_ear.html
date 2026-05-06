@@ -59,6 +59,36 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
     </div>
 </div>
 
+{% set unmatched_confocal = [] %}
+{% for f in ear.candidate_data_files %}
+    {% if f.target_type == 'confocal_image' and not f.confocal_images %}
+        {% set _ = unmatched_confocal.append(f) %}
+    {% endif %}
+{% endfor %}
+{% if unmatched_confocal %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase mb-0">
+                    Unmatched Images
+                    <span class="badge bg-secondary ms-2">{{ unmatched_confocal|length }}</span>
+                </h2>
+                <small class="text-muted">
+                    Files that mention this ear but didn't link to a configured ConfocalImage row
+                    (likely an unknown frequency or image type).
+                </small>
+            </div>
+            <div class="card-body">
+                {% with files=unmatched_confocal|sort(attribute='name'), animal=ear.animal %}
+                    {% include 'partials/entity_data_files.html' %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <div class="col-12">
         <div class="card shadow-sm">

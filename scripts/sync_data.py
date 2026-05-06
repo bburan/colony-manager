@@ -18,12 +18,14 @@ import os
 import sys
 from datetime import datetime
 
+from sqlalchemy import func as sa_func
 from sqlalchemy.orm import joinedload
 
 from colony_manager_gui import create_app, db
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
-    DataLocation, DataType, Data, Animal, DATA_SUBCLASSES,
+    DataLocation, DataType, Data, Animal, Ear,
+    DATA_SUBCLASSES, _canonical_side,
 )
 
 logging.basicConfig(
@@ -45,6 +47,24 @@ def _candidate_animals_for(parsed):
         if animal:
             animals.append(animal)
     return animals
+
+
+def _candidate_ears_for(parsed, candidate_animals):
+    """Return Ears matching the parsed side for each candidate animal.
+
+    Looks at ``parsed['side']`` first, falling back to ``parsed['ear']`` for
+    description classes that use that key. Returns ``[]`` if the side can't
+    be canonicalized to ``'Left'``/``'Right'``.
+    """
+    side = _canonical_side(parsed.get('side') or parsed.get('ear'))
+    if not side or not candidate_animals:
+        return []
+    ears = []
+    for animal in candidate_animals:
+        ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
+        if ear:
+            ears.append(ear)
+    return ears
 
 
 def _stat_timestamps(full_path):
@@ -193,15 +213,17 @@ def sync_locations(dry_run=False):
                 # --- Match targets ---
                 targets = datatype.match_targets(parsed)
                 candidate_animals = _candidate_animals_for(parsed)
+                candidate_ears = _candidate_ears_for(parsed, candidate_animals)
                 if not targets:
                     unmatched_count += 1
 
                 if dry_run:
                     log.info(
                         '  [DRY RUN] Would add: %s | animals=%s | '
-                        'targets=%d | hash=%s',
+                        'ears=%s | targets=%d | hash=%s',
                         relative_path,
                         [a.display_id for a in candidate_animals],
+                        [e.full_display for e in candidate_ears],
                         len(targets),
                         (file_hash or 'none')[:12],
                     )
@@ -231,6 +253,7 @@ def sync_locations(dry_run=False):
                 elif datatype.target_type == 'ear':
                     new_data.ears = list(targets)
                 new_data.candidate_animals = candidate_animals
+                new_data.candidate_ears = candidate_ears
                 db.session.add(new_data)
                 added_count += 1
 
@@ -273,6 +296,77 @@ def sync_locations(dry_run=False):
             )
 
 
+XXH3_128_HEX_LEN = 32
+
+
+def rehash_legacy(dry_run=False):
+    """Re-hash any Data row whose stored ``file_hash`` isn't xxh3_128.
+
+    Walks every Data row with a non-null ``file_hash`` whose length isn't
+    ``XXH3_128_HEX_LEN``, resolves the file on disk, and regenerates the
+    hash via the row's DataType description class. Rows whose path no
+    longer resolves are left alone.
+    """
+    rows = Data.query.filter(
+        Data.file_hash.isnot(None),
+        sa_func.length(Data.file_hash) != XXH3_128_HEX_LEN,
+    ).all()
+    if not rows:
+        log.info('No legacy hashes found.')
+        return
+
+    log.info('Found %d row(s) with legacy hashes to re-hash.', len(rows))
+    rehashed = 0
+    skipped = 0
+    failed = 0
+
+    desc_cache = {}
+    for row in rows:
+        full_path = os.path.join(row.location.base_path, row.relative_path)
+        if not os.path.exists(full_path):
+            skipped += 1
+            continue
+
+        dotted = row.datatype.description_class
+        if not dotted:
+            skipped += 1
+            continue
+        if dotted not in desc_cache:
+            try:
+                desc_cache[dotted] = load_description_class(dotted)
+            except Exception as e:
+                log.error('Could not load %s: %s', dotted, e)
+                desc_cache[dotted] = None
+        desc_cls = desc_cache[dotted]
+        if desc_cls is None:
+            failed += 1
+            continue
+
+        try:
+            new_hash = desc_cls.compute_hash(full_path)
+        except Exception as e:
+            log.warning('  %s: re-hash failed: %r', row.relative_path, e)
+            failed += 1
+            continue
+
+        log.info('  [REHASH] %s: %s -> %s',
+                 row.relative_path,
+                 (row.file_hash or '')[:12], new_hash[:12])
+        if not dry_run:
+            row.file_hash = new_hash
+        rehashed += 1
+
+    if not dry_run and rehashed:
+        db.session.commit()
+
+    log.info(
+        'Re-hash %s. %d updated, %d skipped (path missing or no '
+        'description_class), %d failed.',
+        'dry-run' if dry_run else 'complete',
+        rehashed, skipped, failed,
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Sync data files from DataLocations to the Database.",
@@ -281,8 +375,16 @@ if __name__ == "__main__":
         '--dry-run', action='store_true',
         help="Scan files without saving to the database.",
     )
+    parser.add_argument(
+        '--rehash', action='store_true',
+        help="Re-hash rows whose stored hash isn't xxh3_128 (32-char hex). "
+             "Skips disk walks; only touches rows with legacy hashes.",
+    )
     args = parser.parse_args()
 
     app = create_app()
     with app.app_context():
-        sync_locations(dry_run=args.dry_run)
+        if args.rehash:
+            rehash_legacy(dry_run=args.dry_run)
+        else:
+            sync_locations(dry_run=args.dry_run)

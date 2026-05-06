@@ -42,6 +42,7 @@ Use it::
 
 import importlib
 import os
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -53,6 +54,30 @@ import xxhash
 # data the collision probability is effectively zero, and the cost is
 # constant (~2 MiB per file) regardless of file size.
 HASH_CHUNK = 1 << 20  # 1 MiB
+
+
+def cache_root(namespace):
+    """Return the on-disk cache directory for a given namespace.
+
+    Uses the ``COLONY_MANAGER_CACHE_DIR`` env var as the root, falling
+    back to ``<tempdir>/colony_manager``. ``namespace`` becomes a
+    subdirectory (e.g. ``'thumbnails'``, ``'czi-maxproj'``) so different
+    artifact kinds don't collide. The directory is *not* created here —
+    callers should ``mkdir(parents=True, exist_ok=True)`` as needed.
+
+    Parameters
+    ----------
+    namespace : str
+        Subdirectory name distinguishing this artifact kind.
+
+    Returns
+    -------
+    pathlib.Path
+    """
+    base = os.environ.get('COLONY_MANAGER_CACHE_DIR') or os.path.join(
+        tempfile.gettempdir(), 'colony_manager',
+    )
+    return Path(base) / namespace
 
 
 # ---------------------------------------------------------------------------

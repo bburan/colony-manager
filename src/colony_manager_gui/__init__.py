@@ -1,6 +1,5 @@
 import os
 import datetime
-import tempfile
 from flask import Flask, session
 from flask_login import LoginManager
 from sqlalchemy import MetaData
@@ -15,6 +14,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Must come last
 from colony_manager import models
+from colony_manager.datatypes import cache_root
 
 # Hack to emulate Flask session and query properties.
 db = SQLAlchemy(metadata=models.Base.metadata)
@@ -30,8 +30,7 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['THUMBNAIL_CACHE_DIR'] = os.environ.get(
         'THUMBNAIL_CACHE_DIR',
-        os.path.join(tempfile.gettempdir(), 'colony_manager_thumbnails'),
-    )
+    ) or str(cache_root('thumbnails'))
     app.config['THUMBNAIL_MAX_SIZE'] = int(os.environ.get('THUMBNAIL_MAX_SIZE', '300'))
 
     # Register Blueprints

@@ -16,6 +16,7 @@ from ..forms import (
 )
 from .util import flash_form_errors, render_error_alert
 from colony_manager.datatypes import load_description_class
+from ..sync import sync_locations
 
 main_bp = Blueprint('main', __name__)
 
@@ -223,6 +224,33 @@ def set_species(species_id):
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
+def _autosync_datatype(dt):
+    """Run sync_locations scoped to one DataType and flash a summary.
+
+    No-ops when the DataType has no description_class or no locations
+    configured. Flash messages appear on non-HTMX paths only; HTMX
+    callers see results in the server log.
+    """
+    if not dt.description_class or not dt.locations.count():
+        return
+    try:
+        counts = sync_locations(filter_datatype_id=dt.id)
+    except Exception as e:
+        flash(f'Sync for "{dt.name}" failed: {e}', 'warning')
+        return
+    parts = []
+    if counts['added']:
+        parts.append(f"{counts['added']} new")
+    if counts['moved']:
+        parts.append(f"{counts['moved']} moved")
+    if counts['missing']:
+        parts.append(f"{counts['missing']} marked missing")
+    if counts['unmatched']:
+        parts.append(f"{counts['unmatched']} unmatched")
+    summary = ', '.join(parts) if parts else 'no changes'
+    flash(f'Synced "{dt.name}": {summary}.', 'info')
+
+
 def _save_datatype_children(dt):
     """Persist DataLocation rows from request.form."""
     location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
@@ -276,6 +304,7 @@ def create_datatype():
                 db.session.flush()
                 _save_datatype_children(dt)
                 db.session.commit()
+                _autosync_datatype(dt)
                 if request.headers.get('HX-Request'):
                     response = render_template('partials/datatype_list_item.html', dt=dt)
                     return response, {'HX-Trigger': 'datatype-created'}
@@ -312,6 +341,7 @@ def update_datatype(datatype_id):
         _save_datatype_children(dt)
         try:
             db.session.commit()
+            _autosync_datatype(dt)
             if request.headers.get('HX-Request'):
                 response = render_template('partials/datatype_list_item.html', dt=dt)
                 return response, {'HX-Trigger': 'datatype-updated'}

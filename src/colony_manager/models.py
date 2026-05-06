@@ -368,11 +368,13 @@ class EarDataType(DataType):
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
-        side = _canonical_side(parsed.get('side'))
-        if not animal_ids or side not in ('Left', 'Right'):
+        sides = _expand_sides(parsed.get('side'), len(animal_ids))
+        if sides is None:
             return []
         ears = []
-        for aid in animal_ids:
+        for aid, side in zip(animal_ids, sides):
+            if side not in ('Left', 'Right'):
+                continue
             animal = Animal.query.filter_by(custom_id=aid).first()
             if not animal:
                 continue
@@ -380,6 +382,20 @@ class EarDataType(DataType):
             if ear:
                 ears.append(ear)
         return ears
+
+
+def _expand_sides(raw, count):
+    """Normalize ``parsed['side']`` to a per-animal list of canonical sides.
+
+    Accepts either a scalar (broadcast to every animal) or a list parallel
+    to ``animal_id``. Returns ``None`` if the lengths don't line up so
+    callers can short-circuit.
+    """
+    if isinstance(raw, (list, tuple)):
+        if len(raw) != count:
+            return None
+        return [_canonical_side(s) for s in raw]
+    return [_canonical_side(raw)] * count
 
 
 DATATYPE_SUBCLASSES = {

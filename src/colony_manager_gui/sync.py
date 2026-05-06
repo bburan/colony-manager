@@ -88,7 +88,7 @@ def _stat_timestamps(full_path):
 # Sync
 # ---------------------------------------------------------------------------
 
-def _sync_location(location, dry_run=False):
+def _sync_location(location, dry_run=False, debug=False):
     """Walk a single DataLocation. Returns counts dict."""
     counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0}
 
@@ -136,6 +136,8 @@ def _sync_location(location, dry_run=False):
                 parsed = desc.parse()
             except Exception as e:
                 log.warning('  [WARN] %s: parser raised %r', relative_path, e)
+                if debug:
+                    raise
                 continue
             if not parsed:
                 continue
@@ -242,7 +244,7 @@ def _sync_location(location, dry_run=False):
     return counts
 
 
-def sync_locations(dry_run=False, filter_datatype_id=None):
+def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
     """Walk every DataLocation (or just one DataType's) and sync.
 
     Parameters
@@ -271,7 +273,7 @@ def sync_locations(dry_run=False, filter_datatype_id=None):
         return totals
 
     for location in locations:
-        counts = _sync_location(location, dry_run=dry_run)
+        counts = _sync_location(location, dry_run=dry_run, debug=debug)
         for k, v in counts.items():
             totals[k] += v
     return totals

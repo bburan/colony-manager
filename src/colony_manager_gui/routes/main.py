@@ -58,6 +58,16 @@ def view_dashboard():
         models.AnimalEvent.scheduled_date <= today + timedelta(days=7)
     ).order_by(models.AnimalEvent.scheduled_date.asc()).all()
 
+    # Recently completed events (last 7 days), most recent first.
+    recent_events_threshold = today - timedelta(days=7)
+    recent_events = models.AnimalEvent.query.filter(
+        models.AnimalEvent.completion_date != None,
+        models.AnimalEvent.completion_date >= recent_events_threshold,
+    ).order_by(
+        models.AnimalEvent.completion_date.desc(),
+        models.AnimalEvent.id.desc(),
+    ).all()
+
     # Animals terminated in the last 30 days
     recent_terminations = models.Animal.query.filter(
         models.Animal.termination_date >= (date.today() - timedelta(days=7))
@@ -96,6 +106,7 @@ def view_dashboard():
 
         # Schedule & Alerts
         upcoming_events=upcoming_events,
+        recent_events=recent_events,
 
         # Additional information
         recent_terminations=recent_terminations,

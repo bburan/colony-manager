@@ -62,6 +62,22 @@ Dashboard
 </div>
 
 <div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</span>
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events|length }}</span>
+            </div>
+            <div class="card-body">
+                {% with events=recent_events %}
+                    {% include "partials/recent_events.html" %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
     <div class="col-4">
         <div class="card shadow-sm">
             <div class="card-header">Upcoming Litters</div>

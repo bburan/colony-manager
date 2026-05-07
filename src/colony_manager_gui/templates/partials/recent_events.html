@@ -1,0 +1,55 @@
+{# Recently completed events list with a per-event accordion that expands
+   to show the data files attached to each event.
+
+   Args:
+     events (iterable of AnimalEvent) — already filtered to recently completed,
+       sorted by completion_date desc.
+#}
+{% if events %}
+<ul class="list-group list-group-flush small">
+    {% for event in events %}
+    {% set file_count = event.data_files.count() %}
+    <li class="list-group-item px-0 py-2" x-data="{ open: false }">
+        <button type="button"
+                class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-2 w-100 text-start"
+                @click="open = !open"
+                :aria-expanded="open"
+                {% if file_count == 0 %}disabled{% endif %}>
+            <i class="fas fa-chevron-right fa-xs text-muted flex-shrink-0"
+               style="transition: transform 0.15s; {% if file_count == 0 %}visibility: hidden;{% endif %}"
+               :class="{ 'fa-rotate-90': open }"></i>
+            <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
+                {{ event.completion_date.strftime('%b %d') }}
+            </span>
+            <a href="{{ url_for('animals.view_animal', animal_id=event.animal_id) }}"
+               class="fw-semibold text-decoration-none flex-shrink-0"
+               @click.stop>
+                {{ event.animal.display_id }}
+            </a>
+            <span class="text-truncate flex-grow-1" style="min-width: 0;">
+                {{ event.procedure.display_name }}
+                {% if event.procedure_target %}
+                <span class="text-muted">· {{ event.procedure_target.name }}</span>
+                {% endif %}
+                {% if event.side %}
+                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1"
+                      style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
+                {% endif %}
+            </span>
+            <span class="badge rounded-pill {{ 'bg-secondary-subtle text-secondary' if file_count else 'bg-light text-muted border' }} flex-shrink-0">
+                <i class="fas fa-paperclip fa-xs me-1"></i>{{ file_count }}
+            </span>
+        </button>
+        {% if file_count %}
+        <div x-show="open" x-cloak class="mt-2 ms-4 ps-2 border-start">
+            {% with files=event.data_files, animal=event.animal %}
+                {% include 'partials/entity_data_files.html' %}
+            {% endwith %}
+        </div>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-muted small fst-italic mb-0">No events completed in the last 7 days.</p>
+{% endif %}

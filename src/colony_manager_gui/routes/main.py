@@ -2,7 +2,7 @@ import importlib
 import os
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 
@@ -19,6 +19,15 @@ from colony_manager.datatypes import load_description_class
 from ..sync import sync_locations, rematch_datatype as _rematch_datatype
 
 main_bp = Blueprint('main', __name__)
+
+
+@main_bp.before_request
+def _restrict_settings_to_admin():
+    if not request.path.startswith('/settings'):
+        return
+    if current_user.is_anonymous or not current_user.is_admin():
+        abort(403)
+
 
 SETTINGS_MAP = {
     'species': {'model': models.Species, 'form': forms.SimpleAddForm},
@@ -166,7 +175,7 @@ def create_setting(item_type):
 @main_bp.route('/settings/<item_type>/<int:item_id>/update', methods=['POST'])
 def update_setting(item_type, item_id):
     item = SETTINGS_MAP[item_type]['model'].query.get_or_404(item_id)
-    form = SETTINGS_MAP[item_type]['form']()
+    form = SETTINGS_MAP[item_type]['form'](obj=item)
     if form.validate_on_submit():
         form.populate_obj(item)
         try:
@@ -245,6 +254,8 @@ def _autosync_datatype(dt):
         parts.append(f"{counts['moved']} moved")
     if counts['missing']:
         parts.append(f"{counts['missing']} marked missing")
+    if counts.get('auto_created'):
+        parts.append(f"{counts['auto_created']} events auto-created")
     if counts['unmatched']:
         parts.append(f"{counts['unmatched']} unmatched")
     summary = ', '.join(parts) if parts else 'no changes'
@@ -370,19 +381,22 @@ def rematch_datatype(datatype_id):
     force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
     counts = _rematch_datatype(dt.id, force=force)
 
+    auto_created = counts.get('auto_created', 0)
+    auto_part = f', {auto_created} auto-created' if auto_created else ''
     if force:
         flash(
             f'Force-rematch "{dt.name}": walked {counts["walked"]}, '
-            f'matched {counts["matched"]}, unmatched {counts["unmatched"]}, '
+            f'matched {counts["matched"]}{auto_part}, unmatched {counts["unmatched"]}, '
             f'skipped {counts["skipped"]}, failed {counts["failed"]}.',
-            'success' if counts['matched'] else 'info',
+            'success' if counts['matched'] or auto_created else 'info',
         )
     else:
         flash(
             f'Rematch "{dt.name}": {counts["matched"]} of '
-            f'{counts["walked"]} unmatched file(s) now linked '
-            f'({counts["skipped"]} skipped, {counts["failed"]} failed).',
-            'success' if counts['matched'] else 'info',
+            f'{counts["walked"]} unmatched file(s) now linked'
+            f'{auto_part} ({counts["skipped"]} skipped, '
+            f'{counts["failed"]} failed).',
+            'success' if counts['matched'] or auto_created else 'info',
         )
     return redirect(url_for('main.list_settings'))
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload
 
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
-    DataLocation, Data, Animal, Ear,
+    DataLocation, Data, Animal, AnimalEvent, Ear,
     DATA_SUBCLASSES, _expand_sides,
 )
 
@@ -75,6 +75,43 @@ def _candidate_ears_for(parsed, candidate_animals):
     return ears
 
 
+def _maybe_auto_create_events(datatype, parsed, candidate_animals, dry_run=False):
+    """Create one AnimalEvent per candidate animal when ``auto_create`` is on.
+
+    Only fires for ``animal_event`` DataTypes that have ``auto_create=True``,
+    a ``default_procedure``, a parsed ``date``, and at least one candidate
+    animal. Returns the list of created (or, in dry-run mode, hypothetical)
+    events so the caller can attach them to the new ``Data`` row.
+    """
+    if not getattr(datatype, 'auto_create', False):
+        return []
+    if datatype.target_type != 'animal_event':
+        return []
+    procedure_id = getattr(datatype, 'default_procedure_id', None)
+    if not procedure_id:
+        return []
+    target_date = parsed.get('date')
+    if not target_date or not candidate_animals:
+        return []
+    if dry_run:
+        return []
+
+    target_id = getattr(datatype, 'default_procedure_target_id', None)
+    events = []
+    for animal in candidate_animals:
+        event = AnimalEvent(
+            animal_id=animal.id,
+            procedure_id=procedure_id,
+            procedure_target_id=target_id,
+            scheduled_date=target_date,
+            completion_date=target_date,
+        )
+        db.session.add(event)
+        events.append(event)
+    db.session.flush()
+    return events
+
+
 def _stat_timestamps(full_path):
     """Return ``(mtime, ctime)`` as datetimes, or ``(None, None)`` on failure."""
     try:
@@ -90,7 +127,7 @@ def _stat_timestamps(full_path):
 
 def _sync_location(location, dry_run=False, debug=False):
     """Walk a single DataLocation. Returns counts dict."""
-    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0}
+    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0}
 
     datatype = location.datatype
     base_path = location.base_path
@@ -181,7 +218,14 @@ def _sync_location(location, dry_run=False, debug=False):
             candidate_animals = _candidate_animals_for(parsed)
             candidate_ears = _candidate_ears_for(parsed, candidate_animals)
             if not targets:
-                counts['unmatched'] += 1
+                created = _maybe_auto_create_events(
+                    datatype, parsed, candidate_animals, dry_run=dry_run,
+                )
+                if created:
+                    targets = created
+                    counts['auto_created'] += len(created)
+                else:
+                    counts['unmatched'] += 1
 
             if dry_run:
                 log.info(
@@ -236,10 +280,10 @@ def _sync_location(location, dry_run=False, debug=False):
         db.session.commit()
 
     log.info(
-        '[%s] %s — added=%d moved=%d unmatched=%d skipped=%d missing=%d',
+        '[%s] %s — added=%d moved=%d unmatched=%d auto_created=%d skipped=%d missing=%d',
         datatype.name, 'dry-run' if dry_run else 'done',
         counts['added'], counts['moved'], counts['unmatched'],
-        counts['skipped'], counts['missing'],
+        counts['auto_created'], counts['skipped'], counts['missing'],
     )
     return counts
 
@@ -266,7 +310,7 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
         query = query.filter(DataLocation.datatype_id == filter_datatype_id)
     locations = query.all()
 
-    totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0}
+    totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0}
     if not locations:
         log.info('No DataLocations found%s.',
                  f' for datatype {filter_datatype_id}' if filter_datatype_id else '')
@@ -324,7 +368,7 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
     """
     from colony_manager.models import DataType, DATA_SUBCLASSES
 
-    counts = {'walked': 0, 'matched': 0, 'unmatched': 0, 'skipped': 0, 'failed': 0}
+    counts = {'walked': 0, 'matched': 0, 'unmatched': 0, 'skipped': 0, 'failed': 0, 'auto_created': 0}
 
     dt = DataType.query.get(datatype_id)
     if dt is None:
@@ -374,6 +418,14 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         candidate_animals = _candidate_animals_for(parsed)
         candidate_ears = _candidate_ears_for(parsed, candidate_animals)
 
+        if not targets:
+            created = _maybe_auto_create_events(
+                dt, parsed, candidate_animals, dry_run=dry_run,
+            )
+            if created:
+                targets = created
+                counts['auto_created'] += len(created)
+
         if dry_run:
             log.info(
                 '  [DRY RUN] %s: targets=%d animals=%s ears=%s',
@@ -402,10 +454,10 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         db.session.commit()
 
     log.info(
-        '[%s] Rematch %s: walked=%d matched=%d unmatched=%d skipped=%d failed=%d',
+        '[%s] Rematch %s: walked=%d matched=%d unmatched=%d auto_created=%d skipped=%d failed=%d',
         dt.name, 'force' if force else 'unmatched-only',
         counts['walked'], counts['matched'], counts['unmatched'],
-        counts['skipped'], counts['failed'],
+        counts['auto_created'], counts['skipped'], counts['failed'],
     )
     return counts
 

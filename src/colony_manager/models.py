@@ -160,20 +160,41 @@ class NestedMixin:
     @property
     def display_name(self):
         if self.parent:
-            return f'{self.parent.name} > {self.name}'
+            return f'{self.parent.display_name} > {self.name}'
         return self.name
 
     @classmethod
     def get_ordered(cls):
-        Parent = orm.aliased(cls)
-        group_sort = func.coalesce(Parent.name, cls.name)
-        return cls.session.query(cls). \
-            outerjoin(Parent, cls.parent_id == Parent.id). \
-            order_by(
-                group_sort.asc(),
-                cls.parent_id.desc(),
-                cls.name.asc(),
-            )
+        items = cls.query.all()
+        by_parent = {}
+        for item in items:
+            by_parent.setdefault(item.parent_id, []).append(item)
+        for siblings in by_parent.values():
+            siblings.sort(key=lambda x: x.name.lower())
+
+        ordered = []
+        def walk(parent_id):
+            for child in by_parent.get(parent_id, []):
+                ordered.append(child)
+                walk(child.id)
+        walk(None)
+        return ordered
+
+    @classmethod
+    def descendant_ids(cls, root_id):
+        rows = cls.query.with_entities(cls.id, cls.parent_id).all()
+        children_of = {}
+        for child_id, parent_id in rows:
+            children_of.setdefault(parent_id, []).append(child_id)
+        result = {root_id}
+        stack = [root_id]
+        while stack:
+            current = stack.pop()
+            for child_id in children_of.get(current, ()):
+                if child_id not in result:
+                    result.add(child_id)
+                    stack.append(child_id)
+        return result
 
 class AnimalProcedure(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)
@@ -215,6 +236,7 @@ class DataType(VersionedModel):
     description = Column(Text, nullable=True)
     target_type = Column(String(50), nullable=False)
     is_folder = Column(Boolean, nullable=False, default=False, server_default='false')
+    auto_create = Column(Boolean, nullable=False, default=False, server_default='false')
     description_class = Column(String(200), nullable=True)
 
     locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
@@ -606,12 +628,6 @@ class AnimalTag(VersionedModel, NestedMixin):
         lazy='dynamic'
     )
 
-    @property
-    def display_name(self):
-        if self.parent:
-            return f'{self.parent.name} > {self.name}'
-        return self.name
-
 class Animal(VersionedModel):
     id = Column(Integer, primary_key=True)
     custom_id = Column(String(100), unique=True, nullable=True)
@@ -929,12 +945,6 @@ class AnimalEventTag(VersionedModel, NestedMixin):
         backref=backref('parent', remote_side=[id]),
         lazy='dynamic'
     )
-
-    @property
-    def display_name(self):
-        if self.parent:
-            return f'{self.parent.name} > {self.name}'
-        return self.name
 
 class AnimalEvent(VersionedModel):
     id = Column(Integer, primary_key=True)

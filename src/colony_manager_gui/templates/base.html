@@ -132,8 +132,10 @@
                         ('studies.list_studies', 'Studies'),
                         ('histology.list_histology', 'Histology'),
                         ('animals.list_unmatched_data', 'Data'),
-                        ('main.list_settings', 'Settings')
                     ] %}
+                    {% if not current_user.is_anonymous and current_user.is_admin() %}
+                        {% set nav_items = nav_items + [('main.list_settings', 'Settings')] %}
+                    {% endif %}
                     {% for endpoint, label in nav_items %}
                     <li class="nav-item">
                         <a class="nav-link {{ 'active' if request.endpoint == endpoint }}"

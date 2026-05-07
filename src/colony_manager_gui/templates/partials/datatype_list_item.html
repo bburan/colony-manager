@@ -7,6 +7,12 @@
             {% if dt.is_folder %}
             <span class="badge bg-secondary">Folder</span>
             {% endif %}
+            {% if dt.auto_create %}
+            <span class="badge bg-success" data-bs-toggle="tooltip"
+                  title="Auto-creates an event for unmatched files during sync.">
+                <i class="fas fa-magic"></i> Auto-create
+            </span>
+            {% endif %}
             <small class="text-muted ms-2"><i class="fas fa-map-marker-alt"></i> {{ dt.locations.count() }} location(s)</small>
             {% if dt.description_class %}
                 <small class="text-muted ms-2 font-monospace" title="{{ dt.description_class }}"><i class="fas fa-code"></i> {{ dt.description_class.split('.')|last }}</small>

@@ -88,6 +88,7 @@ class AnimalEventDataTypeForm(DataTypeForm):
         allow_blank=True,
         blank_text='-- None --'
     )
+    auto_create = BooleanField('Auto-create event for unmatched files?')
 
 
 class ConfocalImageDataTypeForm(DataTypeForm):
@@ -134,12 +135,22 @@ def create_nested_form(model_class, label='Parent'):
     class NestedAddForm(FlaskForm):
         parent = QuerySelectField(
             'Parent',
-            query_factory=lambda: model_class.query.filter(model_class.parent_id==None).order_by('name'),
-            get_label='name',
+            query_factory=model_class.get_ordered,
+            get_label='display_name',
             allow_blank=True,
             blank_text='-- No Parent --',
         )
         name = StringField('Name', validators=[DataRequired()])
+
+        def __init__(self, *args, obj=None, **kwargs):
+            super().__init__(*args, obj=obj, **kwargs)
+            obj_id = getattr(obj, 'id', None)
+            if obj_id is not None:
+                excluded = model_class.descendant_ids(obj_id)
+                self.parent.query_factory = lambda: [
+                    item for item in model_class.get_ordered()
+                    if item.id not in excluded
+                ]
     return NestedAddForm
 
 class CageForm(FlaskForm):

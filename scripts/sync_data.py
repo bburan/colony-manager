@@ -10,13 +10,17 @@ Usage
     python sync_data.py --rehash --dry-run
     python sync_data.py --datatype "Animal Photos"
     python sync_data.py --datatype 7
+    python sync_data.py --rematch --datatype "Ear Dissection Notes"
+    python sync_data.py --rematch --force --datatype "Ear Dissection Notes"
 """
 import argparse
 import logging
 import sys
 
 from colony_manager_gui import create_app
-from colony_manager_gui.sync import sync_locations, rehash_legacy
+from colony_manager_gui.sync import (
+    sync_locations, rehash_legacy, rematch_datatype,
+)
 
 
 logging.basicConfig(
@@ -62,6 +66,17 @@ if __name__ == "__main__":
              "DataType's name or numeric id. Ignored with --rehash.",
     )
     parser.add_argument(
+        '--rematch', action='store_true',
+        help="Re-parse and re-match existing rows for a DataType "
+             "(requires --datatype). Skips disk walks for new files.",
+    )
+    parser.add_argument(
+        '--force', action='store_true',
+        help="With --rematch, walk every row (clearing existing target "
+             "and candidate links) instead of only currently-unmatched "
+             "rows. Use after changing parser regexes or matcher logic.",
+    )
+    parser.add_argument(
         '--debug', action='store_true',
         help="Raise the first error rather than suppressing it."
     )
@@ -73,7 +88,17 @@ if __name__ == "__main__":
             if args.datatype:
                 log.warning('--datatype is ignored when --rehash is set.')
             rehash_legacy(dry_run=args.dry_run)
+        elif args.rematch:
+            if not args.datatype:
+                log.error('--rematch requires --datatype.')
+                sys.exit(1)
+            filter_id = _resolve_datatype_id(args.datatype)
+            if filter_id is None:
+                sys.exit(1)
+            rematch_datatype(filter_id, force=args.force, dry_run=args.dry_run)
         else:
+            if args.force:
+                log.warning('--force has no effect without --rematch.')
             filter_id = None
             if args.datatype:
                 filter_id = _resolve_datatype_id(args.datatype)

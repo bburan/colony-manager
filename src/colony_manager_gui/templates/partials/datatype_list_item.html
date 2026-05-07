@@ -23,6 +23,11 @@
             <button class="btn btn-link btn-sm text-primary p-0 px-2"
                     data-bs-toggle="tooltip" title="Re-run matching for unmatched files"><i class="fas fa-sync-alt"></i></button>
         </form>
+        <form method="POST" action="{{ url_for('main.rematch_datatype', datatype_id=dt.id, force=1) }}"
+              onsubmit="return confirm('Force-rematch ALL files in {{ dt.name }}? Existing target links and candidate animals/ears will be cleared and re-resolved from the parser.')">
+            <button class="btn btn-link btn-sm text-warning p-0 px-2"
+                    data-bs-toggle="tooltip" title="Force rematch (clear and re-resolve every row)"><i class="fas fa-rotate"></i></button>
+        </form>
         <form hx-post="{{ url_for('main.delete_datatype', datatype_id=dt.id) }}"
               hx-target="closest li"
               hx-swap="outerHTML swap:300ms"

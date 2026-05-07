@@ -16,7 +16,7 @@ from ..forms import (
 )
 from .util import flash_form_errors, render_error_alert
 from colony_manager.datatypes import load_description_class
-from ..sync import sync_locations
+from ..sync import sync_locations, rematch_datatype as _rematch_datatype
 
 main_bp = Blueprint('main', __name__)
 
@@ -360,62 +360,30 @@ def update_datatype(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
 def rematch_datatype(datatype_id):
-    """Re-run target matching for all unmatched Data files of a DataType."""
+    """Re-run target matching for Data files of a DataType.
+
+    Pass ``?force=1`` to walk every row (clearing existing target links,
+    candidate animals, and candidate ears before re-resolving). Without
+    it, only currently-unmatched rows are touched.
+    """
     dt = models.DataType.query.get_or_404(datatype_id)
+    force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
+    counts = _rematch_datatype(dt.id, force=force)
 
-    if not dt.description_class:
-        flash(f'DataType "{dt.name}" has no description_class configured.', 'warning')
-        return redirect(url_for('main.list_settings'))
-
-    try:
-        desc_cls = load_description_class(dt.description_class)
-    except Exception as e:
-        flash(f'Could not load description_class for "{dt.name}": {e}', 'danger')
-        return redirect(url_for('main.list_settings'))
-
-    data_class = models.DATA_SUBCLASSES.get(dt.target_type)
-    if data_class is None:
-        flash(f'Unknown target_type: {dt.target_type}', 'danger')
-        return redirect(url_for('main.list_settings'))
-
-    if dt.target_type == 'animal_event':
-        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.events.any()).all()
-    elif dt.target_type == 'confocal_image':
-        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.confocal_images.any()).all()
-    elif dt.target_type == 'animal':
-        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.animals.any()).all()
-    elif dt.target_type == 'ear':
-        unmatched = data_class.query.filter_by(datatype_id=dt.id).filter(~data_class.ears.any()).all()
+    if force:
+        flash(
+            f'Force-rematch "{dt.name}": walked {counts["walked"]}, '
+            f'matched {counts["matched"]}, unmatched {counts["unmatched"]}, '
+            f'skipped {counts["skipped"]}, failed {counts["failed"]}.',
+            'success' if counts['matched'] else 'info',
+        )
     else:
-        unmatched = []
-
-    matched_count = 0
-    for data_file in unmatched:
-        full_path = os.path.join(data_file.location.base_path, data_file.relative_path)
-        try:
-            desc = desc_cls(full_path)
-            parsed = desc.parse()
-        except Exception:
-            continue
-        if not parsed:
-            continue
-        targets = dt.match_targets(parsed)
-        if targets:
-            if dt.target_type == 'animal_event':
-                data_file.events = list(targets)
-            elif dt.target_type == 'confocal_image':
-                data_file.confocal_images = list(targets)
-            elif dt.target_type == 'animal':
-                data_file.animals = list(targets)
-            elif dt.target_type == 'ear':
-                data_file.ears = list(targets)
-            matched_count += 1
-
-    db.session.commit()
-    flash(
-        f'Rematch complete for "{dt.name}": {matched_count} of {len(unmatched)} files matched.',
-        'success' if matched_count > 0 else 'info',
-    )
+        flash(
+            f'Rematch "{dt.name}": {counts["matched"]} of '
+            f'{counts["walked"]} unmatched file(s) now linked '
+            f'({counts["skipped"]} skipped, {counts["failed"]} failed).',
+            'success' if counts['matched'] else 'info',
+        )
     return redirect(url_for('main.list_settings'))
 
 

@@ -280,6 +280,137 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
 
 
 # ---------------------------------------------------------------------------
+# Rematch
+# ---------------------------------------------------------------------------
+
+_TARGET_M2M_ATTR = {
+    'animal_event': 'events',
+    'confocal_image': 'confocal_images',
+    'animal': 'animals',
+    'ear': 'ears',
+}
+
+
+def _is_unmatched(row, target_type):
+    """Return True if ``row`` has no targets for its discriminator."""
+    attr = _TARGET_M2M_ATTR.get(target_type)
+    if attr is None:
+        return True
+    return not list(getattr(row, attr))
+
+
+def rematch_datatype(datatype_id, force=False, dry_run=False):
+    """Re-parse and re-match Data rows for a single DataType.
+
+    Parameters
+    ----------
+    datatype_id : int
+        The DataType to operate on.
+    force : bool, default False
+        When False, only walks rows that currently have no linked
+        targets. When True, walks every row for the DataType — clears
+        existing target links, candidate animals, and candidate ears,
+        then re-resolves them via the description class. Use this after
+        changing a parser regex or matching rules so already-matched
+        rows pick up the new behavior.
+    dry_run : bool, default False
+        If True, do not commit changes.
+
+    Returns
+    -------
+    dict
+        Counts: ``walked``, ``matched``, ``unmatched``, ``skipped``,
+        ``failed``.
+    """
+    from colony_manager.models import DataType, DATA_SUBCLASSES
+
+    counts = {'walked': 0, 'matched': 0, 'unmatched': 0, 'skipped': 0, 'failed': 0}
+
+    dt = DataType.query.get(datatype_id)
+    if dt is None:
+        log.error('No DataType with id=%s.', datatype_id)
+        return counts
+    if not dt.description_class:
+        log.warning('[%s] No description_class configured.', dt.name)
+        return counts
+
+    try:
+        desc_cls = load_description_class(dt.description_class)
+    except Exception as e:
+        log.error('[%s] Could not load description_class %r: %s',
+                  dt.name, dt.description_class, e)
+        return counts
+
+    data_class = DATA_SUBCLASSES.get(dt.target_type)
+    if data_class is None:
+        log.error('[%s] Unknown target_type %r.', dt.name, dt.target_type)
+        return counts
+
+    rows = data_class.query.filter_by(datatype_id=dt.id).all()
+    target_attr = _TARGET_M2M_ATTR.get(dt.target_type)
+
+    for row in rows:
+        if not force and not _is_unmatched(row, dt.target_type):
+            counts['skipped'] += 1
+            continue
+        counts['walked'] += 1
+
+        full_path = os.path.join(row.location.base_path, row.relative_path)
+        if not os.path.exists(full_path):
+            counts['skipped'] += 1
+            continue
+
+        try:
+            parsed = desc_cls(full_path).parse()
+        except Exception as e:
+            log.warning('  [WARN] %s: parser raised %r', row.relative_path, e)
+            counts['failed'] += 1
+            continue
+        if not parsed:
+            counts['skipped'] += 1
+            continue
+
+        targets = dt.match_targets(parsed)
+        candidate_animals = _candidate_animals_for(parsed)
+        candidate_ears = _candidate_ears_for(parsed, candidate_animals)
+
+        if dry_run:
+            log.info(
+                '  [DRY RUN] %s: targets=%d animals=%s ears=%s',
+                row.relative_path, len(targets),
+                [a.display_id for a in candidate_animals],
+                [e.full_display for e in candidate_ears],
+            )
+        else:
+            # Single-assign the desired collections so SQLAlchemy diffs
+            # against the current state. A clear-then-set sequence in the
+            # same transaction would make sqlalchemy_continuum log both a
+            # delete and an insert for unchanged items, blowing up on the
+            # (data_id, target_id, transaction_id) version PK.
+            if target_attr is not None:
+                if force or targets:
+                    setattr(row, target_attr, list(targets))
+            row.candidate_animals = candidate_animals
+            row.candidate_ears = candidate_ears
+
+        if targets:
+            counts['matched'] += 1
+        else:
+            counts['unmatched'] += 1
+
+    if not dry_run:
+        db.session.commit()
+
+    log.info(
+        '[%s] Rematch %s: walked=%d matched=%d unmatched=%d skipped=%d failed=%d',
+        dt.name, 'force' if force else 'unmatched-only',
+        counts['walked'], counts['matched'], counts['unmatched'],
+        counts['skipped'], counts['failed'],
+    )
+    return counts
+
+
+# ---------------------------------------------------------------------------
 # Re-hash
 # ---------------------------------------------------------------------------
 

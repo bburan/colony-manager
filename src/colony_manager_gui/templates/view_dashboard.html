@@ -62,7 +62,7 @@ Dashboard
 </div>
 
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-6">
         <div class="card shadow-sm">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <span><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</span>
@@ -71,6 +71,21 @@ Dashboard
             <div class="card-body">
                 {% with events=recent_events %}
                     {% include "partials/recent_events.html" %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+    <div class="col-6">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-microscope me-2"></i>Recent Confocal Images (last 7 days)</span>
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill">
+                    {{ recent_confocal_groups|length + (1 if unmatched_recent_confocal else 0) }}
+                </span>
+            </div>
+            <div class="card-body">
+                {% with groups=recent_confocal_groups, unmatched=unmatched_recent_confocal %}
+                    {% include "partials/recent_confocal.html" %}
                 {% endwith %}
             </div>
         </div>

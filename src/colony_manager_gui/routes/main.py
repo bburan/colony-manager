@@ -68,6 +68,28 @@ def view_dashboard():
         models.AnimalEvent.id.desc(),
     ).all()
 
+    # Confocal image files acquired in the last 7 days (by file mtime),
+    # grouped by ConfocalImage. Insertion order = most-recently-modified first.
+    recent_confocal_files = models.ConfocalImageData.query.filter(
+        models.ConfocalImageData.mtime != None,
+        models.ConfocalImageData.mtime >= recent_events_threshold,
+    ).order_by(models.ConfocalImageData.mtime.desc()).all()
+    recent_confocal_groups = []
+    _seen_image_ids = {}
+    unmatched_recent_confocal = []
+    for f in recent_confocal_files:
+        images = list(f.confocal_images)
+        if not images:
+            unmatched_recent_confocal.append(f)
+            continue
+        for img in images:
+            idx = _seen_image_ids.get(img.id)
+            if idx is None:
+                _seen_image_ids[img.id] = len(recent_confocal_groups)
+                recent_confocal_groups.append({'image': img, 'files': [f]})
+            else:
+                recent_confocal_groups[idx]['files'].append(f)
+
     # Animals terminated in the last 30 days
     recent_terminations = models.Animal.query.filter(
         models.Animal.termination_date >= (date.today() - timedelta(days=7))
@@ -107,6 +129,8 @@ def view_dashboard():
         # Schedule & Alerts
         upcoming_events=upcoming_events,
         recent_events=recent_events,
+        recent_confocal_groups=recent_confocal_groups,
+        unmatched_recent_confocal=unmatched_recent_confocal,
 
         # Additional information
         recent_terminations=recent_terminations,

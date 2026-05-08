@@ -32,27 +32,49 @@ XXH3_128_HEX_LEN = 32
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _candidate_animals_for(parsed):
-    """Return Animals matching parsed['animal_id'] (single value or list)."""
+def _parsed_custom_ids(parsed):
+    """Yield the animal custom_ids referenced by a parsed metadata dict."""
+    raw = parsed.get('animal_id')
+    if not raw:
+        return
+    if isinstance(raw, (list, tuple)):
+        yield from raw
+    else:
+        yield raw
+
+
+def _candidate_animals_for(parsed, animals_by_cid=None):
+    """Return Animals matching parsed['animal_id'] (single value or list).
+
+    *animals_by_cid* is an optional ``{custom_id: Animal}`` cache to avoid
+    issuing a query per file. Falls back to a per-id query when not
+    provided so non-sync callers (rematch, tests) keep working.
+    """
     raw = parsed.get('animal_id')
     if not raw:
         return []
     ids = raw if isinstance(raw, (list, tuple)) else [raw]
     animals = []
     for aid in ids:
-        animal = Animal.query.filter_by(custom_id=aid).first()
+        if animals_by_cid is not None:
+            animal = animals_by_cid.get(aid)
+        else:
+            animal = Animal.query.filter_by(custom_id=aid).first()
         if animal:
             animals.append(animal)
     return animals
 
 
-def _candidate_ears_for(parsed, candidate_animals):
+def _candidate_ears_for(parsed, candidate_animals, ears_by_animal_side=None):
     """Return Ears matching the parsed side for each candidate animal.
 
     Supports either a scalar ``side`` (one side for every animal_id) or
     a list parallel to ``animal_id`` so multi-animal photos like
     ``G014-4L G018-3R - dissection notes.jpg`` can resolve each
     animal's specific ear.
+
+    *ears_by_animal_side* is an optional ``{(animal_id, side): Ear}``
+    cache; falls back to per-(id, side) queries when not provided.
     """
     raw_ids = parsed.get('animal_id')
     if not raw_ids or not candidate_animals:
@@ -69,7 +91,10 @@ def _candidate_ears_for(parsed, candidate_animals):
         animal = by_custom_id.get(aid)
         if not animal:
             continue
-        ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
+        if ears_by_animal_side is not None:
+            ear = ears_by_animal_side.get((animal.id, side))
+        else:
+            ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
         if ear:
             ears.append(ear)
     return ears
@@ -126,7 +151,22 @@ def _stat_timestamps(full_path):
 # ---------------------------------------------------------------------------
 
 def _sync_location(location, dry_run=False, debug=False):
-    """Walk a single DataLocation. Returns counts dict."""
+    """Walk a single DataLocation. Returns counts dict.
+
+    Two passes over the filesystem-mapped data:
+
+    1. Walk the directory, parse each file, and collect everything we'd
+       need to look up. Files that already exist in the DB are
+       short-circuited via a single ``{relative_path: row}`` map loaded
+       up front.
+    2. Bulk-load all referenced ``Animal``/``Ear`` rows and the
+       hash-match index in three queries total. Walk the parsed items
+       and resolve targets/candidates from the in-memory caches.
+
+    Pre-refactor this loop issued (existence + hash + N×animal +
+    N×ear) ≈ 4N queries for N files; now it's ≈ 4 queries regardless
+    of N (plus whatever ``match_targets`` issues, which we leave alone).
+    """
     counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0}
 
     datatype = location.datatype
@@ -154,17 +194,22 @@ def _sync_location(location, dry_run=False, debug=False):
 
     log.info('[%s] Scanning directory: %s', datatype.name, base_path)
 
+    # ------------------------------------------------------------------
+    # Pass 1: walk fs + parse, batching nothing-DB-related.
+    # ------------------------------------------------------------------
+    existing_by_path = {
+        row.relative_path: row
+        for row in data_class.query.filter_by(location_id=location.id).all()
+    }
+
+    parsed_items = []  # list of (relative_path, item_name, full_path, parsed, desc, file_hash)
     for root, dirs, files in os.walk(base_path):
         items_to_check = dirs if datatype.is_folder else files
         for item_name in items_to_check:
             full_path = os.path.join(root, item_name)
             relative_path = os.path.relpath(full_path, base_path).replace("\\", "/")
 
-            existing = data_class.query.filter_by(
-                location_id=location.id,
-                relative_path=relative_path,
-            ).first()
-            if existing:
+            if relative_path in existing_by_path:
                 counts['skipped'] += 1
                 continue
 
@@ -188,91 +233,128 @@ def _sync_location(location, dry_run=False, debug=False):
                 log.warning('  [WARN] %s: hash computation failed: %r',
                             relative_path, e)
 
-            if file_hash:
-                hash_match = data_class.query.filter_by(
-                    datatype_id=datatype.id,
-                    file_hash=file_hash,
-                ).first()
-                if hash_match:
-                    match_full = os.path.join(
-                        hash_match.location.base_path,
-                        hash_match.relative_path,
-                    )
-                    if not os.path.exists(match_full):
-                        log.info('  [MOVE] %s -> %s (hash %s)',
-                                 hash_match.relative_path, relative_path,
-                                 file_hash[:12])
-                        if not dry_run:
-                            hash_match.location_id = location.id
-                            hash_match.relative_path = relative_path
-                            hash_match.name = item_name
-                            if hash_match.status == 'missing':
-                                hash_match.status = 'unreviewed'
-                        counts['moved'] += 1
-                        continue
-                    else:
-                        log.info('  [DUP]  %s has same hash as %s',
-                                 relative_path, hash_match.relative_path)
-
-            targets = datatype.match_targets(parsed)
-            candidate_animals = _candidate_animals_for(parsed)
-            candidate_ears = _candidate_ears_for(parsed, candidate_animals)
-            if not targets:
-                created = _maybe_auto_create_events(
-                    datatype, parsed, candidate_animals, dry_run=dry_run,
-                )
-                if created:
-                    targets = created
-                    counts['auto_created'] += len(created)
-                else:
-                    counts['unmatched'] += 1
-
-            if dry_run:
-                log.info(
-                    '  [DRY RUN] Would add: %s | animals=%s | '
-                    'ears=%s | targets=%d | hash=%s',
-                    relative_path,
-                    [a.display_id for a in candidate_animals],
-                    [e.full_display for e in candidate_ears],
-                    len(targets),
-                    (file_hash or 'none')[:12],
-                )
-                counts['added'] += 1
-                continue
-
-            mtime, ctime = _stat_timestamps(full_path)
-            new_data = data_class(
-                datatype_id=datatype.id,
-                location_id=location.id,
-                relative_path=relative_path,
-                name=item_name,
-                date=parsed.get('date'),
-                file_hash=file_hash,
-                status='unreviewed',
-                mtime=mtime,
-                ctime=ctime,
-                discovered_at=datetime.now(),
+            parsed_items.append(
+                (relative_path, item_name, full_path, parsed, desc, file_hash)
             )
-            if datatype.target_type == 'animal_event':
-                new_data.events = list(targets)
-            elif datatype.target_type == 'confocal_image':
-                new_data.confocal_images = list(targets)
-            elif datatype.target_type == 'animal':
-                new_data.animals = list(targets)
-            elif datatype.target_type == 'ear':
-                new_data.ears = list(targets)
-            new_data.candidate_animals = candidate_animals
-            new_data.candidate_ears = candidate_ears
-            db.session.add(new_data)
-            counts['added'] += 1
 
-    if not dry_run:
-        all_data = data_class.query.filter_by(
+    # ------------------------------------------------------------------
+    # Pass 2: bulk-load reference data, then process each parsed item.
+    # ------------------------------------------------------------------
+    hash_index = {}
+    if any(file_hash for _, _, _, _, _, file_hash in parsed_items):
+        hash_index = {
+            row.file_hash: row
+            for row in data_class.query.options(
+                joinedload(data_class.location)
+            ).filter(
+                data_class.datatype_id == datatype.id,
+                data_class.file_hash.isnot(None),
+            ).all()
+        }
+
+    referenced_cids = set()
+    for _, _, _, parsed, _, _ in parsed_items:
+        referenced_cids.update(_parsed_custom_ids(parsed))
+
+    animals_by_cid = {}
+    if referenced_cids:
+        animals_by_cid = {
+            a.custom_id: a
+            for a in Animal.query.filter(Animal.custom_id.in_(referenced_cids)).all()
+        }
+
+    ears_by_animal_side = {}
+    if animals_by_cid:
+        animal_ids = [a.id for a in animals_by_cid.values()]
+        ears_by_animal_side = {
+            (e.animal_id, e.side): e
+            for e in Ear.query.filter(Ear.animal_id.in_(animal_ids)).all()
+        }
+
+    for relative_path, item_name, full_path, parsed, desc, file_hash in parsed_items:
+        if file_hash:
+            hash_match = hash_index.get(file_hash)
+            if hash_match:
+                match_full = os.path.join(
+                    hash_match.location.base_path,
+                    hash_match.relative_path,
+                )
+                if not os.path.exists(match_full):
+                    log.info('  [MOVE] %s -> %s (hash %s)',
+                             hash_match.relative_path, relative_path,
+                             file_hash[:12])
+                    if not dry_run:
+                        hash_match.location_id = location.id
+                        hash_match.relative_path = relative_path
+                        hash_match.name = item_name
+                        if hash_match.status == 'missing':
+                            hash_match.status = 'unreviewed'
+                    counts['moved'] += 1
+                    continue
+                else:
+                    log.info('  [DUP]  %s has same hash as %s',
+                             relative_path, hash_match.relative_path)
+
+        targets = datatype.match_targets(parsed)
+        candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
+        candidate_ears = _candidate_ears_for(
+            parsed, candidate_animals, ears_by_animal_side,
+        )
+        if not targets:
+            created = _maybe_auto_create_events(
+                datatype, parsed, candidate_animals, dry_run=dry_run,
+            )
+            if created:
+                targets = created
+                counts['auto_created'] += len(created)
+            else:
+                counts['unmatched'] += 1
+
+        if dry_run:
+            log.info(
+                '  [DRY RUN] Would add: %s | animals=%s | '
+                'ears=%s | targets=%d | hash=%s',
+                relative_path,
+                [a.display_id for a in candidate_animals],
+                [e.full_display for e in candidate_ears],
+                len(targets),
+                (file_hash or 'none')[:12],
+            )
+            counts['added'] += 1
+            continue
+
+        mtime, ctime = _stat_timestamps(full_path)
+        new_data = data_class(
             datatype_id=datatype.id,
             location_id=location.id,
-        ).all()
-        for data_file in all_data:
-            full = os.path.join(base_path, data_file.relative_path)
+            relative_path=relative_path,
+            name=item_name,
+            date=parsed.get('date'),
+            file_hash=file_hash,
+            status='unreviewed',
+            mtime=mtime,
+            ctime=ctime,
+            discovered_at=datetime.now(),
+        )
+        if datatype.target_type == 'animal_event':
+            new_data.events = list(targets)
+        elif datatype.target_type == 'confocal_image':
+            new_data.confocal_images = list(targets)
+        elif datatype.target_type == 'animal':
+            new_data.animals = list(targets)
+        elif datatype.target_type == 'ear':
+            new_data.ears = list(targets)
+        new_data.candidate_animals = candidate_animals
+        new_data.candidate_ears = candidate_ears
+        db.session.add(new_data)
+        counts['added'] += 1
+
+    if not dry_run:
+        # Reuse the existence-check map: anything we *didn't* see on
+        # disk during the walk needs to be flagged 'missing'. ``stat``
+        # is called per row regardless, but no extra DB query.
+        for relative_path, data_file in existing_by_path.items():
+            full = os.path.join(base_path, relative_path)
             if not os.path.exists(full) and data_file.status != 'missing':
                 data_file.status = 'missing'
                 counts['missing'] += 1
@@ -390,9 +472,14 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         log.error('[%s] Unknown target_type %r.', dt.name, dt.target_type)
         return counts
 
-    rows = data_class.query.filter_by(datatype_id=dt.id).all()
+    rows = data_class.query.options(joinedload(data_class.location)) \
+                            .filter_by(datatype_id=dt.id).all()
     target_attr = _TARGET_M2M_ATTR.get(dt.target_type)
 
+    # Pass 1: parse every walkable row and collect referenced custom_ids
+    # so the actual matching pass can use cached Animal/Ear maps. Same
+    # pattern as ``_sync_location``: O(rows) DB queries → O(1).
+    parsed_rows = []  # list of (row, parsed)
     for row in rows:
         if not force and not _is_unmatched(row, dt.target_type):
             counts['skipped'] += 1
@@ -414,9 +501,31 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
             counts['skipped'] += 1
             continue
 
+        parsed_rows.append((row, parsed))
+
+    referenced_cids = set()
+    for _, parsed in parsed_rows:
+        referenced_cids.update(_parsed_custom_ids(parsed))
+    animals_by_cid = {}
+    if referenced_cids:
+        animals_by_cid = {
+            a.custom_id: a
+            for a in Animal.query.filter(Animal.custom_id.in_(referenced_cids)).all()
+        }
+    ears_by_animal_side = {}
+    if animals_by_cid:
+        animal_ids = [a.id for a in animals_by_cid.values()]
+        ears_by_animal_side = {
+            (e.animal_id, e.side): e
+            for e in Ear.query.filter(Ear.animal_id.in_(animal_ids)).all()
+        }
+
+    for row, parsed in parsed_rows:
         targets = dt.match_targets(parsed)
-        candidate_animals = _candidate_animals_for(parsed)
-        candidate_ears = _candidate_ears_for(parsed, candidate_animals)
+        candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
+        candidate_ears = _candidate_ears_for(
+            parsed, candidate_animals, ears_by_animal_side,
+        )
 
         if not targets:
             created = _maybe_auto_create_events(

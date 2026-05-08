@@ -18,6 +18,10 @@ from ..forms import (
 from .util import flash_form_errors, render_error_alert
 from colony_manager.datatypes import load_description_class
 from ..sync import sync_locations, rematch_datatype as _rematch_datatype
+from ..jobs import (
+    enqueue_datatype_sync, enqueue_datatype_rematch,
+    recent_jobs, parse_summary,
+)
 
 main_bp = Blueprint('main', __name__)
 
@@ -204,12 +208,25 @@ def view_calendar():
 @main_bp.route('/settings')
 def list_settings():
     settings = {k: {'items': v['model'].query.all(), 'form': v['form']} for k, v in SETTINGS_MAP.items()}
+    jobs = recent_jobs(limit=10)
     return render_template(
         'view_settings.html',
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
         datatypes=models.DataType.query.all(),
+        recent_jobs=jobs,
+        parse_summary=parse_summary,
+    )
+
+
+@main_bp.route('/settings/jobs/recent')
+def list_recent_jobs():
+    """HTMX poll target — returns the recent-jobs panel HTML."""
+    return render_template(
+        'partials/recent_jobs_panel.html',
+        recent_jobs=recent_jobs(limit=10),
+        parse_summary=parse_summary,
     )
 
 
@@ -313,32 +330,16 @@ def set_species(species_id):
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
 def _autosync_datatype(dt):
-    """Run sync_locations scoped to one DataType and flash a summary.
+    """Queue a background sync for one DataType.
 
     No-ops when the DataType has no description_class or no locations
-    configured. Flash messages appear on non-HTMX paths only; HTMX
-    callers see results in the server log.
+    configured (nothing for sync to do). Returns immediately so the
+    request thread isn't tied up walking the filesystem.
     """
     if not dt.description_class or not dt.locations.count():
         return
-    try:
-        counts = sync_locations(filter_datatype_id=dt.id)
-    except Exception as e:
-        flash(f'Sync for "{dt.name}" failed: {e}', 'warning')
-        return
-    parts = []
-    if counts['added']:
-        parts.append(f"{counts['added']} new")
-    if counts['moved']:
-        parts.append(f"{counts['moved']} moved")
-    if counts['missing']:
-        parts.append(f"{counts['missing']} marked missing")
-    if counts.get('auto_created'):
-        parts.append(f"{counts['auto_created']} events auto-created")
-    if counts['unmatched']:
-        parts.append(f"{counts['unmatched']} unmatched")
-    summary = ', '.join(parts) if parts else 'no changes'
-    flash(f'Synced "{dt.name}": {summary}.', 'info')
+    enqueue_datatype_sync(dt.id)
+    flash(f'Sync for "{dt.name}" queued in background.', 'info')
 
 
 def _save_datatype_children(dt):
@@ -450,33 +451,18 @@ def update_datatype(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
 def rematch_datatype(datatype_id):
-    """Re-run target matching for Data files of a DataType.
+    """Queue a background rematch run for a DataType's Data files.
 
     Pass ``?force=1`` to walk every row (clearing existing target links,
     candidate animals, and candidate ears before re-resolving). Without
-    it, only currently-unmatched rows are touched.
+    it, only currently-unmatched rows are touched. Returns immediately —
+    progress shows up in the recent-jobs panel on the settings page.
     """
     dt = models.DataType.query.get_or_404(datatype_id)
     force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
-    counts = _rematch_datatype(dt.id, force=force)
-
-    auto_created = counts.get('auto_created', 0)
-    auto_part = f', {auto_created} auto-created' if auto_created else ''
-    if force:
-        flash(
-            f'Force-rematch "{dt.name}": walked {counts["walked"]}, '
-            f'matched {counts["matched"]}{auto_part}, unmatched {counts["unmatched"]}, '
-            f'skipped {counts["skipped"]}, failed {counts["failed"]}.',
-            'success' if counts['matched'] or auto_created else 'info',
-        )
-    else:
-        flash(
-            f'Rematch "{dt.name}": {counts["matched"]} of '
-            f'{counts["walked"]} unmatched file(s) now linked'
-            f'{auto_part} ({counts["skipped"]} skipped, '
-            f'{counts["failed"]} failed).',
-            'success' if counts['matched'] or auto_created else 'info',
-        )
+    enqueue_datatype_rematch(dt.id, force=force)
+    label = 'Force-rematch' if force else 'Rematch'
+    flash(f'{label} for "{dt.name}" queued in background.', 'info')
     return redirect(url_for('main.list_settings'))
 
 

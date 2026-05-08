@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import re
 from statistics import mean
 
@@ -1146,6 +1146,32 @@ class User(VersionedModel):
         if equal is NotImplemented:
             return NotImplemented
         return not equal
+
+
+class SyncJob(Base):
+    """Background-job record for sync / rematch runs.
+
+    Created at request time, updated by the worker thread. Not versioned
+    (this is operational state, not domain data).
+    """
+    __tablename__ = 'sync_job'
+
+    id = Column(Integer, primary_key=True)
+    datatype_id = Column(
+        Integer, ForeignKey('data_type.id', ondelete='SET NULL'), nullable=True,
+    )
+    # 'sync' | 'rematch' | 'force_rematch'
+    kind = Column(String(32), nullable=False)
+    # 'pending' | 'running' | 'success' | 'failed'
+    status = Column(String(32), nullable=False, default='pending')
+    enqueued_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    # Counts dict from sync_locations / rematch_datatype, JSON-encoded.
+    summary = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+
+    datatype = relationship('DataType')
 
 
 orm.configure_mappers()

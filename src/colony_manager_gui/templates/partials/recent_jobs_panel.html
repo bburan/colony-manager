@@ -1,0 +1,54 @@
+{# Recent sync/rematch jobs. Polled every 5s by view_settings.html.
+
+   Args:
+     recent_jobs (list of SyncJob)
+     parse_summary (callable: SyncJob -> dict) — decodes JSON summary
+#}
+{% if recent_jobs %}
+<ul class="list-group list-group-flush small">
+    {% for job in recent_jobs %}
+    {% set summary = parse_summary(job) %}
+    {% set status_class = {
+        'pending': 'secondary',
+        'running': 'primary',
+        'success': 'success',
+        'failed': 'danger',
+    }.get(job.status, 'secondary') %}
+    <li class="list-group-item d-flex align-items-center gap-3">
+        <span class="badge bg-{{ status_class }}-subtle text-{{ status_class }}-emphasis flex-shrink-0"
+              style="min-width: 5em;">
+            {% if job.status == 'running' %}<i class="fas fa-spinner fa-spin fa-xs me-1"></i>{% endif %}
+            {{ job.status }}
+        </span>
+        <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
+            {{ job.enqueued_at.strftime('%b %d %H:%M:%S') }}
+        </span>
+        <span class="badge bg-light text-dark border flex-shrink-0">{{ job.kind }}</span>
+        <span class="flex-grow-1 text-truncate" style="min-width: 0;">
+            {% if job.datatype %}{{ job.datatype.name }}{% else %}<em class="text-muted">all</em>{% endif %}
+            {% if job.status == 'success' and summary %}
+            <span class="text-muted ms-2">
+                {%- set parts = [] -%}
+                {%- if summary.get('added') %}{% set _ = parts.append(summary.added ~ ' added') %}{% endif -%}
+                {%- if summary.get('matched') %}{% set _ = parts.append(summary.matched ~ ' matched') %}{% endif -%}
+                {%- if summary.get('moved') %}{% set _ = parts.append(summary.moved ~ ' moved') %}{% endif -%}
+                {%- if summary.get('missing') %}{% set _ = parts.append(summary.missing ~ ' missing') %}{% endif -%}
+                {%- if summary.get('unmatched') %}{% set _ = parts.append(summary.unmatched ~ ' unmatched') %}{% endif -%}
+                {%- if summary.get('auto_created') %}{% set _ = parts.append(summary.auto_created ~ ' auto-created') %}{% endif -%}
+                {{ parts|join(', ') if parts else 'no changes' }}
+            </span>
+            {% elif job.status == 'failed' and job.error %}
+            <span class="text-danger ms-2" title="{{ job.error }}">{{ job.error|truncate(80) }}</span>
+            {% endif %}
+        </span>
+        {% if job.finished_at and job.started_at %}
+        <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
+            {{ '%.1f'|format((job.finished_at - job.started_at).total_seconds()) }}s
+        </span>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-muted small fst-italic mb-0 px-3 py-2">No recent jobs.</p>
+{% endif %}

@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 import flask_login
 
 from colony_manager_gui import db
+from colony_manager_gui.auth_decorators import public
 from colony_manager_gui.routes.util import flash_form_errors
 from colony_manager_gui.forms import UserLoginForm, UserCreateForm, UserEditForm
 from colony_manager.models import User
@@ -38,6 +39,7 @@ def logout_user():
     return redirect(request.referrer or url_for('auth.login_user'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@public
 def login_user():
     # Here we use a class of some kind to represent and validate our
     # client-side form data. For example, WTForms is a library that will
@@ -63,6 +65,7 @@ def login_user():
                            create_form=UserCreateForm())
 
 @auth_bp.route('/add', methods=['GET', 'POST'])
+@public
 def add_user():
     # Self-registration is only open while the user table is empty (bootstrap
     # the first admin). Once any user exists, only an authenticated admin can

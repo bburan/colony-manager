@@ -86,8 +86,13 @@ def create_app():
     @app.before_request
     def check_login():
         from flask_login import current_user, logout_user
-        from flask import request, redirect, url_for
-        public_endpoints = ('auth.login_user', 'auth.add_user')
+        from flask import request, redirect, url_for, current_app
+
+        # Static files are always allowed — they ship CSS/JS that the
+        # login page itself depends on.
+        if request.endpoint == 'static':
+            return
+
         if current_user.is_authenticated:
             # A user who was deactivated after logging in must lose access on
             # the next request. ``is_active`` reads the live ``active`` flag.
@@ -95,12 +100,19 @@ def create_app():
                 logout_user()
                 return redirect(url_for('auth.login_user', next=request.url))
             return
-        if request.endpoint in public_endpoints:
+
+        view = current_app.view_functions.get(request.endpoint)
+        if view is not None and getattr(view, '_colony_public', False):
             return
         return redirect(url_for('auth.login_user', next=request.url))
 
+    # Make ``Model.query`` / ``cls.session`` work across the
+    # ``colony_manager`` package. The library doesn't subclass
+    # ``flask_sqlalchemy.Model`` — it has its own declarative ``Base`` —
+    # so Flask-SQLAlchemy's auto-attached query property doesn't apply.
+    # ``bind_models`` is the public entry point; non-Flask callers
+    # (scripts, tests) call it themselves before issuing queries.
     with app.app_context():
-        models.Base.session = db.session
-        models.Base.query = db.session.query_property()
+        models.bind_models(db.session)
 
     return app

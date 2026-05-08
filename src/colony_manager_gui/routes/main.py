@@ -22,6 +22,7 @@ from ..jobs import (
     enqueue_datatype_sync, enqueue_datatype_rematch,
     recent_jobs, parse_summary,
 )
+from .. import queries
 
 main_bp = Blueprint('main', __name__)
 
@@ -52,10 +53,10 @@ def view_dashboard():
     today = date.today()
 
     # 1. Metrics for Top Cards
-    active_cages_count = models.Species.count_active_cages()
-    active_animals_count = models.Species.count_active_animals()
-    ears_for_processing_count = models.Species.count_unprocessed_ears()
-    active_breeding_pairs_count = models.Species.count_active_breeding_pairs()
+    active_cages_count = queries.count_active_cages(db.session)
+    active_animals_count = queries.count_active_animals(db.session)
+    ears_for_processing_count = queries.count_unprocessed_ears(db.session)
+    active_breeding_pairs_count = queries.count_active_breeding_pairs(db.session)
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
     upcoming_events = models.AnimalEvent.query.options(
@@ -329,19 +330,6 @@ def set_species(species_id):
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
-def _autosync_datatype(dt):
-    """Queue a background sync for one DataType.
-
-    No-ops when the DataType has no description_class or no locations
-    configured (nothing for sync to do). Returns immediately so the
-    request thread isn't tied up walking the filesystem.
-    """
-    if not dt.description_class or not dt.locations.count():
-        return
-    enqueue_datatype_sync(dt.id)
-    flash(f'Sync for "{dt.name}" queued in background.', 'info')
-
-
 def _save_datatype_children(dt):
     """Persist DataLocation rows from request.form."""
     location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
@@ -395,11 +383,10 @@ def create_datatype():
                 db.session.flush()
                 _save_datatype_children(dt)
                 db.session.commit()
-                _autosync_datatype(dt)
                 if request.headers.get('HX-Request'):
                     response = render_template('partials/datatype_list_item.html', dt=dt)
                     return response, {'HX-Trigger': 'datatype-created'}
-                flash(f'DataType "{dt.name}" added.', 'success')
+                flash(f'DataType "{dt.name}" added. Click the sync button to import files.', 'success')
             except sqlalchemy.exc.IntegrityError:
                 db.session.rollback()
                 if request.headers.get('HX-Request'):
@@ -432,7 +419,6 @@ def update_datatype(datatype_id):
         _save_datatype_children(dt)
         try:
             db.session.commit()
-            _autosync_datatype(dt)
             if request.headers.get('HX-Request'):
                 response = render_template('partials/datatype_list_item.html', dt=dt)
                 return response, {'HX-Trigger': 'datatype-updated'}
@@ -449,6 +435,22 @@ def update_datatype(datatype_id):
     return redirect(url_for('main.list_settings'))
 
 
+@main_bp.route('/settings/datatype/<int:datatype_id>/sync', methods=['POST'])
+def sync_datatype(datatype_id):
+    """Queue a background sync_locations run for one DataType."""
+    dt = models.DataType.query.get_or_404(datatype_id)
+    if not dt.description_class or not dt.locations.count():
+        flash(
+            f'Cannot sync "{dt.name}": needs a description class and at '
+            f'least one location.',
+            'warning',
+        )
+        return redirect(url_for('main.list_settings'))
+    enqueue_datatype_sync(dt.id)
+    flash(f'Sync for "{dt.name}" queued. See status below.', 'info')
+    return redirect(url_for('main.list_settings', _anchor='setting-jobs'))
+
+
 @main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
 def rematch_datatype(datatype_id):
     """Queue a background rematch run for a DataType's Data files.
@@ -463,7 +465,7 @@ def rematch_datatype(datatype_id):
     enqueue_datatype_rematch(dt.id, force=force)
     label = 'Force-rematch' if force else 'Rematch'
     flash(f'{label} for "{dt.name}" queued in background.', 'info')
-    return redirect(url_for('main.list_settings'))
+    return redirect(url_for('main.list_settings', _anchor='setting-jobs'))
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])

@@ -90,65 +90,10 @@ class Species(VersionedModel):
     animals = relationship('Animal', backref='species', lazy=True)
     cages = relationship('Cage', backref='species', lazy=True)
 
-    @classmethod
-    def count_active_cages(cls):
-        return cls.session.query(
-            Species.name,
-            func.count(func.distinct(Cage.id))
-        ) \
-        .outerjoin(Species.animals) \
-        .outerjoin(Animal.cage) \
-        .filter(
-            or_(
-                Animal.termination_date.is_(None), # Animal is active
-                Animal.id.is_(None)               # OR there are no animals at all
-            )
-        )\
-        .group_by(Species.id)\
-        .all()
-
-    @classmethod
-    def count_active_animals(cls):
-        return cls.session.query(
-            Species.name,
-            func.count(func.distinct(Animal.id))
-        ) \
-        .outerjoin(Species.animals) \
-        .filter(
-            and_(
-                Animal.termination_date.is_(None), # Animal is active
-                Animal.custom_id.isnot(None)               # OR there are no animals at all
-            )
-        )\
-        .group_by(Species.id)\
-        .all()
-
-    @classmethod
-    def count_unprocessed_ears(cls):
-        return cls.session.query(
-            Species.name,
-            func.count(func.distinct(Ear.id))
-        ) \
-        .outerjoin(Species.animals) \
-        .outerjoin(Animal.ears) \
-        .filter(
-            and_(
-                Ear.immunolabel_date.is_(None), # Ear is not processed
-            )
-        )\
-        .group_by(Species.id)\
-        .all()
-
-    @classmethod
-    def count_active_breeding_pairs(cls):
-        return cls.session.query(
-            Species.name,
-            func.count(func.distinct(BreedingPair.id))
-        ) \
-        .outerjoin(Species.animals) \
-        .outerjoin(BreedingPair, and_(Animal.id == BreedingPair.male_animal_id, BreedingPair.is_active == True)) \
-        .group_by(Species.id) \
-        .all()
+    # Dashboard aggregates that previously lived here as classmethods
+    # have moved to ``colony_manager_gui.queries`` — they're presentation
+    # helpers, not domain logic, and they took an implicit dependency on
+    # a Flask-SQLAlchemy session being bound to the Base.
 
 class Source(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -1175,3 +1120,24 @@ class SyncJob(Base):
 
 
 orm.configure_mappers()
+
+
+def bind_models(session):
+    """Wire ``Model.query`` and ``Model.session`` to a SQLAlchemy session.
+
+    The GUI calls this from its app factory so models inherit a query
+    property and ``cls.session`` even though they don't subclass
+    ``flask_sqlalchemy.Model``. Non-Flask callers (CLI scripts, ad-hoc
+    notebooks, tests) need to call this themselves before using
+    ``Model.query.filter_by(...)`` or any of the polymorphic
+    ``DataType.match_targets`` paths::
+
+        from sqlalchemy.orm import scoped_session, sessionmaker
+        engine = create_engine(...)
+        Session = scoped_session(sessionmaker(bind=engine))
+        bind_models(Session)
+
+    Idempotent — safe to call multiple times.
+    """
+    Base.session = session
+    Base.query = session.query_property()

@@ -18,7 +18,7 @@ dependencies = [
 ]
 dynamic = ["version"]
 
-[project.optional-dependencies] 
+[project.optional-dependencies]
 gui = [
 	# Not sure if all of these are needed. Maybe legacy cruft.
 	"alembic",
@@ -31,6 +31,15 @@ gui = [
 	"WTForms[email]>=3.0",
 	"wtforms-sqlalchemy",
 	"Pillow>=10.0",
+]
+test = [
+	"pytest>=7.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+	"ignore::DeprecationWarning",
 ]
 
 [build-system]

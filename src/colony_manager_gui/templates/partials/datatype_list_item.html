@@ -24,6 +24,12 @@
                 hx-get="{{ url_for('main.edit_datatype_modal', datatype_id=dt.id) }}"
                 hx-target="#modalBody"
                 data-bs-toggle="tooltip" title="Edit DataType"><i class="fas fa-pencil"></i></button>
+        <form method="POST" action="{{ url_for('main.sync_datatype', datatype_id=dt.id) }}"
+              onsubmit="return confirm('Scan locations and import new files for {{ dt.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-link btn-sm text-success p-0 px-2"
+                    data-bs-toggle="tooltip" title="Sync now (scan locations for new files)"><i class="fas fa-magnifying-glass-arrow-right"></i></button>
+        </form>
         <form method="POST" action="{{ url_for('main.rematch_datatype', datatype_id=dt.id) }}"
               onsubmit="return confirm('Re-run target matching for all unmatched files in {{ dt.name }}?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

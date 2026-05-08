@@ -147,11 +147,19 @@
 							<i class="fas fa-paw me-1"></i>{{ selected_species|capitalize }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-							<li><a class="dropdown-item" href="{{ url_for('main.set_species', species_id=-1) }}">All</a></li>
+							<li>
+								<form method="post" action="{{ url_for('main.set_species', species_id=-1) }}" class="m-0">
+									{{ csrf_only_form.hidden_tag() }}
+									<button type="submit" class="dropdown-item">All</button>
+								</form>
+							</li>
 							<li><hr class="dropdown-divider"></li>
 							{% for s in species %}
                                 <li>
-									<a class="dropdown-item" href="{{ url_for('main.set_species', species_id=s.id) }}">{{ s.name }}</a>
+									<form method="post" action="{{ url_for('main.set_species', species_id=s.id) }}" class="m-0">
+										{{ csrf_only_form.hidden_tag() }}
+										<button type="submit" class="dropdown-item">{{ s.name }}</button>
+									</form>
                                 </li>
 							{% endfor %}
                         </ul>

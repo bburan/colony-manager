@@ -1,5 +1,7 @@
+from urllib.parse import urlparse, urljoin
+
 import sqlalchemy
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 import flask_login
 
 from colony_manager_gui import db

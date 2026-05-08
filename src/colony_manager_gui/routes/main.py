@@ -263,8 +263,12 @@ def create_feed():
         flash_form_errors(form, title="Could not create feed")
     return redirect(request.referrer or url_for('list_settings'))
 
-@main_bp.route('/set-species/<species_id>')
+@main_bp.route('/set-species/<species_id>', methods=['POST'])
 def set_species(species_id):
+    from ..forms import CSRFOnlyForm
+    form = CSRFOnlyForm()
+    if not form.validate_on_submit():
+        abort(400)
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 

@@ -331,6 +331,11 @@ class ConfocalImageForm(FlaskForm):
     image_type = QuerySelectField('Image Type', query_factory=confocal_image_type_factory, get_label='name', validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
 
+class CSRFOnlyForm(FlaskForm):
+    """No fields — used only to validate the CSRF token on simple actions."""
+    pass
+
+
 class UserLoginForm(FlaskForm):
     email = StringField('Email')
     password = PasswordField('Password')

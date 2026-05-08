@@ -25,7 +25,7 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
 
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-secret-key-that-is-long-and-secure')
+    app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['THUMBNAIL_CACHE_DIR'] = os.environ.get(
@@ -63,6 +63,7 @@ def create_app():
     @app.context_processor
     def inject_global_vars():
         from colony_manager.models import Species
+        from colony_manager_gui.forms import CSRFOnlyForm
         species_id = int(session.get('selected_species', -1))
         if species_id != -1:
             selected_species = db.get_or_404(Species, species_id).name
@@ -72,6 +73,7 @@ def create_app():
             'datetime': datetime,
             'species': db.session.query(Species).all(),
             'selected_species': selected_species,
+            'csrf_only_form': CSRFOnlyForm(),
         }
 
     @app.context_processor

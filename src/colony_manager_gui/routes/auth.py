@@ -1,6 +1,7 @@
 from urllib.parse import urlparse, urljoin
 
 import sqlalchemy
+from sqlalchemy import text
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 import flask_login
 
@@ -10,6 +11,20 @@ from colony_manager_gui.forms import UserLoginForm, UserCreateForm, UserEditForm
 from colony_manager.models import User
 
 auth_bp = Blueprint('auth', __name__)
+
+# Endpoints inside the auth blueprint that should remain accessible without
+# admin privileges. Everything else (user list/view/edit) requires admin.
+_AUTH_PUBLIC_ENDPOINTS = {'auth.login_user', 'auth.add_user', 'auth.logout_user'}
+
+
+@auth_bp.before_request
+def _restrict_auth_to_admin():
+    from flask import request
+    if request.endpoint in _AUTH_PUBLIC_ENDPOINTS:
+        return
+    if flask_login.current_user.is_anonymous or not flask_login.current_user.is_admin():
+        abort(403)
+
 
 def is_safe_url(target):
     ref_url = urlparse(request.host_url)
@@ -49,24 +64,43 @@ def login_user():
 
 @auth_bp.route('/add', methods=['GET', 'POST'])
 def add_user():
+    # Self-registration is only open while the user table is empty (bootstrap
+    # the first admin). Once any user exists, only an authenticated admin can
+    # create accounts — this stops anonymous users from filling the table.
+    is_admin_caller = (
+        not flask_login.current_user.is_anonymous
+        and flask_login.current_user.is_admin()
+    )
+    is_bootstrap_get = User.query.count() == 0
+    if not (is_bootstrap_get or is_admin_caller):
+        abort(403)
+
     create_form = UserCreateForm()
     if create_form.validate_on_submit():
         try:
-            # Set first user to active by default. All other users must be
-            # approved by the active user.
-            first_user = User.query.count() == 0
+            # Serialize concurrent first-user creates so two simultaneous
+            # registrations can't both observe an empty table and both
+            # become admin. The advisory lock is released at COMMIT/ROLLBACK.
+            db.session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext('colony_manager.first_user'))")
+            )
+            is_bootstrap = User.query.count() == 0
+            if not (is_bootstrap or is_admin_caller):
+                db.session.rollback()
+                abort(403)
             user = User(
                 first_name=create_form.first_name.data,
                 last_name=create_form.last_name.data,
                 email=create_form.email.data,
-                active=first_user,
-                admin=first_user,
+                active=is_bootstrap,
+                admin=is_bootstrap,
             )
             user.set_password(create_form.password.data)
             db.session.add(user)
             db.session.commit()
             flash('Account created successfully. Contact admin to approve.', 'success')
         except sqlalchemy.exc.IntegrityError:
+            db.session.rollback()
             flash('Error creating account', 'danger')
     else:
         flash_form_errors(create_form, 'Error creating account')

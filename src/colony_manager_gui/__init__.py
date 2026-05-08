@@ -2,6 +2,7 @@ import os
 import datetime
 from flask import Flask, session
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import MetaData
 
 # Setup versioning
@@ -20,6 +21,7 @@ from colony_manager.datatypes import cache_root
 db = SQLAlchemy(metadata=models.Base.metadata)
 
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 
 def create_app():
@@ -55,6 +57,7 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -82,11 +85,17 @@ def create_app():
 
     @app.before_request
     def check_login():
-        from flask_login import current_user
+        from flask_login import current_user, logout_user
         from flask import request, redirect, url_for
+        public_endpoints = ('auth.login_user', 'auth.add_user')
         if current_user.is_authenticated:
+            # A user who was deactivated after logging in must lose access on
+            # the next request. ``is_active`` reads the live ``active`` flag.
+            if not current_user.is_active:
+                logout_user()
+                return redirect(url_for('auth.login_user', next=request.url))
             return
-        if request.endpoint in ('auth.login_user', 'auth.add_user'):
+        if request.endpoint in public_endpoints:
             return
         return redirect(url_for('auth.login_user', next=request.url))
 

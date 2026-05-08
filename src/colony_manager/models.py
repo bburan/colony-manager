@@ -1057,15 +1057,15 @@ class User(VersionedModel):
 
     @property
     def is_active(self):
+        # Used by Flask-Login to decide whether an account may log in.
         return self.active
 
-    @property
-    def is_authenticated(self):
-        return self.is_active
-
-    @property
-    def is_anonymous(self):
-        return False
+    # ``is_authenticated`` and ``is_anonymous`` use Flask-Login's defaults
+    # (True / False respectively). Deactivation is enforced at login time
+    # and on every request by the GUI's ``check_login`` hook, so we don't
+    # conflate "logged in" with "still active" here.
+    is_authenticated = True
+    is_anonymous = False
 
     def set_password(self, password):
         """Creates a hashed version of the password."""

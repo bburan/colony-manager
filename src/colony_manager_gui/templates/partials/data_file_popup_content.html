@@ -25,6 +25,7 @@
 {% if animal and data_file.target_type == 'animal_event' %}
 <form action="{{ url_for('animals.reassign_data', animal_id=animal.id, data_id=data_file.id) }}"
       method="POST" class="mb-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="event_id" class="form-select form-select-sm subtle-input" onchange="this.form.submit()">
         <option value="__None">— No Event —</option>
         {% for event in animal.events %}
@@ -40,6 +41,7 @@
     {% if animal and data_file.target_type == 'animal_event' and not linked_event and data_file.datatype.default_procedure_id %}
     <form action="{{ url_for('animals.auto_create_event', animal_id=animal.id, data_id=data_file.id) }}"
           method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-sm btn-outline-secondary"
                 data-bs-toggle="tooltip" title="Auto-create event from this file's date">
             <i class="fas fa-magic fa-xs"></i>

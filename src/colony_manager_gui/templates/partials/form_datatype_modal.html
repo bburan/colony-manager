@@ -48,8 +48,8 @@
         </div>
         <div class="mb-3">
             <label class="form-label fw-bold small text-muted">Description Class</label>
-            {{ form.description_class(class="form-control font-monospace", placeholder="mmm_db.cftsdata.ABR") }}
-            <small class="text-muted">Fully-qualified path to a <code>DataTypeDescription</code> subclass.</small>
+            {{ form.description_class(class="form-select font-monospace") }}
+            <small class="text-muted">Pick a registered <code>DataTypeDescription</code>. Choices come from the host's registry module (see <code>COLONY_MANAGER_DESCRIPTION_REGISTRY</code>).</small>
         </div>
 
         {% if target_type == 'animal_event' %}

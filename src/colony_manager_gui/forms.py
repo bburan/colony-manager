@@ -65,12 +65,38 @@ class ProcedureTargetForm(FlaskForm):
     description = StringField('Description', validators=[Optional()])
     requires_side = BooleanField('Requires side?')
 
+def _description_class_choices():
+    from colony_manager.datatypes import get_allowed_description_classes
+    return [('', '-- None --')] + [
+        (key, key) for key in get_allowed_description_classes()
+    ]
+
+
 class DataTypeForm(FlaskForm):
     """Base fields shared by every DataType subclass."""
     name = StringField('Name', validators=[DataRequired()])
     description = StringField('Description', validators=[Optional()])
-    description_class = StringField('Description Class', validators=[Optional()])
+    description_class = SelectField(
+        'Description Class',
+        choices=_description_class_choices,
+        validators=[Optional()],
+        # Empty selection should land in the DB as NULL, not ''.
+        filters=[lambda v: v or None],
+    )
     is_folder = BooleanField('Is Folder?')
+
+    def __init__(self, *args, obj=None, **kwargs):
+        super().__init__(*args, obj=obj, **kwargs)
+        # If we're editing a row whose stored description_class isn't in the
+        # current registry (legacy dotted path the migration couldn't remap,
+        # or a class that's been removed since), keep the existing value as
+        # a selectable option so the admin can still save other fields.
+        existing = getattr(obj, 'description_class', None)
+        if existing and existing not in dict(self.description_class.choices):
+            self.description_class.choices = (
+                self.description_class.choices
+                + [(existing, f'{existing} (unregistered)')]
+            )
 
 
 class AnimalEventDataTypeForm(DataTypeForm):

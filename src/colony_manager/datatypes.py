@@ -302,42 +302,129 @@ def _hash_file_into(hasher, path):
 
 
 # ---------------------------------------------------------------------------
-# Dynamic class loading
+# Description-class registry
 # ---------------------------------------------------------------------------
+#
+# ``DataType.description_class`` stores an opaque short key (e.g. ``'ABR'``)
+# rather than a Python import path. The host project provides a registry
+# module pointed at by the ``COLONY_MANAGER_DESCRIPTION_REGISTRY`` env var.
+# That module must expose a ``DESCRIPTION_CLASSES`` mapping of
+# ``{key: DataTypeDescription subclass}``. Example::
+#
+#     # mmm_db/registry.py
+#     from mmm_db.cftsdata import ABR, DPOAE
+#     DESCRIPTION_CLASSES = {'ABR': ABR, 'DPOAE': DPOAE}
+#
+# Storing a short key (instead of ``'mmm_db.cftsdata.ABR'``) decouples DB
+# rows from the host project's module layout: renaming or moving the class
+# doesn't require touching the database. It also closes the previous RCE
+# vector — the admin-controlled column is now an opaque identifier, not an
+# importable dotted path.
 
-_DESCRIPTION_CACHE = {}
+_REGISTRY_ENV_VAR = 'COLONY_MANAGER_DESCRIPTION_REGISTRY'
+_REGISTRY_ATTR = 'DESCRIPTION_CLASSES'
+_REGISTRY_CACHE = None
 
 
-def load_description_class(dotted_path):
-    """Import and return a DataTypeDescription subclass by dotted path.
-
-    Parameters
-    ----------
-    dotted_path : str
-        Fully-qualified class name, e.g. ``'mmm_db.cftsdata.ABR'``.
+def _load_registry():
+    """Import and validate the configured registry module.
 
     Returns
     -------
-    type
-        A subclass of :class:`DataTypeDescription`.
+    dict
+        ``{key: DataTypeDescription subclass}`` from the host's registry.
 
     Raises
     ------
-    ImportError
-        If the module cannot be imported.
-    AttributeError
-        If the class does not exist on the module.
-    TypeError
-        If the resolved object is not a ``DataTypeDescription`` subclass.
+    RuntimeError
+        If the env var is unset, the module is missing, or the module's
+        ``DESCRIPTION_CLASSES`` attribute is missing or malformed.
     """
-    if dotted_path in _DESCRIPTION_CACHE:
-        return _DESCRIPTION_CACHE[dotted_path]
-    module_name, class_name = dotted_path.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-    cls = getattr(module, class_name)
-    if not (isinstance(cls, type) and issubclass(cls, DataTypeDescription)):
-        raise TypeError(
-            f'{dotted_path} is not a DataTypeDescription subclass'
+    global _REGISTRY_CACHE
+    if _REGISTRY_CACHE is not None:
+        return _REGISTRY_CACHE
+
+    module_path = os.environ.get(_REGISTRY_ENV_VAR, '').strip()
+    if not module_path:
+        raise RuntimeError(
+            f'{_REGISTRY_ENV_VAR} is not set. Point it at a Python module '
+            f'that defines DESCRIPTION_CLASSES (e.g. "mmm_db.registry").'
         )
-    _DESCRIPTION_CACHE[dotted_path] = cls
-    return cls
+
+    module = importlib.import_module(module_path)
+    raw = getattr(module, _REGISTRY_ATTR, None)
+    if raw is None:
+        raise RuntimeError(
+            f'{module_path} has no {_REGISTRY_ATTR} attribute.'
+        )
+    if not isinstance(raw, dict):
+        raise RuntimeError(
+            f'{module_path}.{_REGISTRY_ATTR} must be a dict mapping '
+            f'short keys to DataTypeDescription subclasses; got '
+            f'{type(raw).__name__}.'
+        )
+
+    registry = {}
+    for key, cls in raw.items():
+        if not isinstance(key, str) or not key:
+            raise RuntimeError(
+                f'{module_path}.{_REGISTRY_ATTR} keys must be non-empty '
+                f'strings; got {key!r}.'
+            )
+        if not (isinstance(cls, type) and issubclass(cls, DataTypeDescription)):
+            raise RuntimeError(
+                f'{module_path}.{_REGISTRY_ATTR}[{key!r}] is not a '
+                f'DataTypeDescription subclass: {cls!r}.'
+            )
+        registry[key] = cls
+
+    _REGISTRY_CACHE = registry
+    return registry
+
+
+def reset_registry_cache():
+    """Clear the cached registry. Test/migration helper."""
+    global _REGISTRY_CACHE
+    _REGISTRY_CACHE = None
+
+
+def get_allowed_description_classes():
+    """Return the sorted list of registered description-class keys."""
+    try:
+        return sorted(_load_registry().keys())
+    except RuntimeError:
+        # Misconfigured/missing registry shouldn't crash the dropdown that
+        # renders the settings page. Surface it as "no choices" instead.
+        return []
+
+
+def get_description_class_registry():
+    """Return a copy of the full ``{key: class}`` registry."""
+    return dict(_load_registry())
+
+
+def load_description_class(key):
+    """Return the ``DataTypeDescription`` subclass registered under *key*.
+
+    Parameters
+    ----------
+    key : str
+        Short identifier as stored in ``DataType.description_class``
+        (e.g. ``'ABR'``).
+
+    Raises
+    ------
+    ValueError
+        If *key* is not present in the configured registry.
+    RuntimeError
+        If the registry is unconfigured or malformed (see
+        :func:`_load_registry`).
+    """
+    registry = _load_registry()
+    try:
+        return registry[key]
+    except KeyError:
+        raise ValueError(
+            f'{key!r} is not registered in {_REGISTRY_ENV_VAR}. '
+            f'Known keys: {sorted(registry)}.'
+        )

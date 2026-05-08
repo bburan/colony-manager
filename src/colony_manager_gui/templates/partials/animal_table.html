@@ -41,12 +41,12 @@
                     {% set btn_class = "btn-danger" %}
                 {%  elif animal.event_due %}
                     {% set btn_class = "btn-warning" %}
-                {% elif animal.events.count() > 0 %}
+                {% elif animal.events_count > 0 %}
                     {% set btn_class = "btn-secondary" %}
                 {% else %}
                     {% set btn_class = "btn-outline-secondary" %}
                 {% endif %}
-                <button type="button" class="ajax-popover {{ btn_class }} btn btn-{{ 'outline-' if animal.events.count() == 0 else '' }}secondary btn-sm shadow-sm"
+                <button type="button" class="ajax-popover {{ btn_class }} btn btn-{{ 'outline-' if animal.events_count == 0 else '' }}secondary btn-sm shadow-sm"
                         data-bs-toggle="popover"
                         data-bs-trigger="hover click focus"
                         data-bs-html="true"
@@ -54,7 +54,7 @@
                         title="<div class='d-flex justify-content-between align-center'>Events <button class='btn btn-sm float-right' onclick='openModal(&quot;{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}&quot;)'><i class='fas fa-calendar'> +</i></button></div>"
 "
                 >
-                    {{  animal.events.count() }}
+                    {{  animal.events_count }}
                 </button>
             </td>
 
@@ -62,14 +62,14 @@
             <td>
                 {# 1. The Trigger Button #}
                 <div class="btn-group shadow-sm">
-                    <button class="btn btn-{{ 'outline-' if animal.studies.count() == 0 else '' }}secondary btn-sm"
+                    <button class="btn btn-{{ 'outline-' if animal.studies_count == 0 else '' }}secondary btn-sm"
                             data-bs-toggle="popover"
                             data-bs-trigger="hover"
                             data-bs-html="true"
                             title="Studies"
                             data-bs-content="<ul class='list-group'>{% for s in animal.studies %}<li class='list-group-item'>{{ s.name }}{% endfor %}</ul>"
                             onclick="openModal('{{ url_for('animals.add_study_modal', animal_id=animal.id) }}')">
-                        {{ animal.studies.count() }}</button>
+                        {{ animal.studies_count }}</button>
                 </div>
             </td>
             {% endif %}

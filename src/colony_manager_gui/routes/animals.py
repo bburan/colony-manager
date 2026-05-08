@@ -1,11 +1,14 @@
 import datetime
 import re
+from datetime import date
 
+from sqlalchemy import func, case
+from sqlalchemy.orm import joinedload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog,
     WeightLog, Data, DataType, AnimalEventData, ConfocalImageData,
-    AnimalData, EarData,
+    AnimalData, EarData, study_animals,
 )
 
 from .. import db
@@ -18,6 +21,57 @@ from .util import flash_form_errors
 animals_bp = Blueprint('animals', __name__)
 
 
+def _attach_event_aggregates(animals, today):
+    """Bulk-load event/study aggregates and stash them on each animal.
+
+    Replaces the per-row dynamic-relationship queries that the
+    ``Animal.event_*`` / ``has_events`` / ``events_count`` /
+    ``studies_count`` properties would otherwise issue once each per
+    rendered row. Two grouped queries cover any number of animals.
+    """
+    if not animals:
+        return
+    animal_ids = [a.id for a in animals]
+
+    event_rows = db.session.query(
+        AnimalEvent.animal_id,
+        func.count(AnimalEvent.id).label('total'),
+        func.coalesce(
+            func.bool_or(
+                (AnimalEvent.scheduled_date == today)
+                & AnimalEvent.completion_date.is_(None)
+            ),
+            False,
+        ).label('any_due'),
+        func.coalesce(
+            func.bool_or(
+                (AnimalEvent.scheduled_date < today)
+                & AnimalEvent.completion_date.is_(None)
+            ),
+            False,
+        ).label('any_overdue'),
+        func.max(AnimalEvent.completion_date).label('last_completion'),
+    ).filter(AnimalEvent.animal_id.in_(animal_ids)) \
+     .group_by(AnimalEvent.animal_id).all()
+    events_by_id = {r.animal_id: r for r in event_rows}
+
+    study_rows = db.session.query(
+        study_animals.c.animal_id,
+        func.count(study_animals.c.study_id).label('total'),
+    ).filter(study_animals.c.animal_id.in_(animal_ids)) \
+     .group_by(study_animals.c.animal_id).all()
+    studies_by_id = {r.animal_id: r.total for r in study_rows}
+
+    for a in animals:
+        row = events_by_id.get(a.id)
+        a._events_count_cached = row.total if row else 0
+        a._has_events_cached = bool(row and row.total)
+        a._event_due_cached = bool(row and row.any_due)
+        a._event_overdue_cached = bool(row and row.any_overdue)
+        a._last_event_date_cached = row.last_completion if (row and row.last_completion) else date.min
+        a._studies_count_cached = studies_by_id.get(a.id, 0)
+
+
 @animals_bp.route('/')
 def list_animals():
     sort_by = request.args.get('sort_by', 'id')
@@ -27,21 +81,29 @@ def list_animals():
     age_unit = request.args.get('age_unit', 'day')
     search_query = request.args.get('search_query', '')
 
-    query = Animal.query.filter(Animal.custom_id.is_not(None))
+    # ``species`` and ``cage`` are dereferenced once per row in the table
+    # template; eager-load both so the row render isn't 1+2N queries.
+    query = Animal.query.options(
+        joinedload(Animal.species),
+        joinedload(Animal.cage),
+    ).filter(Animal.custom_id.is_not(None))
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
         query = query.filter(Animal.species_id==species_id)
 
     if search_query:
-        # We join Events and Procedures to allow searching by procedure name
-        # .ilike(f'%{search_query}%') handles the "partial match" requirement
-        query = query.join(Animal.events, isouter=True).join(AnimalEvent.procedure, isouter=True).filter(
-            db.or_(
-                Animal.custom_id.ilike(f'%{search_query}%'),
-                AnimalProcedure.name.ilike(f'%{search_query}%')
-            )
-        )
+        # Join events + procedures so we can match either the animal's
+        # custom_id or a procedure name. ``.distinct()`` prevents an animal
+        # with N matching events from appearing N times.
+        query = query.join(Animal.events, isouter=True) \
+                     .join(AnimalEvent.procedure, isouter=True) \
+                     .filter(
+                         db.or_(
+                             Animal.custom_id.ilike(f'%{search_query}%'),
+                             AnimalProcedure.name.ilike(f'%{search_query}%')
+                         )
+                     ).distinct()
 
     if status_filter == 'active':
         query = query.filter(Animal.termination_date.is_(None))
@@ -51,6 +113,7 @@ def list_animals():
         query = query.join(Animal.studies).filter(Study.id == int(study_filter))
 
     animals = query.all()
+    _attach_event_aggregates(animals, date.today())
     if sort_by == 'age':
         animals.sort(key=lambda a: a.age_in_days)
     elif sort_by == 'event_date':

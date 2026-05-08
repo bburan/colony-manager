@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from colony_manager.models import Cage, Animal
 from .. import db
@@ -9,13 +10,37 @@ from .util import flash_form_errors  # Importing the new utility
 cages_bp = Blueprint('cages', __name__)
 
 
+def _attach_cage_animals(cages):
+    """Bulk-load each cage's animals (with source) and stash on ``_cached_animals``.
+
+    The cages-list template touches ``cage.animals.count()``,
+    ``cage.animals.filter_by(termination_date=None).count()``,
+    ``cage.sex_symbol``, ``cage.age_display(...)``, and
+    ``cage.source_display`` per row — every one of those would issue its
+    own query against the dynamic ``animals`` relationship. This helper
+    fetches every relevant animal in a single query and lets the
+    cache-aware ``Cage`` properties iterate the in-memory list.
+    """
+    if not cages:
+        return
+    cage_ids = [c.id for c in cages]
+    animals = Animal.query.options(joinedload(Animal.source)) \
+                          .filter(Animal.cage_id.in_(cage_ids)).all()
+    by_cage = {cid: [] for cid in cage_ids}
+    for a in animals:
+        by_cage.setdefault(a.cage_id, []).append(a)
+    for c in cages:
+        c._cached_animals = by_cage.get(c.id, [])
+
+
 @cages_bp.route('/')
 def list_cages():
     species_id = int(session.get('selected_species', -1))
+    base_query = Cage.query.options(joinedload(Cage.species))
     if species_id != -1:
-        query = Cage.query.filter(Cage.species_id==species_id)
+        query = base_query.filter(Cage.species_id==species_id)
     else:
-        query = Cage.query
+        query = base_query
 
     sort_by = request.args.get('sort_by', 'custom_id')
     if sort_by == 'custom_id':
@@ -26,6 +51,8 @@ def list_cages():
             .group_by(Cage.id) \
             .order_by(func.min(Animal.dob).desc()) \
             .all()
+
+    _attach_cage_animals(cages)
 
     status_filter = request.args.get('status_filter', 'active')
     if status_filter == 'active':

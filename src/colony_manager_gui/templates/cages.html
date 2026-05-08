@@ -62,8 +62,8 @@ Cages
                     <td>{{ cage.species.name }}</td>
                     <td>{{ cage.sex_symbol }}</td>
                     <td>{{ cage.age_display(filters['age_unit']) }}</td>
-                    <td>{{ cage.animals.count() }}</td>
-                    <td>{{ cage.animals.filter_by(termination_date=None).count() }}</td>
+                    <td>{{ cage.animals_count }}</td>
+                    <td>{{ cage.active_animals_count }}</td>
                     <td>{{ cage.source_display }}</td>
                     <td>{{ cage.notes }}</td>
                 </tr>

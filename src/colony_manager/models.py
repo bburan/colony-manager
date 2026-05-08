@@ -582,21 +582,43 @@ class Cage(VersionedModel):
     species_id = Column(Integer, ForeignKey('species.id', use_alter=True), nullable=False)
     animals = relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
 
+    # ``animals`` is lazy='dynamic', so every property below would issue a
+    # query when touched. List views call
+    # :func:`colony_manager_gui.routes.cages._attach_cage_animals` to
+    # populate ``_cached_animals`` once for the whole page; the helpers
+    # then iterate the in-memory list instead.
+
+    def _iter_animals(self):
+        cached = getattr(self, '_cached_animals', None)
+        return cached if cached is not None else self.animals
+
+    @property
+    def animals_count(self):
+        cached = getattr(self, '_cached_animals', None)
+        return len(cached) if cached is not None else self.animals.count()
+
+    @property
+    def active_animals_count(self):
+        cached = getattr(self, '_cached_animals', None)
+        if cached is not None:
+            return sum(1 for a in cached if a.termination_date is None)
+        return self.animals.filter_by(termination_date=None).count()
+
     @property
     def sources(self):
-        return sorted({a.source for a in self.animals})
+        return sorted({a.source for a in self._iter_animals()})
 
     @property
     def is_active(self):
-        return self.animals.filter_by(termination_date=None).count() > 0
+        return self.active_animals_count > 0
 
     @property
     def sex(self):
-        return sorted(set(a.sex for a in self.animals))
+        return sorted(set(a.sex for a in self._iter_animals()))
 
     @property
     def sex_symbol(self):
-        result = sorted(set(a.sex_symbol for a in self.animals))
+        result = sorted(set(a.sex_symbol for a in self._iter_animals()))
         if len(result) == 2:
             return '⚥'
         elif len(result) == 1:
@@ -604,7 +626,7 @@ class Cage(VersionedModel):
         return ''
 
     def age_display(self, unit='day'):
-        ages = sorted(set(getattr(a, f'age_in_{unit}s') for a in self.animals))
+        ages = sorted(set(getattr(a, f'age_in_{unit}s') for a in self._iter_animals()))
         if len(ages) == 0:
             return 'N/A'
         elif len(ages) == 1:
@@ -613,7 +635,7 @@ class Cage(VersionedModel):
 
     @property
     def source_display(self):
-        sources = set(a.source_display for a in self.animals)
+        sources = set(a.source_display for a in self._iter_animals())
         if len(sources) == 0:
             return 'N/A'
         return ', '.join(sorted(sources))
@@ -654,20 +676,46 @@ class Animal(VersionedModel):
             groups.setdefault(e.date, []).append(e)
         return dict((d, sorted(groups[d], key=lambda x: x.procedure.name)) for d in sorted(groups.keys()))
 
+    # The four ``event_*`` / ``has_events`` properties below each issue a
+    # query against the dynamic ``events`` relationship when accessed. List
+    # views set the matching ``_*_cached`` attribute via
+    # :func:`colony_manager_gui.routes.animals._attach_event_aggregates`
+    # so a page rendering N animals doesn't fan out into 4N queries.
+
     @property
     def has_events(self):
+        if hasattr(self, '_has_events_cached'):
+            return self._has_events_cached
         return self.events.count() > 0
 
     @property
+    def events_count(self):
+        if hasattr(self, '_events_count_cached'):
+            return self._events_count_cached
+        return self.events.count()
+
+    @property
+    def studies_count(self):
+        if hasattr(self, '_studies_count_cached'):
+            return self._studies_count_cached
+        return self.studies.count()
+
+    @property
     def event_due(self):
+        if hasattr(self, '_event_due_cached'):
+            return self._event_due_cached
         return any(e.scheduled_date == date.today() and e.completion_date is None for e in self.events)
 
     @property
     def event_overdue(self):
+        if hasattr(self, '_event_overdue_cached'):
+            return self._event_overdue_cached
         return any(e.scheduled_date < date.today() and e.completion_date is None for e in self.events)
 
     @property
     def last_event_date(self):
+        if hasattr(self, '_last_event_date_cached'):
+            return self._last_event_date_cached
         last_event = self.events.filter_by(status='completed').order_by(AnimalEvent.completion_date.desc()).first()
         return last_event.completion_date if last_event else date.min
 

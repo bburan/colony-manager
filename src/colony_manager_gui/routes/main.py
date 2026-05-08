@@ -2,6 +2,7 @@ import importlib
 import os
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
+from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort
 from flask_login import current_user, login_user
 from datetime import date, timedelta
@@ -53,14 +54,26 @@ def view_dashboard():
     active_breeding_pairs_count = models.Species.count_active_breeding_pairs()
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
-    upcoming_events = models.AnimalEvent.query.filter(
+    upcoming_events = models.AnimalEvent.query.options(
+        joinedload(models.AnimalEvent.animal),
+        joinedload(models.AnimalEvent.procedure),
+    ).filter(
         models.AnimalEvent.completion_date == None,
         models.AnimalEvent.scheduled_date <= today + timedelta(days=7)
     ).order_by(models.AnimalEvent.scheduled_date.asc()).all()
 
-    # Recently completed events (last 7 days), most recent first.
+    # Recently completed events (last 7 days), most recent first. The
+    # template walks each event's animal/procedure/target. ``data_files``
+    # is a dynamic relationship (lazy='dynamic') and can't be eager-loaded
+    # — the template's ``event.data_files.count()`` per row stays one
+    # cheap COUNT(*) per event, and iteration is gated behind an Alpine
+    # accordion so it only fires on click.
     recent_events_threshold = today - timedelta(days=7)
-    recent_events = models.AnimalEvent.query.filter(
+    recent_events = models.AnimalEvent.query.options(
+        joinedload(models.AnimalEvent.animal),
+        joinedload(models.AnimalEvent.procedure),
+        joinedload(models.AnimalEvent.procedure_target),
+    ).filter(
         models.AnimalEvent.completion_date != None,
         models.AnimalEvent.completion_date >= recent_events_threshold,
     ).order_by(
@@ -70,7 +83,16 @@ def view_dashboard():
 
     # Confocal image files acquired in the last 7 days (by file mtime),
     # grouped by ConfocalImage. Insertion order = most-recently-modified first.
-    recent_confocal_files = models.ConfocalImageData.query.filter(
+    # We walk each file's confocal_images, then per-image its image_type and
+    # ear→animal — load the whole chain in one shot.
+    recent_confocal_files = models.ConfocalImageData.query.options(
+        joinedload(models.ConfocalImageData.datatype),
+        selectinload(models.ConfocalImageData.confocal_images)
+            .joinedload(models.ConfocalImage.image_type),
+        selectinload(models.ConfocalImageData.confocal_images)
+            .joinedload(models.ConfocalImage.ear)
+            .joinedload(models.Ear.animal),
+    ).filter(
         models.ConfocalImageData.mtime != None,
         models.ConfocalImageData.mtime >= recent_events_threshold,
     ).order_by(models.ConfocalImageData.mtime.desc()).all()
@@ -90,12 +112,17 @@ def view_dashboard():
             else:
                 recent_confocal_groups[idx]['files'].append(f)
 
-    # Animals terminated in the last 30 days
-    recent_terminations = models.Animal.query.filter(
+    # Animals terminated in the last 30 days. Template renders display_id,
+    # which falls back to cage.custom_id when the animal has no custom id.
+    recent_terminations = models.Animal.query.options(
+        joinedload(models.Animal.cage),
+    ).filter(
         models.Animal.termination_date >= (date.today() - timedelta(days=7))
     ).order_by(models.Animal.termination_date.desc())
 
-    upcoming_litters = models.Litter.query.filter(models.Litter.wean_date == None).order_by(models.Litter.dob).all()
+    upcoming_litters = models.Litter.query.options(
+        joinedload(models.Litter.breeding_pair),
+    ).filter(models.Litter.wean_date == None).order_by(models.Litter.dob).all()
 
     active_males = db.session.query(models.BreedingPair.male_animal_id).filter_by(is_active=True)
     active_females = db.session.query(models.BreedingPair.female_animal_id).filter_by(is_active=True)
@@ -109,8 +136,18 @@ def view_dashboard():
 
     available_animals_n = models.Animal.query.filter(models.Animal.custom_id == None).count()
 
-    image_analysis_pending = models.ConfocalImage.query.filter_by(status='pending')
-    image_analysis_review = models.ConfocalImage.query.filter_by(status='need_review')
+    # Both lists are grouped in the template by ear and image_type — load
+    # the chain so the groupby doesn't fire one query per image.
+    _image_options = (
+        joinedload(models.ConfocalImage.image_type),
+        joinedload(models.ConfocalImage.ear).joinedload(models.Ear.animal),
+    )
+    image_analysis_pending = models.ConfocalImage.query.options(
+        *_image_options
+    ).filter_by(status='pending')
+    image_analysis_review = models.ConfocalImage.query.options(
+        *_image_options
+    ).filter_by(status='need_review')
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
@@ -148,7 +185,10 @@ def view_dashboard():
 
 @main_bp.route('/calendar')
 def view_calendar():
-    events = models.AnimalEvent.query.all()
+    events = models.AnimalEvent.query.options(
+        joinedload(models.AnimalEvent.animal),
+        joinedload(models.AnimalEvent.procedure),
+    ).all()
     calendar_events = []
     for event in events:
         calendar_events.append({

@@ -12,7 +12,7 @@
 <tbody id="confocal-image-{{ img.id }}"
        x-data="{ open: false, success: false, error: false }"
        hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
-       hx-trigger="change delay:300ms, input changed delay:500ms"
+       hx-trigger="change delay:300ms, input changed delay:500ms, keyup[key=='Enter']"
        hx-include="this"
        hx-swap="none"
        @htmx:before-request="success = false; error = false"

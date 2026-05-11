@@ -28,8 +28,8 @@ Breeding Management
             {% for pair in pairs %}
             <tr>
                 <td><a href="{{ url_for('breeding.view_breeding_pair', breeding_pair_id=pair.id) }}">{{ pair.custom_id }}</a></td>
-                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.male.id) }}">{{ pair.male.custom_id }}</a></td>
-                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.female.id) }}">{{ pair.female.custom_id }}</a></td>
+                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.male.id) }}">{{ pair.male.display_id }}</a></td>
+                <td><a href="{{ url_for('animals.view_animal', animal_id=pair.female.id) }}">{{ pair.female.display_id }}</a></td>
                 <td>{{ pair.start_date.strftime('%B %d, %Y') }}</td>
                 <td>{{ pair.litters.count() }}</td>
                 <td>{{ pair.litters.filter(wean_date == None).count() }}</td>

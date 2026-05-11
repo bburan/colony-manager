@@ -2,7 +2,7 @@
 {% import "macros.html" as macros %}
 
 {% block header %}
-{{ animal.species.name|capitalize }} {{ animal.custom_id }}
+{{ animal.species.name|capitalize }} > {{ animal.display_id }}
 {% endblock %}
 
 {% block content %}

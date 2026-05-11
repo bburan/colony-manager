@@ -392,16 +392,26 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
         query = query.filter(DataLocation.datatype_id == filter_datatype_id)
     locations = query.all()
 
-    totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0}
+    totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0, 'rematched': 0}
     if not locations:
         log.info('No DataLocations found%s.',
                  f' for datatype {filter_datatype_id}' if filter_datatype_id else '')
         return totals
 
+    touched_datatype_ids = set()
     for location in locations:
         counts = _sync_location(location, dry_run=dry_run, debug=debug)
         for k, v in counts.items():
             totals[k] += v
+        touched_datatype_ids.add(location.datatype_id)
+
+    # Re-attempt matching for rows that were unmatched on a prior sync.
+    # Without this, files acquired before their animal was added stay
+    # unmatched until an explicit Rematch is queued.
+    for datatype_id in touched_datatype_ids:
+        rm = rematch_datatype(datatype_id, force=False, dry_run=dry_run)
+        totals['rematched'] += rm.get('matched', 0)
+        totals['auto_created'] += rm.get('auto_created', 0)
     return totals
 
 

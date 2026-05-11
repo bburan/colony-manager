@@ -11,7 +11,7 @@
 			   placeholder="Add note…"
 			   autocomplete="off"
 			   hx-post="{{ url_for('animals.update_data_notes', data_id=data_file.id) }}"
-			   hx-trigger="input changed delay:500ms, change"
+			   hx-trigger="input changed delay:500ms, change, keyup[key=='Enter']"
 			   hx-swap="none"
 			   @htmx:before-request="success = false; error = false"
 			   @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }"

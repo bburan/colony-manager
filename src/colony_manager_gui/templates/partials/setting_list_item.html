@@ -4,7 +4,7 @@
     <form id="update-setting-{{type}}-{{item.id}}" autocomplete="off"
         hx-post="{{ url_for('main.update_setting', item_type=type, item_id=item.id) }}"
         hx-swap="none"
-        hx-trigger="change delay:300ms, input changed delay:500ms"
+        hx-trigger="change delay:300ms, input changed delay:500ms, submit"
         class="d-flex flex-grow-1 align-items-center"
         @htmx:before-request="success = false; error = false"
         @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }"

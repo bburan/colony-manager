@@ -670,14 +670,29 @@ def auto_create_event(animal_id, data_id):
         flash('Cannot auto-create: file has no parsed date.', 'danger')
         return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
-    event = AnimalEvent(
-        animal_id=animal_id,
-        procedure_id=datatype.default_procedure_id,
-        procedure_target_id=datatype.default_procedure_target_id,
-        scheduled_date=data_file.date,
-        completion_date=data_file.date,
-    )
-    db.session.add(event)
+    target = datatype.default_procedure_target
+    if target is not None and target.requires_side:
+        sides = sorted({e.side for e in data_file.candidate_ears if e.animal_id == animal_id})
+        if not sides:
+            flash(
+                'Cannot auto-create: target requires a side but no side was '
+                'resolved from the file for this animal.', 'danger')
+            return redirect(url_for('animals.view_animal', animal_id=animal_id))
+    else:
+        sides = [None]
+
+    created_events = []
+    for side in sides:
+        event = AnimalEvent(
+            animal_id=animal_id,
+            procedure_id=datatype.default_procedure_id,
+            procedure_target_id=datatype.default_procedure_target_id,
+            side=side,
+            scheduled_date=data_file.date,
+            completion_date=data_file.date,
+        )
+        db.session.add(event)
+        created_events.append(event)
     db.session.flush()
 
     # Link all candidate files for this animal that don't yet have an event
@@ -688,14 +703,23 @@ def auto_create_event(animal_id, data_id):
     ).all()
     linked_count = 0
     for f in candidate_files:
-        if event in f.events:
+        if not any(a.id == animal_id for a in f.candidate_animals):
             continue
-        if any(a.id == animal_id for a in f.candidate_animals):
+        f_sides = {e.side for e in f.candidate_ears if e.animal_id == animal_id}
+        for event in created_events:
+            if event in f.events:
+                continue
+            if event.side is not None and event.side not in f_sides:
+                continue
             f.events.append(event)
             linked_count += 1
 
     db.session.commit()
-    flash(f'Event created and {linked_count} file(s) linked.', 'success')
+    if len(created_events) > 1:
+        msg = f'{len(created_events)} events created and {linked_count} file(s) linked.'
+    else:
+        msg = f'Event created and {linked_count} file(s) linked.'
+    flash(msg, 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
 def _resolve_callback(data_id, callback_name):

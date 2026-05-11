@@ -68,11 +68,21 @@ Unmatched Data Files
                     <td><span class="small text-muted">{{ f.relative_path }}</span></td>
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
                     <td class="small">
-                        {% for a in f.candidate_animals %}
-                            <span class="badge bg-light text-dark">{{ a.display_id }}</span>
+                        {% set has_candidates = f.candidate_animals or f.candidate_ears %}
+                        {% if f.target_type == 'ear' %}
+                            {% for e in f.candidate_ears %}
+                                <a href="{{ url_for('histology.view_ear', ear_id=e.id) }}"
+                                   class="badge bg-light text-dark text-decoration-none">{{ e.full_display }}</a>
+                            {% endfor %}
                         {% else %}
+                            {% for a in f.candidate_animals %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=a.id) }}"
+                                   class="badge bg-light text-dark text-decoration-none">{{ a.display_id }}</a>
+                            {% endfor %}
+                        {% endif %}
+                        {% if not has_candidates %}
                             <span class="text-muted">none</span>
-                        {% endfor %}
+                        {% endif %}
                     </td>
                     <td>
                         <span class="badge bg-{{ 'success' if f.status == 'reviewed' else 'warning text-dark' if f.status == 'unreviewed' else 'danger' }}">

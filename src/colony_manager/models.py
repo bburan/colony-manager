@@ -686,6 +686,10 @@ class Animal(VersionedModel):
 
     @property
     def source_display(self):
+        # First check if it was bred in-house
+        if self.breeding_pair:
+            return self.breeding_pair.custom_id
+        # Fall back to an external source, or N/A
         return 'N/A' if self.source is None else self.source.name
 
     @property

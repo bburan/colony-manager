@@ -7,8 +7,8 @@ from sqlalchemy.orm import joinedload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog,
-    WeightLog, Data, DataType, AnimalEventData, ConfocalImageData,
-    AnimalData, EarData, study_animals,
+    WeightLog, Data, DataType, AnimalEventData, AnimalEventDataType,
+    ConfocalImageData, AnimalData, EarData, study_animals, _expand_sides,
 )
 
 from .. import db
@@ -670,56 +670,131 @@ def auto_create_event(animal_id, data_id):
         flash('Cannot auto-create: file has no parsed date.', 'danger')
         return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
+    animal_custom_id = Animal.query.get_or_404(animal_id).custom_id
+
+    def parsed_animal_sides(f):
+        """Sides the parser assigns to this animal in file ``f``.
+
+        Reparses via each file's own description class — works across
+        mixed datatypes (e.g. ABR and DPOAE both pointing at the same
+        default procedure), and side info doesn't depend on
+        ``candidate_ears`` (Ears aren't created until histology
+        extraction). Animal membership doesn't depend on
+        ``candidate_animals`` either, so a file synced before the animal
+        existed still resolves correctly.
+
+        Returns
+        -------
+        None
+            The parser did not see this animal in this file.
+        list[str]
+            Canonical sides for this animal in this file. Empty list
+            means "animal is present, but no side was parsed".
+        """
+        try:
+            cls = f.datatype.get_description()
+            parsed = cls(f).parse() or {}
+        except Exception:
+            return None
+        raw_ids = parsed.get('animal_id')
+        if not raw_ids:
+            return None
+        ids = list(raw_ids) if isinstance(raw_ids, (list, tuple)) else [raw_ids]
+        if animal_custom_id not in ids:
+            return None
+        sides = _expand_sides(parsed.get('side') or parsed.get('ear'), len(ids))
+        if sides is None:
+            return []
+        return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
+
     target = datatype.default_procedure_target
     if target is not None and target.requires_side:
-        sides = sorted({e.side for e in data_file.candidate_ears if e.animal_id == animal_id})
+        own_sides = parsed_animal_sides(data_file)
+        sides = sorted(set(own_sides)) if own_sides else []
         if not sides:
             flash(
-                'Cannot auto-create: target requires a side but no side was '
-                'resolved from the file for this animal.', 'danger')
+                'Cannot auto-create: target requires a side but the parser '
+                'did not resolve one for this animal.', 'danger')
             return redirect(url_for('animals.view_animal', animal_id=animal_id))
     else:
         sides = [None]
 
-    created_events = []
+    # Reuse an existing matching event when one is already on the animal —
+    # otherwise a second wand-click for a sibling file (or any later
+    # wand-click after this date already has the event) duplicates it.
+    target_events = []
+    created_count = 0
     for side in sides:
-        event = AnimalEvent(
+        query = AnimalEvent.query.filter_by(
             animal_id=animal_id,
             procedure_id=datatype.default_procedure_id,
             procedure_target_id=datatype.default_procedure_target_id,
-            side=side,
-            scheduled_date=data_file.date,
-            completion_date=data_file.date,
+        ).filter(
+            db.or_(
+                AnimalEvent.scheduled_date == data_file.date,
+                AnimalEvent.completion_date == data_file.date,
+            )
         )
-        db.session.add(event)
-        created_events.append(event)
+        if side is None:
+            query = query.filter(AnimalEvent.side.is_(None))
+        else:
+            query = query.filter(AnimalEvent.side == side)
+        existing = query.first()
+        if existing:
+            target_events.append(existing)
+        else:
+            event = AnimalEvent(
+                animal_id=animal_id,
+                procedure_id=datatype.default_procedure_id,
+                procedure_target_id=datatype.default_procedure_target_id,
+                side=side,
+                scheduled_date=data_file.date,
+                completion_date=data_file.date,
+            )
+            db.session.add(event)
+            target_events.append(event)
+            created_count += 1
     db.session.flush()
 
-    # Link all candidate files for this animal that don't yet have an event
-    # for the matching datatype/date.
-    candidate_files = AnimalEventData.query.filter(
-        AnimalEventData.datatype_id == datatype.id,
+    # Link any AnimalEventData on this date whose datatype shares the
+    # event's procedure — covers same-datatype siblings *and* sister
+    # datatypes (e.g. ABR + DPOAE both defaulting to Physiology).
+    # ``candidate_animals`` is deliberately not in the SQL filter: it can
+    # be stale (file synced before the animal existed) and would silently
+    # drop files the parser would otherwise place on this animal. The
+    # reparse below is the authoritative animal/side check.
+    candidate_files = AnimalEventData.query.join(
+        AnimalEventDataType,
+        AnimalEventData.datatype_id == AnimalEventDataType.id,
+    ).filter(
+        AnimalEventDataType.default_procedure_id == datatype.default_procedure_id,
         AnimalEventData.date == data_file.date,
     ).all()
     linked_count = 0
     for f in candidate_files:
-        if not any(a.id == animal_id for a in f.candidate_animals):
-            continue
-        f_sides = {e.side for e in f.candidate_ears if e.animal_id == animal_id}
-        for event in created_events:
+        f_sides = parsed_animal_sides(f)
+        if f_sides is None:
+            continue  # parser doesn't place this animal in this file
+        f_sides = set(f_sides)
+        for event in target_events:
             if event in f.events:
                 continue
-            if event.side is not None and event.side not in f_sides:
+            # No parsed side → link best-effort. Parsed side present →
+            # require it to match the event's side.
+            if event.side is not None and f_sides and event.side not in f_sides:
                 continue
             f.events.append(event)
             linked_count += 1
 
     db.session.commit()
-    if len(created_events) > 1:
-        msg = f'{len(created_events)} events created and {linked_count} file(s) linked.'
-    else:
-        msg = f'Event created and {linked_count} file(s) linked.'
-    flash(msg, 'success')
+    parts = []
+    if created_count:
+        parts.append(f'{created_count} event{"s" if created_count != 1 else ""} created')
+    reused = len(target_events) - created_count
+    if reused:
+        parts.append(f'{reused} reused')
+    parts.append(f'{linked_count} file(s) linked')
+    flash(', '.join(parts).capitalize() + '.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
 def _resolve_callback(data_id, callback_name):

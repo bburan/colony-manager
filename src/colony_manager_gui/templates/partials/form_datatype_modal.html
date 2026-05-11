@@ -21,10 +21,14 @@
         {% endfor %}
     </div>
     {% else %}
+    {% set initial_locations = [] %}
+    {% if dt %}
+        {% for loc in dt.locations %}
+            {% set _ = initial_locations.append({'id': loc.id, 'path': loc.base_path}) %}
+        {% endfor %}
+    {% endif %}
     <form id="modal-datatype-form"
-          x-data="{
-            locations: [{% for loc in (dt.locations if dt else []) %}'{{ loc.base_path }}',{% endfor %}]
-          }"
+          x-data='{ locations: {{ initial_locations|tojson|safe }} }'
           hx-post="{% if dt %}{{ url_for('main.update_datatype', datatype_id=dt.id) }}{% else %}{{ url_for('main.create_datatype') }}{% endif %}"
           hx-target="{% if dt %}#datatype-{{ dt.id }}{% else %}#list-datatypes{% endif %}"
           hx-swap="{% if dt %}outerHTML{% else %}beforeend{% endif %}"
@@ -85,12 +89,13 @@
                 <template x-for="(loc, index) in locations" :key="index">
                     <div class="input-group mb-2">
                         <span class="input-group-text"><i class="fas fa-folder-open"></i></span>
-                        <input type="text" name="locations" x-model="locations[index]" class="form-control form-control-sm font-monospace">
+                        <input type="hidden" name="location_ids" :value="loc.id">
+                        <input type="text" name="locations" x-model="loc.path" class="form-control form-control-sm font-monospace">
                         <button type="button" class="btn btn-outline-danger btn-sm" @click="locations.splice(index, 1)"><i class="fas fa-trash"></i></button>
                     </div>
                 </template>
             </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" @click="locations.push('')">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @click="locations.push({ id: null, path: '' })">
                 <i class="fas fa-plus"></i> Add Path
             </button>
         </div>

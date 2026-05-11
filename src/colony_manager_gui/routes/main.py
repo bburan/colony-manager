@@ -17,7 +17,6 @@ from ..forms import (
 )
 from .util import flash_form_errors, render_error_alert
 from colony_manager.datatypes import load_description_class
-from ..sync import sync_locations, rematch_datatype as _rematch_datatype
 from ..jobs import (
     enqueue_datatype_sync, enqueue_datatype_rematch,
     recent_jobs, parse_summary,
@@ -331,15 +330,37 @@ def set_species(species_id):
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
 def _save_datatype_children(dt):
-    """Persist DataLocation rows from request.form."""
-    location_paths = [p.strip() for p in request.form.getlist('locations') if p.strip()]
-    for loc in dt.locations.all():
-        if loc.base_path not in location_paths:
-            db.session.delete(loc)
-    existing_paths = {loc.base_path for loc in dt.locations.all()}
-    for path in location_paths:
-        if path not in existing_paths:
+    """Persist DataLocation rows from request.form.
+
+    The form submits parallel ``locations`` / ``location_ids`` lists.
+    Rows with an existing id get their ``base_path`` updated in place so
+    attached ``Data`` rows aren't cascade-deleted — important when
+    relocating the database to a new system whose root path differs but
+    whose relative tree is intact.
+    """
+    submitted_paths = request.form.getlist('locations')
+    submitted_ids = request.form.getlist('location_ids')
+
+    existing_locs = {loc.id: loc for loc in dt.locations.all()}
+    seen_ids = set()
+
+    for loc_id_str, path in zip(submitted_ids, submitted_paths):
+        path = path.strip()
+        if not path:
+            continue
+        try:
+            loc_id = int(loc_id_str)
+        except (TypeError, ValueError):
+            loc_id = None
+        if loc_id and loc_id in existing_locs:
+            existing_locs[loc_id].base_path = path
+            seen_ids.add(loc_id)
+        else:
             db.session.add(models.DataLocation(base_path=path, datatype_id=dt.id))
+
+    for loc_id, loc in existing_locs.items():
+        if loc_id not in seen_ids:
+            db.session.delete(loc)
 
 
 @main_bp.route('/settings/datatype/create_modal')

@@ -48,6 +48,8 @@ from pathlib import Path
 
 import xxhash
 
+from .models import Data
+
 
 # Files smaller than ``2 * HASH_CHUNK`` are hashed in full; larger files
 # fold size + first chunk + last chunk into the digest. For non-malicious
@@ -161,8 +163,13 @@ class DataTypeDescription(ABC):
                 }
         cls._callbacks = callbacks
 
-    def __init__(self, path):
-        self.path = Path(path)
+    def __init__(self, obj):
+        if isinstance(obj, (Path, str)):
+            self.path = Path(obj)
+        elif isinstance(obj, Data):
+            self.path = Path(obj.location.base_path) / obj.relative_path
+        else:
+            raise ValueError(f'Unrecognized object type: {type(obj)}')
 
     # -- Abstract interface --------------------------------------------------
 

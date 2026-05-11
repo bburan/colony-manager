@@ -194,6 +194,18 @@ class DataType(VersionedModel):
 
     TARGET_LABEL = 'Generic'
 
+    def get_description(self):
+        """Get the associated DataTypeDescription class.
+
+        Returns
+        -------
+        instance of DataTypeDescription
+        """
+        if not self.description_class:
+            return {}
+        from colony_manager.datatypes import load_description_class
+        return load_description_class(self.description_class)
+
     def get_description_callbacks(self):
         """Introspect callbacks from the associated DataTypeDescription class.
 
@@ -203,12 +215,8 @@ class DataType(VersionedModel):
             ``{friendly_name: {'type': str, 'method_name': str}}``, or
             an empty dict if no description class is configured.
         """
-        if not self.description_class:
-            return {}
-        from colony_manager.datatypes import load_description_class
         try:
-            cls = load_description_class(self.description_class)
-            return cls.get_callbacks()
+            return self.get_description().get_callbacks()
         except Exception:
             return {}
 
@@ -682,7 +690,12 @@ class Animal(VersionedModel):
 
     @property
     def sex_symbol(self):
-        return '♀' if self.sex == 'female' else '♂'
+        if self.sex == 'female':
+            return '♀'
+        elif self.sex == 'male':
+            return '♂'
+        else:
+            return '?'
 
     @property
     def source_display(self):

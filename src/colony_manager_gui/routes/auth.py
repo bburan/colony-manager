@@ -67,17 +67,9 @@ def login_user():
 @auth_bp.route('/add', methods=['GET', 'POST'])
 @public
 def add_user():
-    # Self-registration is only open while the user table is empty (bootstrap
-    # the first admin). Once any user exists, only an authenticated admin can
-    # create accounts — this stops anonymous users from filling the table.
-    is_admin_caller = (
-        not flask_login.current_user.is_anonymous
-        and flask_login.current_user.is_admin()
-    )
-    is_bootstrap_get = User.query.count() == 0
-    if not (is_bootstrap_get or is_admin_caller):
-        abort(403)
-
+    # Self-registration is always open. The first user to register is
+    # auto-activated and elevated to admin to bootstrap the system;
+    # subsequent accounts are inactive until an admin approves them.
     create_form = UserCreateForm()
     if create_form.validate_on_submit():
         try:
@@ -88,9 +80,6 @@ def add_user():
                 text("SELECT pg_advisory_xact_lock(hashtext('colony_manager.first_user'))")
             )
             is_bootstrap = User.query.count() == 0
-            if not (is_bootstrap or is_admin_caller):
-                db.session.rollback()
-                abort(403)
             user = User(
                 first_name=create_form.first_name.data,
                 last_name=create_form.last_name.data,

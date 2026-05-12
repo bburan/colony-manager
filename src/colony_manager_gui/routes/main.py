@@ -235,7 +235,12 @@ def create_setting(item_type):
     Model = SETTINGS_MAP[item_type]['model']
     form = SETTINGS_MAP[item_type]['form']()
     if form.validate_on_submit():
-        if Model.query.filter(Model.name == form.name.data).first():
+        dupe_query = Model.query.filter(Model.name == form.name.data)
+        if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
+            parent_obj = form.parent.data
+            parent_id = parent_obj.id if parent_obj else None
+            dupe_query = dupe_query.filter(Model.parent_id == parent_id)
+        if dupe_query.first():
             if request.headers.get('HX-Request'):
                 return f'<div class="alert alert-danger small py-1 mb-0">Already exists.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
             flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')

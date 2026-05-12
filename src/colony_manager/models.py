@@ -3,7 +3,7 @@ import re
 from statistics import mean
 
 from sqlalchemy import (
-    func, orm, UniqueConstraint, MetaData, Table, Column, Integer, String,
+    func, orm, UniqueConstraint, Index, MetaData, Table, Column, Integer, String,
     ForeignKey, Text, Boolean, Date, DateTime, Float, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
@@ -143,9 +143,20 @@ class NestedMixin:
 
 class AnimalProcedure(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)
-    name = Column(String(150), unique=True, nullable=False)
+    name = Column(String(150), nullable=False)
     description = Column(Text, nullable=True)
     parent_id = Column(Integer, ForeignKey('animal_procedure.id'), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('parent_id', 'name', name='uq_animal_procedure_parent_id_name'),
+        Index(
+            'uq_animal_procedure_name_root',
+            'name',
+            unique=True,
+            postgresql_where=Column('parent_id').is_(None),
+            sqlite_where=Column('parent_id').is_(None),
+        ),
+    )
 
     subcategories = relationship(
         'AnimalProcedure',

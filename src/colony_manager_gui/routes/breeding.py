@@ -47,8 +47,9 @@ def create_breeding_pair():
             female_animal = form.female_animal.data
 
         if female_animal.species != male_animal.species:
+            db.session.rollback()
             flash('Species of male and female must be the same.', 'danger')
-            return redirect(request.referrer or url_for('view_breeding_pairs'))
+            return redirect(request.referrer or url_for('breeding.list_breeding_pairs'))
 
         cage = Cage(
             custom_id=form.custom_id.data,
@@ -82,11 +83,11 @@ def deactivate_breeding_pair(breeding_pair_id):
 
 @breeding_bp.route('/<int:breeding_pair_id>/reactivate', methods=['POST'])
 def reactivate_breeding_pair(breeding_pair_id):
-    pair = BreedingPair.query.get_or_404(pair_id)
+    pair = BreedingPair.query.get_or_404(breeding_pair_id)
     pair.is_active = True
     db.session.commit()
     flash(f'Breeding pair {pair.custom_id} reactivated.', 'success')
-    return redirect(request.referrer or url_for('view_breeding_pairs'))
+    return redirect(request.referrer or url_for('breeding.list_breeding_pairs'))
 
 
 # Nested Litter Routes
@@ -114,7 +115,7 @@ def update_litter(litter_id):
         flash('Litter updated successfully.', 'success')
     else:
         flash_form_errors(form.errors, 'Error updating litter')
-    return redirect(request.referrer or url_for('breeding.view_breeding_pair', pair_id=litter.breeding_pair_id))
+    return redirect(request.referrer or url_for('breeding.view_breeding_pair', breeding_pair_id=litter.breeding_pair_id))
 
 
 @breeding_bp.route('/litters/<int:litter_id>/delete', methods=['POST'])
@@ -124,7 +125,7 @@ def delete_litter(litter_id):
     db.session.delete(litter)
     db.session.commit()
     flash('Litter has been removed.', 'success')
-    return redirect(request.referrer or url_for('breeding.view_breeding_pair', pair_id=pair_id))
+    return redirect(request.referrer or url_for('breeding.view_breeding_pair', breeding_pair_id=pair_id))
 
 
 @breeding_bp.route('/litters/<int:litter_id>/wean', methods=['GET', 'POST'])
@@ -152,7 +153,7 @@ def wean_litter(litter_id):
         flash(f'Litter weaned into {len(form.cages)} new cages.', 'success')
     else:
         flash_form_errors(form, 'Error weaning litter')
-    return redirect(request.referrer or url_for('breeding_pair_detail', pair_id=litter.breeding_pair_id))
+    return redirect(request.referrer or url_for('breeding.view_breeding_pair', breeding_pair_id=litter.breeding_pair_id))
 
 # --- Modal Routes ---
 

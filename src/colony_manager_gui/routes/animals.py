@@ -344,7 +344,6 @@ def create_animal_daily_log(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = DailyLogForm()
     if form.validate_on_submit():
-        print(form.date.data)
         logs = WeightLog.query.filter_by(animal_id=animal.id, date=form.date.data).all()
         if len(logs) != 0:
             flash(f'Log for {animal.display_id} already exists for {form.date.data.strftime("%B %d, %Y")}.', 'danger')

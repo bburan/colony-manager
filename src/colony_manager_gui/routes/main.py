@@ -334,14 +334,14 @@ def delete_setting(item_type, item_id):
 def create_feed():
     form = FeedForm()
     if form.validate_on_submit():
-        feed = Feed()
+        feed = models.Feed()
         form.populate_obj(feed)
         db.session.add(feed)
         db.session.commit()
         flash(f'Feed "{feed.name}" added.', 'success')
     else:
         flash_form_errors(form, title="Could not create feed")
-    return redirect(request.referrer or url_for('list_settings'))
+    return redirect(request.referrer or url_for('main.list_settings'))
 
 @main_bp.route('/set-species/<species_id>', methods=['POST'])
 def set_species(species_id):

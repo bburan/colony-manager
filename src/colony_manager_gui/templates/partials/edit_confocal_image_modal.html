@@ -1,0 +1,73 @@
+{% import 'macros.html' as macros %}
+{% set image_options = {
+    'pending': 'Pending',
+    'imaged': 'Imaged',
+    'analyzed': 'Analyzed',
+    'region_missing': 'Region Missing',
+    'region_bad': 'Poor histology',
+    'need_review': 'Needs review',
+} %}
+{% set data_files = img.data_files.all() %}
+
+<header class="modal-header">
+    <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
+        {{ img.ear.animal.custom_id }} {{ img.ear.side }} — {{ img.image_type.name }} @ {{ img.frequency }}
+    </h3>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</header>
+
+<main class="modal-body"
+      x-data="{ success: false, error: false }"
+      hx-post="{{ url_for('histology.update_confocal_image', image_id=img.id) }}"
+      hx-trigger="change delay:200ms from:select[name='status'], input changed delay:500ms from:textarea[name='notes']"
+      hx-include="this"
+      hx-swap="none"
+      @htmx:before-request="success = false; error = false"
+      @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }">
+
+    <div class="mb-3">
+        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Status</label>
+        <select name="status" class="form-select form-select-sm subtle-input"
+                :class="{ 'is-saved': success, 'is-error': error }">
+            {% for value, label in image_options.items() %}
+                <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Notes</label>
+        <textarea name="notes" rows="3" class="form-control form-control-sm subtle-input"
+                  placeholder="Add observations..."
+                  :class="{ 'is-saved': success, 'is-error': error }">{{ img.notes or '' }}</textarea>
+    </div>
+
+    <div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.65rem;">
+                Attached files ({{ data_files|length }})
+            </label>
+        </div>
+        {% if data_files %}
+            <div class="d-flex flex-column gap-3">
+                {% for f in data_files %}
+                <div class="border rounded p-2">
+                    <div class="d-flex gap-1 mb-1 align-items-start">
+                        <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;" title="{{ f.relative_path }}">{{ f.name }}</span>
+                        <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
+                    </div>
+                    {% with data_file=f, animal=img.ear.animal, show_header=False %}
+                        {% include 'partials/data_file_popup_content.html' %}
+                    {% endwith %}
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="small text-muted fst-italic mb-0">No data files matched to this image.</p>
+        {% endif %}
+    </div>
+</main>
+
+<footer class="modal-footer border-top-0 pb-4 px-4">
+    <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Close</button>
+</footer>

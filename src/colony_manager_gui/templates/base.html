@@ -131,13 +131,31 @@
                         ('cages.list_cages', 'Cages'),
                         ('animals.list_animals', 'Animals'),
                         ('studies.list_studies', 'Studies'),
-                        ('histology.list_histology', 'Histology'),
+                    ] %}
+                    {% set nav_items_after = [
                         ('animals.list_unmatched_data', 'Data'),
                     ] %}
                     {% if not current_user.is_anonymous and current_user.is_admin() %}
-                        {% set nav_items = nav_items + [('main.list_settings', 'Settings')] %}
+                        {% set nav_items_after = nav_items_after + [('main.list_settings', 'Settings')] %}
                     {% endif %}
                     {% for endpoint, label in nav_items %}
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.endpoint == endpoint }}"
+                           href="{{ url_for(endpoint) }}">{{ label }}</a>
+                    </li>
+                    {% endfor %}
+                    {% set histology_endpoints = ['histology.list_histology', 'histology.view_grid'] %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint in histology_endpoints }}"
+                           href="#" role="button" data-bs-toggle="dropdown">Histology</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'histology.list_histology' }}"
+                                   href="{{ url_for('histology.list_histology') }}">List</a></li>
+                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'histology.view_grid' }}"
+                                   href="{{ url_for('histology.view_grid') }}">Grid</a></li>
+                        </ul>
+                    </li>
+                    {% for endpoint, label in nav_items_after %}
                     <li class="nav-item">
                         <a class="nav-link {{ 'active' if request.endpoint == endpoint }}"
                            href="{{ url_for(endpoint) }}">{{ label }}</a>

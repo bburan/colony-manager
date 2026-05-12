@@ -1,0 +1,35 @@
+{# Renders the colored status square for one ConfocalImage. Used both inline
+   in the grid table and as an OOB swap target after status/notes updates. #}
+{% set status_colors = {
+    'pending': '#adb5bd',
+    'imaged': '#0dcaf0',
+    'analyzed': '#198754',
+    'region_missing': '#343a40',
+    'region_bad': '#dc3545',
+    'need_review': '#ffc107',
+} %}
+{% set status_labels = {
+    'pending': 'Pending',
+    'imaged': 'Imaged',
+    'analyzed': 'Analyzed',
+    'region_missing': 'Region Missing',
+    'region_bad': 'Poor histology',
+    'need_review': 'Needs review',
+} %}
+{% set status = img.status or 'pending' %}
+{% set color = status_colors.get(status, '#adb5bd') %}
+{% set file_count = img.data_files.count() %}
+{% set has_files = file_count > 0 %}
+{% set status_implies_work = status in ('imaged', 'analyzed', 'need_review', 'region_bad') %}
+{% set missing_files_conflict = status_implies_work and not has_files %}
+<span id="grid-square-{{ img.id }}"
+      {% if oob %}hx-swap-oob="outerHTML"{% endif %}
+      class="d-inline-flex align-items-center justify-content-center"
+      style="width:18px; height:18px; background:{{ color }};
+             border: {{ '2px solid #dc3545' if missing_files_conflict else '1px solid rgba(0,0,0,0.15)' }};
+             border-radius:3px; cursor:pointer; color:#fff; font-size:0.65rem;"
+      title="{{ status_labels.get(status, status) }}{% if has_files %} — {{ file_count }} file(s){% endif %}{% if missing_files_conflict %} — CONFLICT: status set but no data files{% endif %}"
+      hx-get="{{ url_for('histology.edit_confocal_image_modal', image_id=img.id) }}"
+      hx-target="#modalBody">
+    {% if has_files %}<i class="fas fa-paperclip"></i>{% elif missing_files_conflict %}<i class="fas fa-exclamation"></i>{% endif %}
+</span>

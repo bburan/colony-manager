@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block header %}
+Histology Grid
+{% endblock %}
+
+{% set status_colors = {
+    'pending': '#adb5bd',
+    'imaged': '#0dcaf0',
+    'analyzed': '#198754',
+    'region_missing': '#343a40',
+    'region_bad': '#dc3545',
+    'need_review': '#ffc107',
+} %}
+{% set status_labels = {
+    'pending': 'Pending',
+    'imaged': 'Imaged',
+    'analyzed': 'Analyzed',
+    'region_missing': 'Region Missing',
+    'region_bad': 'Poor histology',
+    'need_review': 'Needs review',
+} %}
+
+{% set filter_options = {
+    'sort_by': [('id', 'ID'), ('euthanasia', 'Euthanasia Date')],
+} %}
+
+{% block content %}
+
+{# Image-type tabs #}
+<ul class="nav nav-tabs mb-3">
+    {% for t in image_types %}
+    <li class="nav-item">
+        <a class="nav-link {{ 'active' if selected_image_type and t.id == selected_image_type.id }}"
+           href="{{ url_for('histology.view_grid', image_type=t.id, sort_by=filters.sort_by, conflicts_only=1 if filters.conflicts_only else None) }}">
+            {{ t.name }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+{% if not image_types %}
+    <div class="alert alert-info">No confocal image types are defined yet.</div>
+{% else %}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between">
+        <div>
+            <i class="fas fa-filter me-2"></i>Filters & Sorting
+            <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                {{ ears|length }} Ears
+            </span>
+        </div>
+        <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id) }}"
+           class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+            <i class="fas fa-undo-alt me-1"></i>
+        </a>
+    </div>
+    <div class="card-body pt-1 pb-3 px-3">
+        <div class="row g-3 align-items-end">
+            {{ macros.filter_button_group('sort_by', 'Sort By',
+                {'sort_by': filters.sort_by, 'conflicts_only': '1' if filters.conflicts_only else '', 'image_type': selected_image_type.id},
+                filter_options['sort_by']) }}
+            <div class="col-auto">
+                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Conflicts</label>
+                <div class="btn-group btn-group-sm shadow-sm">
+                    <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id, sort_by=filters.sort_by) }}"
+                       class="btn {{ 'btn-primary' if not filters.conflicts_only else 'btn-outline-secondary' }}">All</a>
+                    <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id, sort_by=filters.sort_by, conflicts_only=1) }}"
+                       class="btn {{ 'btn-primary' if filters.conflicts_only else 'btn-outline-secondary' }}">Conflicts only</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Legend #}
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2 px-3 small d-flex flex-wrap gap-3 align-items-center">
+        <span class="fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Legend:</span>
+        {% for value, label in status_labels.items() %}
+            <span class="d-inline-flex align-items-center gap-1">
+                <span style="display:inline-block; width:14px; height:14px; background:{{ status_colors[value] }}; border:1px solid rgba(0,0,0,0.15); border-radius:2px;"></span>
+                <span class="small">{{ label }}</span>
+            </span>
+        {% endfor %}
+        <span class="text-muted"><i class="fas fa-paperclip"></i> file linked</span>
+        <span class="text-danger"><i class="fas fa-triangle-exclamation"></i> status set but no file</span>
+        <span class="d-inline-flex align-items-center gap-1">
+            <span style="display:inline-block; width:14px; height:14px; background:repeating-linear-gradient(45deg,#dc3545,#dc3545 3px,#fff 3px,#fff 6px); border:1px solid #dc3545; border-radius:2px;"></span>
+            <span class="small">orphan file</span>
+        </span>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        {% if not ears %}
+            <div class="p-3 text-muted">No ears to display.</div>
+        {% elif not frequencies and not has_other_column %}
+            <div class="p-3 text-muted">No images recorded for image type "{{ selected_image_type.name }}".</div>
+        {% else %}
+        <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.8rem;">
+            <thead>
+                <tr>
+                    <th style="position: sticky; left: 0; background: #fff; z-index: 2; white-space: nowrap;">Ear</th>
+                    {% for f in frequencies %}
+                        <th class="text-center px-1" style="font-weight: 500;">{{ f }}</th>
+                    {% endfor %}
+                    {% if has_other_column %}
+                        <th class="text-center text-danger px-1" title="Orphan files at frequencies that have no image row">Other</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for ear in ears %}
+                {% set orphans = orphans_by_ear.get(ear.id, []) %}
+                <tr>
+                    <td style="position: sticky; left: 0; background: #fff; white-space: nowrap;">
+                        <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">
+                            {{ ear.animal.custom_id }} {{ ear.side }}
+                        </a>
+                    </td>
+                    {% for f in frequencies %}
+                        {% set img = grid[ear.id].get(f) %}
+                        {% set freq_orphans = orphans | selectattr('frequency', 'equalto', f) | list %}
+                        <td class="text-center p-1" style="line-height: 1;">
+                            {% if img %}
+                                {% include 'partials/grid_status_square.html' %}
+                            {% endif %}
+                            {% for o in freq_orphans %}
+                                <span class="d-inline-block"
+                                      style="width:18px; height:18px;
+                                             background:repeating-linear-gradient(45deg,#dc3545,#dc3545 3px,#fff 3px,#fff 6px);
+                                             border:1px solid #dc3545; border-radius:3px; margin-left:2px;"
+                                      title="Orphan data file: {{ o.file.name }} — frequency parsed from filename but no ConfocalImage row exists"></span>
+                            {% endfor %}
+                        </td>
+                    {% endfor %}
+                    {% if has_other_column %}
+                        <td class="text-center p-1" style="line-height: 1;">
+                            {% for o in orphans if o.frequency not in frequencies %}
+                                <span class="d-inline-block"
+                                      style="width:18px; height:18px;
+                                             background:repeating-linear-gradient(45deg,#dc3545,#dc3545 3px,#fff 3px,#fff 6px);
+                                             border:1px solid #dc3545; border-radius:3px; margin:1px;"
+                                      title="Orphan data file at unknown frequency {{ o.frequency }}: {{ o.file.name }}"></span>
+                            {% endfor %}
+                        </td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}

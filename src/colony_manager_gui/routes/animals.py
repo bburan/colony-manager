@@ -263,17 +263,54 @@ def update_animal_event(event_id):
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=event.animal_id))
 
 
-def _resync_event_files(event):
-    """Unlink files whose date no longer matches the event, then link matching unassigned files."""
-    new_date = event.completion_date or event.scheduled_date
+def _parsed_animal_sides(f, animal_custom_id):
+    """Sides the parser assigns to ``animal_custom_id`` in file ``f``.
 
-    # 1. Unlink files (this event only) where date no longer matches
+    Returns
+    -------
+    None
+        The parser did not see this animal in this file.
+    list[str]
+        Canonical sides for this animal in this file. Empty list means
+        "animal is present, but no side was parsed".
+    """
+    try:
+        cls = f.datatype.get_description()
+        parsed = cls(f).parse() or {}
+    except Exception:
+        return None
+    raw_ids = parsed.get('animal_id')
+    if not raw_ids:
+        return None
+    ids = list(raw_ids) if isinstance(raw_ids, (list, tuple)) else [raw_ids]
+    if animal_custom_id not in ids:
+        return None
+    sides = _expand_sides(parsed.get('side') or parsed.get('ear'), len(ids))
+    if sides is None:
+        return []
+    return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
+
+
+def _resync_event_files(event):
+    """Unlink files whose date or parsed side no longer matches the event, then link matching files."""
+    new_date = event.completion_date or event.scheduled_date
+    animal_custom_id = event.animal.custom_id
+
+    # 1. Unlink files (this event only) whose date or parsed side no longer
+    #    matches. A file with no parsed side is allowed to stay linked —
+    #    same convention as the initial sync match.
     for f in list(event.data_files):
         if f.date != new_date:
             f.events.remove(event)
+            continue
+        if event.side is not None:
+            f_sides = _parsed_animal_sides(f, animal_custom_id)
+            if f_sides and event.side not in set(f_sides):
+                f.events.remove(event)
 
     # 2. Link AnimalEventData files matching date, animal candidacy, and the
-    #    DataType's default procedure.
+    #    DataType's default procedure. Side must match when both the event
+    #    and the file's parser specify one.
     candidate_files = AnimalEventData.query.filter(
         AnimalEventData.date == new_date,
     ).all()
@@ -283,8 +320,13 @@ def _resync_event_files(event):
             continue
         if event in f.events:
             continue
-        if any(a.id == event.animal_id for a in f.candidate_animals):
-            f.events.append(event)
+        if not any(a.id == event.animal_id for a in f.candidate_animals):
+            continue
+        if event.side is not None:
+            f_sides = _parsed_animal_sides(f, animal_custom_id)
+            if f_sides and event.side not in set(f_sides):
+                continue
+        f.events.append(event)
 
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -672,44 +714,9 @@ def auto_create_event(animal_id, data_id):
 
     animal_custom_id = Animal.query.get_or_404(animal_id).custom_id
 
-    def parsed_animal_sides(f):
-        """Sides the parser assigns to this animal in file ``f``.
-
-        Reparses via each file's own description class — works across
-        mixed datatypes (e.g. ABR and DPOAE both pointing at the same
-        default procedure), and side info doesn't depend on
-        ``candidate_ears`` (Ears aren't created until histology
-        extraction). Animal membership doesn't depend on
-        ``candidate_animals`` either, so a file synced before the animal
-        existed still resolves correctly.
-
-        Returns
-        -------
-        None
-            The parser did not see this animal in this file.
-        list[str]
-            Canonical sides for this animal in this file. Empty list
-            means "animal is present, but no side was parsed".
-        """
-        try:
-            cls = f.datatype.get_description()
-            parsed = cls(f).parse() or {}
-        except Exception:
-            return None
-        raw_ids = parsed.get('animal_id')
-        if not raw_ids:
-            return None
-        ids = list(raw_ids) if isinstance(raw_ids, (list, tuple)) else [raw_ids]
-        if animal_custom_id not in ids:
-            return None
-        sides = _expand_sides(parsed.get('side') or parsed.get('ear'), len(ids))
-        if sides is None:
-            return []
-        return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
-
     target = datatype.default_procedure_target
     if target is not None and target.requires_side:
-        own_sides = parsed_animal_sides(data_file)
+        own_sides = _parsed_animal_sides(data_file, animal_custom_id)
         sides = sorted(set(own_sides)) if own_sides else []
         if not sides:
             flash(
@@ -772,7 +779,7 @@ def auto_create_event(animal_id, data_id):
     ).all()
     linked_count = 0
     for f in candidate_files:
-        f_sides = parsed_animal_sides(f)
+        f_sides = _parsed_animal_sides(f, animal_custom_id)
         if f_sides is None:
             continue  # parser doesn't place this animal in this file
         f_sides = set(f_sides)

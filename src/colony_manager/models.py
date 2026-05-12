@@ -43,6 +43,11 @@ animal_event_tags = Table('animal_event_tags', Base.metadata,
     Column('tag_id', Integer, ForeignKey('animal_event_tag.id'), primary_key=True)
 )
 
+ear_tags = Table('ear_tags', Base.metadata,
+    Column('ear_id', Integer, ForeignKey('ear.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('ear_tag.id'), primary_key=True)
+)
+
 data_candidate_animals = Table('data_candidate_animals', Base.metadata,
     Column('data_id', Integer, ForeignKey('data.id'), primary_key=True),
     Column('animal_id', Integer, ForeignKey('animal.id'), primary_key=True)
@@ -1006,6 +1011,7 @@ class Ear(VersionedModel):
     panel_id = Column(Integer, ForeignKey('immunolabeling_panel.id', use_alter=True), nullable=True)
     notes = Column(Text, nullable=True)
     confocal_images = relationship('ConfocalImage', backref='ear', lazy=True)
+    tags = relationship('EarTag', secondary=ear_tags, backref='ears')
 
     @property
     def full_display(self):
@@ -1033,6 +1039,16 @@ class Ear(VersionedModel):
     def __lt__(self, other):
         if not isinstance(other, Ear): return NotImplemented
         return (self.animal.custom_id, self.side) < (other.animal.custom_id, other.side)
+
+class EarTag(VersionedModel, NestedMixin):
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    parent_id = Column(Integer, ForeignKey('ear_tag.id'), nullable=True)
+    subtags = relationship(
+        'EarTag',
+        backref=backref('parent', remote_side=[id]),
+        lazy='dynamic'
+    )
 
 class ConfocalImageType(VersionedModel):
     id = Column(Integer, primary_key=True)

@@ -23,22 +23,26 @@
     <div class="col-md-9">
         <div class="row g-4 mb-3">
             {% for type, info in settings.items()|sort %}
-            {% set form_class = info['form'] %}
-            {% set blank_form = form_class() %}
-            <div class="col-md-12" id="setting-{{ type }}" style="scroll-margin-top: 1.5rem;">
-                <div class="card shadow-sm card-body">
-                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
+                {% set form_class = info['form'] %}
+                {% set blank_form = form_class() %}
+                {% if blank_form.parent is defined %}
+                    {% include 'partials/setting_section_nested.html' %}
+                {% else %}
+                <div class="col-md-12" id="setting-{{ type }}" style="scroll-margin-top: 1.5rem;">
+                    <div class="card shadow-sm card-body">
+                        <h2 class="h6 fw-bold text-uppercase text-secondary mb-3">{{ type.replace('_', ' ') }}</h2>
 
-                    {% include 'partials/setting_create_form.html' %}
+                        {% include 'partials/setting_create_form.html' %}
 
-                    <ul class="list-group list-group-flush small" id="list-{{ type }}">
-                        {% for item in info['items']|sort(attribute='name', case_sensitive=False) %}
-                        {% set form = form_class(obj=item) %}
-                            {% include 'partials/setting_list_item.html' %}
-                        {% endfor %}
-                    </ul>
+                        <ul class="list-group list-group-flush small" id="list-{{ type }}">
+                            {% for item in info['items']|sort(attribute='name', case_sensitive=False) %}
+                            {% set form = form_class(obj=item) %}
+                                {% include 'partials/setting_list_item.html' %}
+                            {% endfor %}
+                        </ul>
+                    </div>
                 </div>
-            </div>
+                {% endif %}
             {% endfor %}
         </div>
 

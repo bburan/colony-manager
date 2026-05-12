@@ -44,6 +44,7 @@ SETTINGS_MAP = {
     'feed': {'model': models.Feed, 'form': forms.FeedForm},
     'animal_tag': {'model': models.AnimalTag, 'form': forms.create_nested_form(models.AnimalTag)},
     'animal_event_tag': {'model': models.AnimalEventTag, 'form': forms.create_nested_form(models.AnimalEventTag)},
+    'ear_tag': {'model': models.EarTag, 'form': forms.create_nested_form(models.EarTag)},
     'immunolabeling_panel': {'model': models.ImmunolabelingPanel, 'form': forms.SimpleAddWithDescriptionForm},
 }
 
@@ -230,6 +231,17 @@ def list_recent_jobs():
     )
 
 
+def _render_nested_section(item_type):
+    """Re-render the whole settings section for a nested-tag setting. Every
+    mutation (create/update/delete) returns this so htmx swaps the entire
+    section — sidesteps having to surgically sync parent dropdowns."""
+    cfg = SETTINGS_MAP[item_type]
+    info = {'items': cfg['model'].query.all(), 'form': cfg['form']}
+    return render_template(
+        'partials/setting_section_nested.html', type=item_type, info=info,
+    )
+
+
 @main_bp.route('/settings/<item_type>/create', methods=['POST'])
 def create_setting(item_type):
     Model = SETTINGS_MAP[item_type]['model']
@@ -251,9 +263,10 @@ def create_setting(item_type):
                 db.session.add(item)
                 db.session.commit()
                 if request.headers.get('HX-Request'):
+                    if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
+                        return _render_nested_section(item_type)
                     display_form = SETTINGS_MAP[item_type]['form'](obj=item)
                     html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                    # Clear error div
                     error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
                     return html + error_clear
                 flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
@@ -278,9 +291,11 @@ def update_setting(item_type, item_id):
         try:
             db.session.commit()
             if request.headers.get('HX-Request'):
+                Model = SETTINGS_MAP[item_type]['model']
+                if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
+                    return _render_nested_section(item_type)
                 display_form = SETTINGS_MAP[item_type]['form'](obj=item)
                 html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                # Clear error too
                 error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
                 return html + error_clear
             flash("Updated successfully!", "success")
@@ -298,12 +313,15 @@ def update_setting(item_type, item_id):
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/delete', methods=['POST'])
 def delete_setting(item_type, item_id):
-    item = SETTINGS_MAP[item_type]['model'].query.get_or_404(item_id)
+    Model = SETTINGS_MAP[item_type]['model']
+    item = Model.query.get_or_404(item_id)
     item_name = item.name
     try:
         db.session.delete(item)
         db.session.commit()
         if request.headers.get('HX-Request'):
+            if hasattr(Model, 'parent_id'):
+                return _render_nested_section(item_type)
             return ''
         flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:

@@ -106,6 +106,7 @@ Histology Grid
             <thead>
                 <tr>
                     <th style="position: sticky; left: 0; background: #fff; z-index: 2; white-space: nowrap;">Ear</th>
+                    <th>Tags</th>
                     {% for f in frequencies %}
                         <th class="text-center px-1" style="font-weight: 500;">{{ f }}</th>
                     {% endfor %}
@@ -119,9 +120,20 @@ Histology Grid
                 {% set orphans = orphans_by_ear.get(ear.id, []) %}
                 <tr>
                     <td style="position: sticky; left: 0; background: #fff; white-space: nowrap;">
+                        <button type="button" class="btn btn-sm p-0 me-1 text-muted"
+                                hx-get="{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id, hx_target='#histology-grid-reload') }}"
+                                hx-target="#modalBody"
+                                title="Edit ear">
+                            <i class="fas fa-pencil fa-xs"></i>
+                        </button>
                         <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">
                             {{ ear.animal.custom_id }} {{ ear.side }}
                         </a>
+                    </td>
+                    <td>
+                        {% for tag in ear.tags %}
+                            <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.65rem;">{{ tag.display_name }}</span>
+                        {% endfor %}
                     </td>
                     {% for f in frequencies %}
                         {% set img = grid[ear.id].get(f) %}

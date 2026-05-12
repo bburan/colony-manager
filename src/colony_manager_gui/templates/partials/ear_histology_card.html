@@ -16,7 +16,15 @@
             <dt class="col-6 small fw-bold text-muted text-uppercase">Immunolabel</dt>
             <dd class="col-6">{{ macros.format_date(ear.immunolabel_date) }}</dd>
             <dt class="col-6 small fw-bold text-muted text-uppercase">Panel</dt>
-            <dd class="col-6 mb-0">{{ ear.panel.name if ear.panel else 'None' }}</dd>
+            <dd class="col-6">{{ ear.panel.name if ear.panel else 'None' }}</dd>
+            <dt class="col-6 small fw-bold text-muted text-uppercase">Tags</dt>
+            <dd class="col-6 mb-0">
+                {% for tag in ear.tags %}
+                    <span class="badge bg-light text-secondary border fw-normal">{{ tag.display_name }}</span>
+                {% else %}
+                    <span class="text-muted small">None</span>
+                {% endfor %}
+            </dd>
         </dl>
     </div>
 </div>

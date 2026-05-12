@@ -220,6 +220,13 @@ def update_ear(ear_id):
         form.populate_obj(ear)
         db.session.commit()
         if request.headers.get('HX-Request'):
+            # Grid view doesn't have a partial for one row (cells depend on
+            # page-level frequency/orphan state). Trigger a full refresh.
+            if hx_target == '#histology-grid-reload':
+                response = make_response('', 204)
+                response.headers['HX-Trigger'] = 'closeModal'
+                response.headers['HX-Refresh'] = 'true'
+                return response
             # If hx_target starts with #ear-row-, it's from histology.html
             if hx_target and hx_target.startswith('#ear-row-'):
                 response_html = render_template('partials/ear_row.html', ear=ear)

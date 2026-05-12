@@ -14,6 +14,11 @@
         </button>
     </td>
     <td><a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">{{ ear.animal.custom_id }} {{ ear.side }}</a></td>
+    <td>
+        {% for tag in ear.tags %}
+            <span class="badge bg-light text-secondary border fw-normal">{{ tag.display_name }}</span>
+        {% endfor %}
+    </td>
     <td>{{ ear.animal.termination_date.strftime('%B %d, %Y') if ear.animal.termination_date else '' }}</td>
     <td>{{ macros.format_date(ear.cryoprotection_date) }}</td>
     <td>{{ macros.format_date(ear.dissection_date) }}</td>

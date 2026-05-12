@@ -198,6 +198,11 @@ class HistologyForm(FlaskForm):
     immunolabel_date = DateField('Immunolabel date', validators=[Optional()])
     panel = QuerySelectField('Immunolabeling Panel', query_factory=panel_factory, get_label='name', allow_blank=True, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])
+    tags = QuerySelectMultipleField(
+        'Tags',
+        query_factory=models.EarTag.get_ordered,
+        get_label='display_name',
+    )
 
 class AnimalCustomIDForm(FlaskForm):
     custom_id = StringField('Animal ID', validators=[DataRequired()])

@@ -281,6 +281,30 @@ def delete_confocal_image(image_id):
         flash('Error deleting record', 'danger')
     return redirect(request.referrer or url_for('histology.list_histology'))
 
+
+@histology_bp.route('/ears/<int:ear_id>/delete', methods=['POST'])
+def delete_ear(ear_id):
+    ear = Ear.query.get_or_404(ear_id)
+    if ear.confocal_images:
+        msg = 'Cannot delete an ear that has acquired images.'
+        if request.headers.get('HX-Request'):
+            return msg, 409
+        flash(msg, 'danger')
+        return redirect(request.referrer or url_for('histology.list_histology'))
+    try:
+        db.session.delete(ear)
+        db.session.commit()
+        if request.headers.get('HX-Request'):
+            return '', 200
+        flash('Ear deleted successfully.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        if request.headers.get('HX-Request'):
+            return 'Error deleting ear (it may have linked records)', 500
+        flash('Error deleting ear (it may have linked records)', 'danger')
+    return redirect(request.referrer or url_for('histology.list_histology'))
+
+
 # --- Modal Routes ---
 @histology_bp.route('/ears/<int:ear_id>/edit_note_modal')
 def edit_ear_note_modal(ear_id):

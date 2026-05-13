@@ -16,7 +16,7 @@
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Add weight/feed entry"
-                                onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')"><i class="fas fa-plus"></i>
+                                hx-get="{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}" hx-target="#modalBody"><i class="fas fa-plus"></i>
                         </button>
                     </td>
                 {% else %}
@@ -36,7 +36,7 @@
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Edit weight/feed entry"
-                                onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}')">
+                                hx-get="{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=log['date'].strftime('%Y-%m-%d')) }}" hx-target="#modalBody">
 							<span>{{ baseline_pct or "—" }}</span>
                             {% if log['total_feed'] > 0 %}
                                 <span class="position-absolute top-0 start-100 badge text-bg-light text-muted translate-middle">{{ log['total_feed']|round(1) }}g</span>

@@ -8,7 +8,7 @@ Studies
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         Studies
-        <button class="btn btn-sm" onclick="openModal('{{ url_for('studies.create_study_modal') }}')"><i class="fas fa-folder"> +</i></button>
+        <button class="btn btn-sm" hx-get="{{ url_for('studies.create_study_modal') }}" hx-target="#modalBody"><i class="fas fa-folder"> +</i></button>
     </div>
 
     <div class="list-group list-group-flush border-top">

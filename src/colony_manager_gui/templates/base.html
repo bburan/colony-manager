@@ -249,7 +249,28 @@
             });
         })();
 
-        // HTMX event listener to close modal and handle custom triggers if needed
+        // Before an htmx request that targets #modalBody, swap in a spinner
+        // and open the modal so the user has immediate feedback. The actual
+        // form content arrives via htmx's normal swap.
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            const target = evt.detail.target;
+            if (!target || target.id !== 'modalBody') return;
+            target.innerHTML = `
+                <div class="d-flex justify-content-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>`;
+            const editModalElement = document.getElementById('editModal');
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(editModalElement);
+            if (!editModalElement.classList.contains('show')) {
+                modalInstance.show();
+            }
+        });
+
+        // After the swap completes, ensure the modal is visible (covers
+        // edge cases where beforeRequest did not fire — e.g. server-side
+        // triggered swaps).
         document.body.addEventListener('htmx:afterOnLoad', function(evt) {
             if (evt.detail.target.id === 'modalBody') {
                 const editModalElement = document.getElementById('editModal');
@@ -284,6 +305,17 @@
             });
         });
 
+        // Popover content (title/data-bs-content) is rendered as raw HTML
+        // outside htmx's normal swap path, so hx-* attrs inside that content
+        // need to be registered manually once the tip is in the DOM.
+        document.addEventListener('shown.bs.popover', function (e) {
+            const instance = bootstrap.Popover.getInstance(e.target);
+            const tip = instance && instance.tip;
+            if (tip && window.htmx) {
+                htmx.process(tip);
+            }
+        });
+
         // 2. Hide all popovers when a MODAL is about to show
         document.addEventListener('show.bs.modal', function () {
             const allPopovers = document.querySelectorAll('[data-bs-toggle="popover"]');
@@ -293,18 +325,22 @@
             });
         });
 
-        document.addEventListener('DOMContentLoaded', function () {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl)
+        // Initialize Bootstrap tooltips/popovers under ``root`` (defaults to
+        // the whole document). Idempotent: elements that already have an
+        // instance are skipped, so this is safe to call on htmx-swapped
+        // subtrees as well as on initial page load.
+        function initBootstrapWidgets(root) {
+            root = root || document;
+            const scope = (root.querySelectorAll) ? root : document;
+            const tooltipTriggers = scope.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipTriggers.forEach(el => {
+                if (bootstrap.Tooltip.getInstance(el)) return;
+                new bootstrap.Tooltip(el);
             });
-            console.log(tooltipTriggerList);
 
-            // Handles loading AJAX content for popovers
-            const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
-
-            popoverTriggerList.forEach(element => {
-                // 1. Initialize the popover instance
+            const popoverTriggers = scope.querySelectorAll('[data-bs-toggle="popover"]');
+            popoverTriggers.forEach(element => {
+                if (bootstrap.Popover.getInstance(element)) return;
                 const popover = new bootstrap.Popover(element, {
                     html: true,
                     sanitize: false,
@@ -313,33 +349,39 @@
 
                 if (element.classList.contains('ajax-popover')) {
                     let isFetched = false;
-
                     element.addEventListener('show.bs.popover', function () {
                         if (isFetched) return;
-
-                        fetch(this.getAttribute('data-id')) // Ensure this is a valid URL
+                        fetch(this.getAttribute('data-id'))
                             .then(response => {
                                 if (!response.ok) throw new Error('Network error');
                                 return response.text();
                             })
                             .then(data => {
-                                // Update the popover content dynamically
                                 isFetched = true;
-                                popover.setContent({
-                                    '.popover-body': data
-                                });
+                                popover.setContent({'.popover-body': data});
                                 popover.update();
-                                console.log('set data: ', data);
                             })
                             .catch(err => {
-                                popover.setContent({
-                                    '.popover-body': 'Error loading content.'
-                                });
+                                popover.setContent({'.popover-body': 'Error loading content.'});
                                 console.error('Popover Fetch Error:', err);
                             });
                     });
                 }
             });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initBootstrapWidgets(document);
+        });
+
+        // Any content htmx swaps in needs its tooltips/popovers wired up too,
+        // otherwise they fall back to Bootstrap's defaults (html=false) and
+        // ``data-bs-content`` HTML renders as escaped text. ``htmx:load``
+        // fires per new element with ``evt.detail.elt`` pointing at it —
+        // unlike ``afterSwap``, this works for outerHTML swaps where the
+        // original swap target is detached before the event fires.
+        document.body.addEventListener('htmx:load', function (evt) {
+            initBootstrapWidgets(evt.detail.elt);
         });
 
         function markDirty(input) {
@@ -371,35 +413,6 @@
             } else {
                 saveBtn.disabled = true;
                 saveBtn.classList.remove('is-dirty');
-            }
-        }
-
-        async function openModal(url) {
-            console.log('Loading');
-            console.log(url);
-            // Handles loading AJAX content for modals when a button is clicked
-            const modalBody = document.getElementById('modalBody');
-            const editModalElement = document.getElementById('editModal');
-            const modalInstance = new bootstrap.Modal(editModalElement);
-            modalBody.innerHTML = `
-                <div class="d-flex justify-content-center p-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>`;
-            modalInstance.show();
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Network response was not ok');
-                const html = await response.text();
-
-                // 5. Inject the HTML into the modal
-                modalBody.innerHTML = html;
-            } catch (error) {
-                modalBody.innerHTML = `
-                    <div class="alert alert-danger">
-                        Error loading data: ${error.message}
-                    </div>`;
             }
         }
 

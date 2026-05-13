@@ -15,7 +15,7 @@ from ..forms import (
     FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
     DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
 )
-from .util import flash_form_errors, render_error_alert
+from .util import flash_form_errors, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
 from colony_manager.datatypes import load_description_class
 from ..jobs import (
     enqueue_datatype_sync, enqueue_datatype_rematch,
@@ -242,73 +242,101 @@ def _render_nested_section(item_type):
     )
 
 
+def _setting_is_nested(item_type, form=None):
+    Model = SETTINGS_MAP[item_type]['model']
+    if form is None:
+        form = SETTINGS_MAP[item_type]['form']()
+    return hasattr(form, 'parent') and hasattr(Model, 'parent_id')
+
+
+def _setting_success_body(item_type, item, form):
+    """Render the HTMX success body for create/update of a setting."""
+    if _setting_is_nested(item_type, form):
+        return _render_nested_section(item_type), None
+    display_form = SETTINGS_MAP[item_type]['form'](obj=item)
+    html = render_template(
+        'partials/setting_list_item.html',
+        type=item_type, item=item, form=display_form,
+    )
+    return html, f'error-{item_type}'
+
+
 @main_bp.route('/settings/<item_type>/create', methods=['POST'])
 def create_setting(item_type):
     Model = SETTINGS_MAP[item_type]['model']
     form = SETTINGS_MAP[item_type]['form']()
-    if form.validate_on_submit():
-        dupe_query = Model.query.filter(Model.name == form.name.data)
-        if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
-            parent_obj = form.parent.data
-            parent_id = parent_obj.id if parent_obj else None
-            dupe_query = dupe_query.filter(Model.parent_id == parent_id)
-        if dupe_query.first():
-            if request.headers.get('HX-Request'):
-                return f'<div class="alert alert-danger small py-1 mb-0">Already exists.</div>', 400, {'HX-Retarget': f'#error-{item_type}'}
-            flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
-        else:
-            try:
-                item = Model()
-                form.populate_obj(item)
-                db.session.add(item)
-                db.session.commit()
-                if request.headers.get('HX-Request'):
-                    if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
-                        return _render_nested_section(item_type)
-                    display_form = SETTINGS_MAP[item_type]['form'](obj=item)
-                    html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                    error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
-                    return html + error_clear
-                flash(f'{item_type.replace("_", " ").title()} "{form.name.data}" added.', 'success')
-            except sqlalchemy.exc.IntegrityError:
-                db.session.rollback()
-                if request.headers.get('HX-Request'):
-                    return render_error_alert(message='Already exists or invalid data.', alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
-                flash(f'Error adding {item_type.replace("_", " ")}. It might already exist.', 'danger')
-    else:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message='Validation failed', form=form, alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
-        flash_form_errors(form, title="Could not create setting")
-    return redirect(request.referrer or url_for('main.list_settings'))
+    pretty = item_type.replace("_", " ")
+    list_url = url_for('main.list_settings')
+    retarget = f'#error-{item_type}'
+
+    if not form.validate_on_submit():
+        return htmx_error(message='Validation failed', form=form,
+                          retarget=retarget,
+                          flash_title='Could not create setting',
+                          redirect_to=list_url)
+
+    dupe_query = Model.query.filter(Model.name == form.name.data)
+    if _setting_is_nested(item_type, form):
+        parent_obj = form.parent.data
+        parent_id = parent_obj.id if parent_obj else None
+        dupe_query = dupe_query.filter(Model.parent_id == parent_id)
+    if dupe_query.first():
+        return htmx_error(message='Already exists.', retarget=retarget,
+                          flash_title=f'Error adding {pretty}. It might already exist.',
+                          redirect_to=list_url)
+
+    try:
+        item = Model()
+        form.populate_obj(item)
+        db.session.add(item)
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Already exists or invalid data.', retarget=retarget,
+                          flash_title=f'Error adding {pretty}. It might already exist.',
+                          redirect_to=list_url)
+
+    body, oob_clear_id = (None, None)
+    if is_htmx():
+        body, oob_clear_id = _setting_success_body(item_type, item, form)
+    return htmx_or_redirect(
+        body=body, oob_clear_id=oob_clear_id,
+        flash_message=f'{pretty.title()} "{form.name.data}" added.',
+        redirect_to=list_url,
+    )
 
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/update', methods=['POST'])
 def update_setting(item_type, item_id):
     item = SETTINGS_MAP[item_type]['model'].query.get_or_404(item_id)
     form = SETTINGS_MAP[item_type]['form'](obj=item)
-    if form.validate_on_submit():
-        form.populate_obj(item)
-        try:
-            db.session.commit()
-            if request.headers.get('HX-Request'):
-                Model = SETTINGS_MAP[item_type]['model']
-                if hasattr(form, 'parent') and hasattr(Model, 'parent_id'):
-                    return _render_nested_section(item_type)
-                display_form = SETTINGS_MAP[item_type]['form'](obj=item)
-                html = render_template('partials/setting_list_item.html', type=item_type, item=item, form=display_form)
-                error_clear = f'<div id="error-{item_type}" hx-swap-oob="true"></div>'
-                return html + error_clear
-            flash("Updated successfully!", "success")
-        except sqlalchemy.exc.IntegrityError:
-            db.session.rollback()
-            if request.headers.get('HX-Request'):
-                return render_error_alert(message='Update failed: It might already exist.', alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
-            flash("Update failed: It might already exist.", "danger")
-    else:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message='Update failed', form=form, alert_class='small py-1'), 400, {'HX-Retarget': f'#error-{item_type}'}
-        flash_form_errors(form, title="Could not update setting")
-    return redirect(request.referrer or url_for('main.list_settings'))
+    list_url = url_for('main.list_settings')
+    retarget = f'#error-{item_type}'
+
+    if not form.validate_on_submit():
+        return htmx_error(message='Update failed', form=form,
+                          retarget=retarget,
+                          flash_title='Could not update setting',
+                          redirect_to=list_url)
+
+    form.populate_obj(item)
+    try:
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Update failed: It might already exist.',
+                          retarget=retarget,
+                          flash_title='Update failed: It might already exist.',
+                          redirect_to=list_url)
+
+    body, oob_clear_id = (None, None)
+    if is_htmx():
+        body, oob_clear_id = _setting_success_body(item_type, item, form)
+    return htmx_or_redirect(
+        body=body, oob_clear_id=oob_clear_id,
+        flash_message='Updated successfully!',
+        redirect_to=list_url,
+    )
 
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/delete', methods=['POST'])
@@ -316,19 +344,28 @@ def delete_setting(item_type, item_id):
     Model = SETTINGS_MAP[item_type]['model']
     item = Model.query.get_or_404(item_id)
     item_name = item.name
+    pretty = item_type.replace("_", " ")
+    list_url = url_for('main.list_settings')
     try:
         db.session.delete(item)
         db.session.commit()
-        if request.headers.get('HX-Request'):
-            if hasattr(Model, 'parent_id'):
-                return _render_nested_section(item_type)
-            return ''
-        flash(f'{item_type.replace("_", " ").title()} deleted.', 'success')
     except sqlalchemy.exc.IntegrityError:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message=f'Cannot delete {item_name} (referenced elsewhere).', alert_class='small py-1', oob_id=f'error-{item_type}'), 200
-        flash(f'Cannot delete {item_name} since other objects reference this setting.', 'danger')
-    return redirect(request.referrer or url_for('main.list_settings'))
+        db.session.rollback()
+        return htmx_error(
+            message=f'Cannot delete {item_name} (referenced elsewhere).',
+            oob_id=f'error-{item_type}', status=200,
+            flash_title=f'Cannot delete {item_name} since other objects reference this setting.',
+            redirect_to=list_url,
+        )
+
+    body = None
+    if is_htmx() and hasattr(Model, 'parent_id'):
+        body = _render_nested_section(item_type)
+    return htmx_or_redirect(
+        body=body or '',
+        flash_message=f'{pretty.title()} deleted.',
+        redirect_to=list_url,
+    )
 
 @main_bp.route('/settings/feed/create', methods=['POST'])
 def create_feed():
@@ -405,42 +442,43 @@ def create_datatype_modal():
 
 @main_bp.route('/settings/datatype/create', methods=['POST'])
 def create_datatype():
+    list_url = url_for('main.list_settings')
+    retarget = '#datatype-error'
+
     target_type = request.form.get('target_type')
     if target_type not in DATATYPE_FORMS:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message='Pick a target type first.'), 200, {'HX-Retarget': '#datatype-error'}
-        flash('Pick a target type first.', 'danger')
-        return redirect(url_for('main.list_settings'))
+        return htmx_error(message='Pick a target type first.', retarget=retarget,
+                          redirect_to=list_url)
 
     form = datatype_form_for(target_type)
-    if form.validate_on_submit():
-        if models.DataType.query.filter_by(name=form.name.data).first():
-            if request.headers.get('HX-Request'):
-                return render_error_alert(message='This DataType already exists.'), 200, {'HX-Retarget': '#datatype-error'}
-            flash('This DataType already exists.', 'danger')
-        else:
-            try:
-                dt_class = models.DATATYPE_SUBCLASSES[target_type]
-                dt = dt_class()
-                form.populate_obj(dt)
-                db.session.add(dt)
-                db.session.flush()
-                _save_datatype_children(dt)
-                db.session.commit()
-                if request.headers.get('HX-Request'):
-                    response = render_template('partials/datatype_list_item.html', dt=dt)
-                    return response, {'HX-Trigger': 'datatype-created'}
-                flash(f'DataType "{dt.name}" added. Click the sync button to import files.', 'success')
-            except sqlalchemy.exc.IntegrityError:
-                db.session.rollback()
-                if request.headers.get('HX-Request'):
-                    return render_error_alert(message='Already exists or invalid data.'), 200, {'HX-Retarget': '#datatype-error'}
-                flash(f'Error adding DataType. It might already exist.', 'danger')
-    else:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message='Validation failed', form=form), 200, {'HX-Retarget': '#datatype-error'}
-        flash_form_errors(form, title="Could not create DataType")
-    return redirect(url_for('main.list_settings'))
+    if not form.validate_on_submit():
+        return htmx_error(message='Validation failed', form=form, retarget=retarget,
+                          flash_title='Could not create DataType', redirect_to=list_url)
+
+    if models.DataType.query.filter_by(name=form.name.data).first():
+        return htmx_error(message='This DataType already exists.', retarget=retarget,
+                          redirect_to=list_url)
+
+    try:
+        dt_class = models.DATATYPE_SUBCLASSES[target_type]
+        dt = dt_class()
+        form.populate_obj(dt)
+        db.session.add(dt)
+        db.session.flush()
+        _save_datatype_children(dt)
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Already exists or invalid data.', retarget=retarget,
+                          flash_title='Error adding DataType. It might already exist.',
+                          redirect_to=list_url)
+
+    return htmx_or_redirect(
+        partial='partials/datatype_list_item.html', context={'dt': dt},
+        trigger='datatype-created',
+        flash_message=f'DataType "{dt.name}" added. Click the sync button to import files.',
+        redirect_to=list_url,
+    )
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
@@ -458,25 +496,30 @@ def edit_datatype_modal(datatype_id):
 def update_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
     form = datatype_form_for(dt.target_type)
-    if form.validate_on_submit():
-        form.populate_obj(dt)
-        _save_datatype_children(dt)
-        try:
-            db.session.commit()
-            if request.headers.get('HX-Request'):
-                response = render_template('partials/datatype_list_item.html', dt=dt)
-                return response, {'HX-Trigger': 'datatype-updated'}
-            flash("DataType updated successfully!", "success")
-        except sqlalchemy.exc.IntegrityError:
-            db.session.rollback()
-            if request.headers.get('HX-Request'):
-                return render_error_alert(message='Update failed: It might already exist.'), 200, {'HX-Retarget': '#datatype-error'}
-            flash("Update failed: It might already exist.", "danger")
-    else:
-        if request.headers.get('HX-Request'):
-            return render_error_alert(message='Update failed', form=form), 200, {'HX-Retarget': '#datatype-error'}
-        flash_form_errors(form, title="Could not update DataType")
-    return redirect(url_for('main.list_settings'))
+    list_url = url_for('main.list_settings')
+    retarget = '#datatype-error'
+
+    if not form.validate_on_submit():
+        return htmx_error(message='Update failed', form=form, retarget=retarget,
+                          flash_title='Could not update DataType', redirect_to=list_url)
+
+    form.populate_obj(dt)
+    _save_datatype_children(dt)
+    try:
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Update failed: It might already exist.',
+                          retarget=retarget,
+                          flash_title='Update failed: It might already exist.',
+                          redirect_to=list_url)
+
+    return htmx_or_redirect(
+        partial='partials/datatype_list_item.html', context={'dt': dt},
+        trigger='datatype-updated',
+        flash_message='DataType updated successfully!',
+        redirect_to=list_url,
+    )
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/sync', methods=['POST'])
@@ -515,16 +558,22 @@ def rematch_datatype(datatype_id):
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
 def delete_datatype(datatype_id):
     dt = models.DataType.query.get_or_404(datatype_id)
+    list_url = url_for('main.list_settings')
     if dt.data_files.count() > 0:
-        if request.headers.get('HX-Request'):
-            return f'<div class="alert alert-danger small py-1 mb-0" hx-swap-oob="true" id="error-datatypes">Cannot delete (linked to files).</div>', 200
-        flash(f'Cannot delete DataType "{dt.name}" because it is currently linked to files.', 'danger')
-    else:
-        db.session.delete(dt)
-        db.session.commit()
-        if request.headers.get('HX-Request'):
-            return ''
-        flash(f'DataType "{dt.name}" deleted.', 'success')
-    return redirect(url_for('main.list_settings'))
+        return htmx_error(
+            message='Cannot delete (linked to files).',
+            oob_id='error-datatypes', status=200,
+            flash_title=f'Cannot delete DataType "{dt.name}" because it is currently linked to files.',
+            redirect_to=list_url,
+        )
+
+    name = dt.name
+    db.session.delete(dt)
+    db.session.commit()
+    return htmx_or_redirect(
+        body='',
+        flash_message=f'DataType "{name}" deleted.',
+        redirect_to=list_url,
+    )
 
 

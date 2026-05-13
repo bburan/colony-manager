@@ -15,7 +15,7 @@
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
                         title="Edit animal information"
-                        onclick="openModal('{{ url_for('animals.edit_animal_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
+                        hx-get="{{ url_for('animals.edit_animal_modal', animal_id=animal.id) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 {% include "partials/animal_detail_card.html" %}
@@ -48,7 +48,7 @@
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
                         title="Edit animal notes"
-                        onclick="openModal('{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}')"><i class="fas fa-pencil"></i></button>
+                        hx-get="{{ url_for('animals.edit_animal_note_modal', animal_id=animal.id) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">{{ animal.notes }}</div>
         </div>
@@ -100,7 +100,7 @@
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="top"
                                     title="Add event"
-                                    onclick="openModal('{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}')">
+                                    hx-get="{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}" hx-target="#modalBody">
                                 <i class="fas fa-calendar"></i> Add Event
                             </button>
                         </div>
@@ -152,7 +152,7 @@
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="top"
                                     title="Add weight/feed entry"
-                                    onclick="openModal('{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}')">
+                                    hx-get="{{ url_for('animals.create_animal_daily_log_modal', animal_id=animal.id) }}" hx-target="#modalBody">
                                 <i class="fas fa-plus"></i> Add Entry
                             </button>
                         </div>
@@ -181,12 +181,12 @@
                                                     data-bs-toggle="tooltip"
                                                     data-bs-placement="top"
                                                     title="Edit weight/feed entry"
-                                                    onclick="openModal('{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-pencil"></i></button>
+                                                    hx-get="{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
                                             <button class="btn btn-sm"
                                                     data-bs-toggle="tooltip"
                                                     data-bs-placement="top"
                                                     title="Delete weight/feed entry"
-                                                    onclick="openModal('{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}')"><i class="fas fa-trash"></i></button>
+                                                    hx-get="{{ url_for('animals.delete_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}" hx-target="#modalBody"><i class="fas fa-trash"></i></button>
                                         </div>
                                     </td>
                                 </tr>

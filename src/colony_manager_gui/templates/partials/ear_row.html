@@ -41,19 +41,3 @@
                 hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
     </td>
 </tr>
-<script>
-    // Re-initialize popovers for the new row
-    (function() {
-        var row = document.getElementById('ear-row-{{ ear.id }}');
-        var popoverTriggerList = [].slice.call(row.querySelectorAll('[data-bs-toggle="popover"]'));
-        popoverTriggerList.forEach(function (popoverTriggerEl) {
-            new bootstrap.Popover(popoverTriggerEl);
-            if (popoverTriggerEl.classList.contains('ajax-popover')) {
-                // ... logic to handle ajax-popover if needed, 
-                // but standard base.html listener might catch it if it's delegated.
-                // Actually, the base.html listener is on DOMContentLoaded.
-                // I might need to make it more global.
-            }
-        });
-    })();
-</script>

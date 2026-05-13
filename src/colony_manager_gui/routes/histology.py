@@ -10,7 +10,7 @@ from colony_manager.models import (
 )
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
-from .util import flash_form_errors, render_error_alert
+from .util import flash_form_errors, render_error_alert, is_htmx
 
 histology_bp = Blueprint('histology', __name__)
 
@@ -204,54 +204,59 @@ def view_ear(ear_id):
     return render_template('view_ear.html', ear=ear)
 
 
-@histology_bp.route('/ears/<int:ear_id>/update', methods=['POST'])
-def update_ear(ear_id):
-    ear = Ear.query.get_or_404(ear_id)
-    # Detect which form is being used based on request data or a custom arg
-    target = request.args.get('target', 'all')
+def _update_ear_response(ear, default_card_partial):
+    """Build the HTMX swap response for a successful ear update.
+
+    The caller passes ``hx_target`` (the swap target the originating page
+    cares about). Three shapes are produced:
+
+    - ``#histology-grid-reload``: grid cells depend on page-level
+      frequency/orphan state, so we trigger a full page refresh.
+    - anything starting with ``#ear-row-``: re-render that table row.
+    - anything else (incl. unset): re-render ``default_card_partial`` for
+      the ear-detail page.
+    """
     hx_target = request.args.get('hx_target')
-    
-    if target == 'notes':
-        form = NoteForm(obj=ear)
+    if hx_target == '#histology-grid-reload':
+        response = make_response('', 204)
+        response.headers['HX-Trigger'] = 'closeModal'
+        response.headers['HX-Refresh'] = 'true'
+        return response
+    if hx_target and hx_target.startswith('#ear-row-'):
+        body = render_template('partials/ear_row.html', ear=ear)
     else:
-        form = HistologyForm(obj=ear)
-        
-    if form.validate_on_submit():
-        form.populate_obj(ear)
-        db.session.commit()
-        if request.headers.get('HX-Request'):
-            # Grid view doesn't have a partial for one row (cells depend on
-            # page-level frequency/orphan state). Trigger a full refresh.
-            if hx_target == '#histology-grid-reload':
-                response = make_response('', 204)
-                response.headers['HX-Trigger'] = 'closeModal'
-                response.headers['HX-Refresh'] = 'true'
-                return response
-            # If hx_target starts with #ear-row-, it's from histology.html
-            if hx_target and hx_target.startswith('#ear-row-'):
-                response_html = render_template('partials/ear_row.html', ear=ear)
-            else:
-                # Default to cards for view_ear.html
-                notes_html = render_template('partials/ear_notes_card.html', ear=ear)
-                hist_html = render_template('partials/ear_histology_card.html', ear=ear)
-                
-                if target == 'notes':
-                    response_html = notes_html
-                elif target == 'histology':
-                    response_html = hist_html
-                else:
-                    response_html = notes_html + hist_html
-            
-            response = make_response(response_html)
-            response.headers['HX-Trigger'] = 'closeModal'
-            return response
-            
-        flash('Ear updated.', 'success')
-    else:
-        if request.headers.get('HX-Request'):
+        body = render_template(default_card_partial, ear=ear)
+    response = make_response(body)
+    response.headers['HX-Trigger'] = 'closeModal'
+    return response
+
+
+def _update_ear(ear_id, form_cls, default_card_partial):
+    """Shared body for both ear-update routes."""
+    ear = Ear.query.get_or_404(ear_id)
+    form = form_cls(obj=ear)
+    if not form.validate_on_submit():
+        if is_htmx():
             return render_error_alert(message='Update failed', form=form), 400
-        flash_form_errors(form, title="Error updating ear")
+        flash_form_errors(form, title='Error updating ear')
+        return redirect(request.referrer or url_for('histology.list_histology'))
+
+    form.populate_obj(ear)
+    db.session.commit()
+    if is_htmx():
+        return _update_ear_response(ear, default_card_partial)
+    flash('Ear updated.', 'success')
     return redirect(request.referrer or url_for('histology.list_histology'))
+
+
+@histology_bp.route('/ears/<int:ear_id>/notes/update', methods=['POST'])
+def update_ear_note(ear_id):
+    return _update_ear(ear_id, NoteForm, 'partials/ear_notes_card.html')
+
+
+@histology_bp.route('/ears/<int:ear_id>/histology/update', methods=['POST'])
+def update_ear_histology(ear_id):
+    return _update_ear(ear_id, HistologyForm, 'partials/ear_histology_card.html')
 
 
 def _resync_confocal_image(image):
@@ -375,7 +380,7 @@ def edit_ear_note_modal(ear_id):
     hx_target = request.args.get('hx_target', '#ear-notes-card')
     return render_template('partials/form_modal.html', form=form, item=ear,
                            label=f'Edit note for {ear.animal.custom_id} {ear.side}', 
-                           submit_url=url_for('histology.update_ear', ear_id=ear.id, target='notes', hx_target=hx_target),
+                           submit_url=url_for('histology.update_ear_note', ear_id=ear.id, hx_target=hx_target),
                            hx_target=hx_target,
                            hx_swap="outerHTML")
 
@@ -386,7 +391,7 @@ def edit_ear_histology_modal(ear_id):
     hx_target = request.args.get('hx_target', '#ear-histology-card')
     return render_template('partials/form_modal.html', form=form, item=ear,
                            label=f'Edit histology for {ear.animal.custom_id} {ear.side}', 
-                           submit_url=url_for('histology.update_ear', ear_id=ear.id, target='histology', hx_target=hx_target),
+                           submit_url=url_for('histology.update_ear_histology', ear_id=ear.id, hx_target=hx_target),
                            hx_target=hx_target,
                            hx_swap="outerHTML")
 

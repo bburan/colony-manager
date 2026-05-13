@@ -21,6 +21,7 @@ from colony_manager.models import (
 )
 
 from . import db
+from .services.data_linking import to_json_safe
 
 
 log = logging.getLogger(__name__)
@@ -335,6 +336,7 @@ def _sync_location(location, dry_run=False, debug=False):
             mtime=mtime,
             ctime=ctime,
             discovered_at=datetime.now(),
+            parsed_metadata=to_json_safe(parsed),
         )
         if datatype.target_type == 'animal_event':
             new_data.events = list(targets)
@@ -563,6 +565,10 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
                     setattr(row, target_attr, list(targets))
             row.candidate_animals = candidate_animals
             row.candidate_ears = candidate_ears
+            # Backfill / refresh the cached parsed dict so the GUI doesn't
+            # need to re-parse on render. A force-rematch is the recommended
+            # way to repopulate after a parser change.
+            row.parsed_metadata = to_json_safe(parsed)
 
         if targets:
             counts['matched'] += 1

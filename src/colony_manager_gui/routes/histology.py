@@ -4,14 +4,13 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from colony_manager.models import (
     Ear, EarTag, Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Study, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
-    ConfocalImageData,
+    ConfocalImageData, data_candidate_ears, confocal_image_data_targets,
+    _canonical_side,
 )
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
 from .util import flash_form_errors, render_error_alert, is_htmx, render_modal
-from ..services.data_linking import (
-    parse_orphan_confocal_files, resync_confocal_image,
-)
+from ..services.data_linking import resync_confocal_image
 
 histology_bp = Blueprint('histology', __name__)
 
@@ -201,33 +200,73 @@ def view_grid():
         for img in imgs:
             grid[img.ear_id][img.frequency] = img
 
-    # Parse orphan candidate data files per ear, filtered to selected image type.
+    # Orphan candidates: one bulk query across all visible ears reads
+    # ``parsed_metadata`` directly. Avoids the per-ear lazy load on
+    # ``ear.candidate_data_files`` (dynamic relationship) plus the per-file
+    # description-class round-trip in the old implementation.
     orphans_by_ear = {}
     has_other_column = False
     freq_col_set = set(frequencies)
-    for ear in ears:
-        parsed = parse_orphan_confocal_files(ear)
-        orphans = [
-            p for p in parsed
-            if p['image_type_name'] == selected_image_type.name
-            and p['frequency'] not in grid[ear.id]
-        ]
-        if orphans:
-            orphans_by_ear[ear.id] = orphans
-            for o in orphans:
-                if o['frequency'] not in freq_col_set:
-                    has_other_column = True
+    if ear_ids:
+        rows = db.session.query(ConfocalImageData, data_candidate_ears.c.ear_id) \
+            .join(data_candidate_ears,
+                  data_candidate_ears.c.data_id == ConfocalImageData.id) \
+            .filter(
+                data_candidate_ears.c.ear_id.in_(ear_ids),
+                ~ConfocalImageData.confocal_images.any(),
+            ).all()
 
-    def ear_has_conflict(ear):
-        if ear.id in orphans_by_ear:
-            return True
-        for img in grid[ear.id].values():
-            if img.status in ('imaged', 'analyzed', 'need_review', 'region_bad') \
-                    and img.data_files.count() == 0:
-                return True
-        return False
+        ear_by_id = {e.id: e for e in ears}
+        for data_file, ear_id in rows:
+            parsed = data_file.parsed_metadata
+            if not parsed:
+                continue
+            if parsed.get('image_type') != selected_image_type.name:
+                continue
+            try:
+                freq = float(parsed.get('frequency'))
+            except (TypeError, ValueError):
+                continue
+            ear = ear_by_id.get(ear_id)
+            if ear is None:
+                continue
+            side = _canonical_side(parsed.get('side') or parsed.get('ear'))
+            if side and side != ear.side:
+                continue
+            if freq in grid[ear_id]:
+                continue
+            orphans_by_ear.setdefault(ear_id, []).append({
+                'file': data_file,
+                'frequency': freq,
+                'image_type_name': parsed.get('image_type'),
+                'side': side,
+            })
+            if freq not in freq_col_set:
+                has_other_column = True
 
     if conflicts_only:
+        # Bulk-load the set of ConfocalImage ids that have at least one
+        # linked data file. Avoids ``img.data_files.count()`` per image.
+        all_img_ids = [img.id for cells in grid.values() for img in cells.values()]
+        linked_image_ids = set()
+        if all_img_ids:
+            link_rows = db.session.query(
+                confocal_image_data_targets.c.confocal_image_id
+            ).filter(
+                confocal_image_data_targets.c.confocal_image_id.in_(all_img_ids)
+            ).distinct().all()
+            linked_image_ids = {r[0] for r in link_rows}
+
+        conflict_statuses = {'imaged', 'analyzed', 'need_review', 'region_bad'}
+
+        def ear_has_conflict(ear):
+            if ear.id in orphans_by_ear:
+                return True
+            for img in grid[ear.id].values():
+                if img.status in conflict_statuses and img.id not in linked_image_ids:
+                    return True
+            return False
+
         ears = [e for e in ears if ear_has_conflict(e)]
 
     return render_template(

@@ -4,7 +4,7 @@ from statistics import mean
 
 from sqlalchemy import (
     func, orm, UniqueConstraint, Index, MetaData, Table, Column, Integer, String,
-    ForeignKey, Text, Boolean, Date, DateTime, Float, and_, or_
+    ForeignKey, Text, Boolean, Date, DateTime, Float, JSON, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
                             backref)
@@ -423,6 +423,12 @@ class Data(VersionedModel):
     mtime = Column(DateTime, nullable=True)
     ctime = Column(DateTime, nullable=True)
     discovered_at = Column(DateTime, nullable=True)
+
+    # Cached output of the description class's ``parse()`` call. Populated
+    # by sync / rematch jobs so list views don't have to re-run the parser
+    # to surface frequency / image_type / side metadata. Dates are stored
+    # as ISO strings (see ``_to_json_safe`` in services/data_linking).
+    parsed_metadata = Column(JSON, nullable=True)
 
     candidate_animals = relationship(
         'Animal',

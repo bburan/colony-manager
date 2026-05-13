@@ -11,6 +11,7 @@ should reuse a ``desc_cache`` dict.
 """
 import os
 from dataclasses import dataclass
+from datetime import date, datetime
 
 from sqlalchemy import or_
 
@@ -22,6 +23,23 @@ from colony_manager.models import (
 from colony_manager_gui import db
 
 
+def to_json_safe(value):
+    """Recursively convert a parsed dict so it round-trips through JSON.
+
+    Date / datetime values become ISO strings; tuples become lists. Other
+    types pass through and rely on the JSON encoder. Used when persisting
+    ``Data.parsed_metadata`` so the column can hold whatever a description
+    class's ``parse()`` returns.
+    """
+    if isinstance(value, dict):
+        return {k: to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_json_safe(v) for v in value]
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    return value
+
+
 # ---------------------------------------------------------------------------
 # File parsing helpers
 # ---------------------------------------------------------------------------
@@ -31,13 +49,16 @@ def parsed_animal_sides(f, animal_custom_id):
 
     Returns ``None`` when the parser does not see this animal in this file,
     or a list of canonical sides otherwise. An empty list means "animal is
-    present but no side was parsed".
+    present but no side was parsed". Reads from ``f.parsed_metadata`` when
+    available; falls back to a live parse for legacy rows.
     """
-    try:
-        cls = f.datatype.get_description()
-        parsed = cls(f).parse() or {}
-    except Exception:
-        return None
+    parsed = f.parsed_metadata
+    if parsed is None:
+        try:
+            cls = f.datatype.get_description()
+            parsed = cls(f).parse() or {}
+        except Exception:
+            return None
     raw_ids = parsed.get('animal_id')
     if not raw_ids:
         return None
@@ -51,13 +72,19 @@ def parsed_animal_sides(f, animal_custom_id):
 
 
 def parse_confocal_file(f, desc_cache=None):
-    """Re-parse a ``ConfocalImageData`` file via its description class.
+    """Return the parsed metadata for a ``ConfocalImageData`` file.
 
-    Returns the parsed dict on success or ``None`` if the file is missing
-    a description class, the class fails to load, or ``parse()`` raises.
+    Prefers the cached ``f.parsed_metadata`` column (populated by sync /
+    rematch). Falls back to running the description class's ``parse()``
+    for legacy rows that pre-date the column — admins who want everything
+    fast should run a force-rematch to backfill.
+
     Callers iterating many files should pass a shared ``desc_cache`` dict
-    so each description class is only loaded once.
+    so each description class is only loaded once on the fallback path.
     """
+    if f.parsed_metadata is not None:
+        return f.parsed_metadata
+
     dotted = f.datatype.description_class
     if not dotted:
         return None

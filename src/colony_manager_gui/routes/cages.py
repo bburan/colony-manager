@@ -1,8 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from sqlalchemy.orm import joinedload
 
-from colony_manager.models import Cage, Animal
+from colony_manager.models import (
+    Cage, Animal, AnimalEvent, AnimalProcedure, AnimalTag, Source,
+)
 from .. import db
 from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
 from .util import flash_form_errors, render_modal
@@ -33,40 +35,158 @@ def _attach_cage_animals(cages):
         c._cached_animals = by_cage.get(c.id, [])
 
 
+_CAGE_SORT_DIR_DEFAULTS = {
+    'custom_id': 'asc',
+    'age': 'asc',           # asc = youngest first ⇒ max(dob) desc
+    'animal_count': 'desc',
+    'active_count': 'desc',
+}
+
+
 @cages_bp.route('/')
 def list_cages():
-    species_id = int(session.get('selected_species', -1))
-    base_query = Cage.query.options(joinedload(Cage.species))
-    if species_id != -1:
-        query = base_query.filter(Cage.species_id==species_id)
-    else:
-        query = base_query
-
     sort_by = request.args.get('sort_by', 'custom_id')
-    if sort_by == 'custom_id':
-        cages = query.order_by(Cage.custom_id).all()
-    elif sort_by == 'age':
-        cages = query \
-            .outerjoin(Cage.animals) \
-            .group_by(Cage.id) \
-            .order_by(func.min(Animal.dob).desc()) \
-            .all()
-
-    _attach_cage_animals(cages)
+    sort_dir = request.args.get('sort_dir', '')
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = _CAGE_SORT_DIR_DEFAULTS.get(sort_by, 'asc')
 
     status_filter = request.args.get('status_filter', 'active')
+    sex_filter = request.args.get('sex_filter', 'all')
+    source_filter = request.args.get('source_id', 'all')
+    occupancy_filter = request.args.get('occupancy_filter', 'all')
+    notes_filter = request.args.get('notes_filter', 'all')
+    tag_filter = request.args.get('tag_id', 'all')
+    procedure_filter = request.args.get('procedure_id', 'all')
+    age_unit = request.args.get('age_unit', 'day')
+
+    query = Cage.query.options(joinedload(Cage.species))
+
+    species_id = int(session.get('selected_species', -1))
+    if species_id != -1:
+        query = query.filter(Cage.species_id == species_id)
+
+    # Active = has at least one non-terminated animal. Inactive cages
+    # include both terminated-only and empty cages, matching the prior
+    # ``is_active`` semantics.
     if status_filter == 'active':
-        cages = [c for c in cages if c.is_active]
+        query = query.filter(Cage.animals.any(Animal.termination_date.is_(None)))
     elif status_filter == 'inactive':
-        cages = [c for c in cages if not c.is_active]
+        query = query.filter(~Cage.animals.any(Animal.termination_date.is_(None)))
+
+    if sex_filter in ('male', 'female'):
+        # Cage matches if it has any animal of this sex AND no animal of
+        # the other sex — i.e. the cage is single-sex of this kind.
+        other = 'female' if sex_filter == 'male' else 'male'
+        query = query.filter(
+            Cage.animals.any(Animal.sex == sex_filter)
+            & ~Cage.animals.any(Animal.sex == other)
+        )
+    elif sex_filter == 'mixed':
+        query = query.filter(
+            Cage.animals.any(Animal.sex == 'male')
+            & Cage.animals.any(Animal.sex == 'female')
+        )
+
+    if source_filter != 'all':
+        query = query.filter(Cage.animals.any(
+            Animal.source_id == int(source_filter)
+        ))
+
+    if notes_filter == 'yes':
+        query = query.filter(
+            Cage.notes.is_not(None) & (func.trim(Cage.notes) != '')
+        )
+    elif notes_filter == 'no':
+        query = query.filter(db.or_(
+            Cage.notes.is_(None), func.trim(Cage.notes) == ''
+        ))
+
+    if tag_filter != 'all':
+        tag_ids = AnimalTag.descendant_ids(int(tag_filter))
+        query = query.filter(Cage.animals.any(
+            Animal.tags.any(AnimalTag.id.in_(tag_ids))
+        ))
+
+    if procedure_filter != 'all':
+        proc_ids = AnimalProcedure.descendant_ids(int(procedure_filter))
+        query = query.filter(Cage.animals.any(
+            Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
+        ))
+
+    # Occupancy uses *active* animal counts. Build a correlated subquery
+    # so we can filter and sort on it without an extra Python pass.
+    active_count_subq = (
+        db.session.query(
+            Animal.cage_id.label('cage_id'),
+            func.count(Animal.id).label('active_count'),
+        )
+        .filter(Animal.termination_date.is_(None))
+        .group_by(Animal.cage_id)
+        .subquery()
+    )
+    total_count_subq = (
+        db.session.query(
+            Animal.cage_id.label('cage_id'),
+            func.count(Animal.id).label('total_count'),
+            func.min(Animal.dob).label('min_dob'),
+            func.max(Animal.dob).label('max_dob'),
+        )
+        .group_by(Animal.cage_id)
+        .subquery()
+    )
+
+    query = query \
+        .outerjoin(active_count_subq, active_count_subq.c.cage_id == Cage.id) \
+        .outerjoin(total_count_subq, total_count_subq.c.cage_id == Cage.id)
+
+    active_count_col = func.coalesce(active_count_subq.c.active_count, 0)
+    total_count_col = func.coalesce(total_count_subq.c.total_count, 0)
+
+    if occupancy_filter == 'empty':
+        query = query.filter(active_count_col == 0)
+    elif occupancy_filter == 'single':
+        query = query.filter(active_count_col == 1)
+    elif occupancy_filter == 'multi':
+        query = query.filter(active_count_col > 1)
+
+    # Sorting (SQL).
+    if sort_by == 'age':
+        # asc age = youngest first ⇒ newest dob first (max(dob) desc).
+        col = total_count_subq.c.max_dob
+        order = col.asc().nullslast() if sort_dir == 'desc' else col.desc().nullslast()
+    elif sort_by == 'animal_count':
+        col = total_count_col
+        order = col.desc() if sort_dir == 'desc' else col.asc()
+    elif sort_by == 'active_count':
+        col = active_count_col
+        order = col.desc() if sort_dir == 'desc' else col.asc()
+    else:  # custom_id
+        col = Cage.custom_id
+        order = col.desc() if sort_dir == 'desc' else col.asc()
+
+    cages = query.order_by(order).all()
+    _attach_cage_animals(cages)
+
+    sources = Source.query.order_by(Source.name).all()
+    animal_tags = AnimalTag.get_ordered()
+    procedures = AnimalProcedure.get_ordered()
 
     filters = {
-        'age_unit': request.args.get('age_unit', 'day'),
-        'status_filter': status_filter,
         'sort_by': sort_by,
+        'sort_dir': sort_dir,
+        'status_filter': status_filter,
+        'sex_filter': sex_filter,
+        'source_id': source_filter,
+        'occupancy_filter': occupancy_filter,
+        'notes_filter': notes_filter,
+        'tag_id': tag_filter,
+        'procedure_id': procedure_filter,
+        'age_unit': age_unit,
     }
-
-    return render_template('cages.html', cages=cages, filters=filters)
+    return render_template(
+        'cages.html', cages=cages, filters=filters,
+        sources=sources, animal_tags=animal_tags, procedures=procedures,
+    )
 
 
 @cages_bp.route('/<int:cage_id>')

@@ -22,18 +22,17 @@ Histology Grid
     'need_review': 'Needs review',
 } %}
 
-{% set filter_options = {
-    'sort_by': [('id', 'ID'), ('euthanasia', 'Euthanasia Date')],
-} %}
-
 {% block content %}
 
-{# Image-type tabs #}
+{# Image-type tabs. Preserve every active filter as we switch tabs by
+   merging the current filters dict with the new image_type. #}
 <ul class="nav nav-tabs mb-3">
     {% for t in image_types %}
+    {% set tab_params = filters.copy() %}
+    {% set _ = tab_params.update({'image_type': t.id}) %}
     <li class="nav-item">
         <a class="nav-link {{ 'active' if selected_image_type and t.id == selected_image_type.id }}"
-           href="{{ url_for('histology.view_grid', image_type=t.id, sort_by=filters.sort_by, conflicts_only=1 if filters.conflicts_only else None) }}">
+           href="{{ url_for('histology.view_grid', **tab_params) }}">
             {{ t.name }}
         </a>
     </li>
@@ -44,36 +43,15 @@ Histology Grid
     <div class="alert alert-info">No confocal image types are defined yet.</div>
 {% else %}
 
-<div class="card shadow-sm mb-4">
-    <div class="card-header d-flex justify-content-between">
-        <div>
-            <i class="fas fa-filter me-2"></i>Filters & Sorting
-            <span class="badge bg-light text-secondary border ms-3 fw-normal">
-                {{ ears|length }} Ears
-            </span>
-        </div>
-        <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id) }}"
-           class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
-            <i class="fas fa-undo-alt me-1"></i>
-        </a>
-    </div>
-    <div class="card-body pt-1 pb-3 px-3">
-        <div class="row g-3 align-items-end">
-            {{ macros.filter_button_group('sort_by', 'Sort By',
-                {'sort_by': filters.sort_by, 'conflicts_only': '1' if filters.conflicts_only else '', 'image_type': selected_image_type.id},
-                filter_options['sort_by']) }}
-            <div class="col-auto">
-                <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">Conflicts</label>
-                <div class="btn-group btn-group-sm shadow-sm">
-                    <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id, sort_by=filters.sort_by) }}"
-                       class="btn {{ 'btn-primary' if not filters.conflicts_only else 'btn-outline-secondary' }}">All</a>
-                    <a href="{{ url_for('histology.view_grid', image_type=selected_image_type.id, sort_by=filters.sort_by, conflicts_only=1) }}"
-                       class="btn {{ 'btn-primary' if filters.conflicts_only else 'btn-outline-secondary' }}">Conflicts only</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% with
+    form_action=url_for('histology.view_grid'),
+    reset_url=url_for('histology.view_grid', image_type=selected_image_type.id),
+    result_count=ears|length,
+    result_label='Ears',
+    show_conflicts_only=True
+%}
+    {% include 'partials/ear_filter_card.html' %}
+{% endwith %}
 
 {# Legend #}
 <div class="card shadow-sm mb-3">

@@ -1,0 +1,61 @@
+{# Required context: filters, ear_tags, procedures, animal_tags, event_tags, studies, result_count, form_action, reset_url, result_label
+   Optional context: show_conflicts_only #}
+{% import "macros.html" as macros %}
+
+{% set _show_conflicts_only = show_conflicts_only|default(false) %}
+
+{% set filter_options = {
+        'sort_by': [('id', 'ID'), ('euthanasia', 'Euthanasia'), ('cryoprotection', 'Cryo'), ('dissection', 'Dissection'), ('immunolabel', 'Immunolabel')],
+        'analysis_filter': [('all', 'All'), ('pending', 'Pending'), ('imaged', 'Imaged'), ('needs_review', 'Needs Review'), ('done', 'Done')],
+        'immunolabel_filter': [('all', 'All'), ('pending', 'Pending'), ('labeled', 'Labeled')],
+        'side_filter': [('all', 'All'), ('Left', 'L'), ('Right', 'R')],
+        'cryo_filter': [('all', 'All'), ('done', 'Done'), ('pending', 'Pending')],
+        'sex_filter': [('all', 'All'), ('male', 'M'), ('female', 'F')],
+        'conflicts_only': [('', 'All'), ('1', 'Conflicts only')],
+        } %}
+
+<div class="card shadow-sm mb-4">
+    <form action="{{ form_action }}" method="GET">
+        {# Preserve every filter not rendered as a visible <select> as a hidden
+           input, so dropdown auto-submit and search-box submit don't drop them.
+           View-specific args (e.g. image_type for the grid) live in `filters`
+           too and pass through here automatically. #}
+        {% for name, value in filters.items() %}
+            {% if name not in ('tag_id', 'procedure_id', 'animal_tag_id', 'event_tag_id', 'study_id') %}
+                <input type="hidden" name="{{ name }}" value="{{ value }}">
+            {% endif %}
+        {% endfor %}
+
+        <div class="card-header d-flex justify-content-between">
+            <div>
+                <i class="fas fa-filter me-2"></i>Filters & Sorting
+                <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                    {{ result_count }} {{ result_label|default('Results') }}
+                </span>
+            </div>
+            <a href="{{ reset_url }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+                <i class="fas fa-undo-alt me-1"></i>
+            </a>
+        </div>
+
+        <div class="card-body pt-1 pb-3 px-3">
+            <div class="row g-3">
+                {{ macros.filter_button_group('side_filter', 'Side', filters, filter_options['side_filter']) }}
+                {{ macros.filter_button_group('sex_filter', 'Sex', filters, filter_options['sex_filter']) }}
+                {{ macros.filter_button_group('immunolabel_filter', 'Immunolabel', filters, filter_options['immunolabel_filter']) }}
+                {{ macros.filter_button_group('cryo_filter', 'Cryo', filters, filter_options['cryo_filter']) }}
+                {{ macros.filter_button_group('analysis_filter', 'Analysis', filters, filter_options['analysis_filter']) }}
+                {{ macros.filter_dropdown('tag_id', 'Ear Tag', filters, ear_tags) }}
+                {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
+                {{ macros.filter_dropdown('animal_tag_id', 'Animal Tag', filters, animal_tags) }}
+                {{ macros.filter_dropdown('event_tag_id', 'Event Tag', filters, event_tags) }}
+                {{ macros.filter_dropdown('study_id', 'Study', filters, studies, label_attr='name') }}
+                {% if _show_conflicts_only %}
+                    {{ macros.filter_button_group('conflicts_only', 'Conflicts', filters, filter_options['conflicts_only']) }}
+                {% endif %}
+                {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
+                {{ macros.sort_direction_toggle(filters) }}
+            </div>
+        </div>
+    </form>
+</div>

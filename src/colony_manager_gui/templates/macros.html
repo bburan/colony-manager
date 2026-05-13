@@ -1,4 +1,4 @@
-{% macro filter_dropdown(name, label, filters, items, all_label='All') %}
+{% macro filter_dropdown(name, label, filters, items, all_label='All', label_attr='display_name') %}
 <div class="col-auto">
     <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
         {{ label }}
@@ -7,7 +7,7 @@
             onchange="this.form.submit()" style="max-width: 220px;">
         <option value="all" {% if filters[name] == 'all' %}selected{% endif %}>{{ all_label }}</option>
         {% for item in items %}
-        <option value="{{ item.id }}" {% if filters[name] == item.id|string %}selected{% endif %}>{{ item.display_name }}</option>
+        <option value="{{ item.id }}" {% if filters[name] == item.id|string %}selected{% endif %}>{{ item[label_attr] }}</option>
         {% endfor %}
     </select>
 </div>

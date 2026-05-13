@@ -2,7 +2,8 @@ from sqlalchemy import exists
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response
 
 from colony_manager.models import (
-    Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
+    Ear, EarTag, Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
+    Study, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
     ConfocalImageData,
 )
 from .. import db
@@ -14,49 +15,144 @@ from ..services.data_linking import (
 
 histology_bp = Blueprint('histology', __name__)
 
-@histology_bp.route('/')
-def list_histology():
-    query = Ear.query.join(Animal)
+_EAR_SORT_DIR_DEFAULTS = {
+    'id': 'asc',
+    'euthanasia': 'desc',
+    'cryoprotection': 'desc',
+    'dissection': 'desc',
+    'immunolabel': 'desc',
+}
 
-    immunolabel_filter = request.args.get('immunolabel_filter', 'all')
-    if immunolabel_filter == 'labeled':
-        query = query.filter(Ear.immunolabel_date != None)
-    elif immunolabel_filter == 'pending':
-        query = query.filter(Ear.immunolabel_date == None)
 
-    sort_by = request.args.get('sort_by', 'id')
-    if sort_by == 'euthanasia':
-        query = query.add_columns(Animal.termination_date).order_by(Animal.termination_date.desc().nulls_last())
-    else:
-        query = query.add_columns(Animal.custom_id).order_by(Animal.custom_id)
+def _ear_sort_cols():
+    """Lazy column map. Built at call time so the columns bind correctly."""
+    return {
+        'id': Animal.custom_id,
+        'euthanasia': Animal.termination_date,
+        'cryoprotection': Ear.cryoprotection_date,
+        'dissection': Ear.dissection_date,
+        'immunolabel': Ear.immunolabel_date,
+    }
 
-    analysis_filter = request.args.get('analysis_filter', 'all')
-    if analysis_filter != 'all':
+
+def _parse_ear_filters(args):
+    sort_by = args.get('sort_by', 'id')
+    sort_dir = args.get('sort_dir', '')
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = _EAR_SORT_DIR_DEFAULTS.get(sort_by, 'asc')
+    return {
+        'sort_by': sort_by,
+        'sort_dir': sort_dir,
+        'immunolabel_filter': args.get('immunolabel_filter', 'all'),
+        'analysis_filter': args.get('analysis_filter', 'all'),
+        'side_filter': args.get('side_filter', 'all'),
+        'tag_id': args.get('tag_id', 'all'),
+        'cryo_filter': args.get('cryo_filter', 'all'),
+        'sex_filter': args.get('sex_filter', 'all'),
+        'procedure_id': args.get('procedure_id', 'all'),
+        'animal_tag_id': args.get('animal_tag_id', 'all'),
+        'event_tag_id': args.get('event_tag_id', 'all'),
+        'study_id': args.get('study_id', 'all'),
+    }
+
+
+def _apply_ear_filters(query, f):
+    """Apply every filter from ``_parse_ear_filters`` to ``query``.
+
+    Assumes ``query`` is rooted on ``Ear`` and already joined to ``Animal``
+    (needed for sex / sort by custom_id or termination_date).
+    """
+    if f['immunolabel_filter'] == 'labeled':
+        query = query.filter(Ear.immunolabel_date.is_not(None))
+    elif f['immunolabel_filter'] == 'pending':
+        query = query.filter(Ear.immunolabel_date.is_(None))
+
+    if f['cryo_filter'] == 'done':
+        query = query.filter(Ear.cryoprotection_date.is_not(None))
+    elif f['cryo_filter'] == 'pending':
+        query = query.filter(Ear.cryoprotection_date.is_(None))
+
+    if f['side_filter'] in ('Left', 'Right'):
+        query = query.filter(Ear.side == f['side_filter'])
+
+    if f['tag_id'] != 'all':
+        ids = EarTag.descendant_ids(int(f['tag_id']))
+        query = query.filter(Ear.tags.any(EarTag.id.in_(ids)))
+
+    if f['sex_filter'] in ('male', 'female'):
+        query = query.filter(Animal.sex == f['sex_filter'])
+
+    if f['procedure_id'] != 'all':
+        ids = AnimalProcedure.descendant_ids(int(f['procedure_id']))
+        query = query.filter(Animal.events.any(
+            AnimalEvent.procedure_id.in_(ids)
+        ))
+
+    if f['animal_tag_id'] != 'all':
+        ids = AnimalTag.descendant_ids(int(f['animal_tag_id']))
+        query = query.filter(Animal.tags.any(AnimalTag.id.in_(ids)))
+
+    if f['event_tag_id'] != 'all':
+        ids = AnimalEventTag.descendant_ids(int(f['event_tag_id']))
+        query = query.filter(Animal.events.any(
+            AnimalEvent.tags.any(AnimalEventTag.id.in_(ids))
+        ))
+
+    if f['study_id'] != 'all':
+        query = query.filter(Animal.studies.any(
+            Study.id == int(f['study_id'])
+        ))
+
+    if f['analysis_filter'] != 'all':
         subquery = exists().where(
-            (ConfocalImage.ear_id == Ear.id) & \
-            (ConfocalImage.status == analysis_filter)
+            (ConfocalImage.ear_id == Ear.id)
+            & (ConfocalImage.status == f['analysis_filter'])
         )
         query = query.filter(subquery)
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
-        query = query.filter(Ear.animal.has(species_id=species_id))
-    ears = [row[0] for row in query.distinct().all()]
+        query = query.filter(Animal.species_id == species_id)
 
+    return query
+
+
+def _apply_ear_sort(query, f):
+    col = _ear_sort_cols().get(f['sort_by'], Animal.custom_id)
+    if f['sort_dir'] == 'desc':
+        order = col.desc().nullslast()
+    else:
+        order = col.asc().nullsfirst()
+    return query.order_by(order, Ear.side)
+
+
+def _ear_filter_lookups():
+    return {
+        'ear_tags': EarTag.get_ordered(),
+        'procedures': AnimalProcedure.get_ordered(),
+        'animal_tags': AnimalTag.get_ordered(),
+        'event_tags': AnimalEventTag.get_ordered(),
+        'studies': Study.query.order_by(Study.name).all(),
+    }
+
+
+@histology_bp.route('/')
+def list_histology():
+    f = _parse_ear_filters(request.args)
+    query = _apply_ear_filters(Ear.query.join(Animal), f)
+    ears = _apply_ear_sort(query, f).all()
     return render_template(
         'histology.html',
         ears=ears,
-        filters={
-            'immunolabel_filter': immunolabel_filter,
-            'sort_by': sort_by,
-            'analysis_filter': analysis_filter,
-        },
+        filters=f,
+        **_ear_filter_lookups(),
     )
 
 
 @histology_bp.route('/grid')
 def view_grid():
-    species_id = int(session.get('selected_species', -1))
+    f = _parse_ear_filters(request.args)
+    conflicts_only = request.args.get('conflicts_only') in ('1', 'true', 'on')
 
     image_types = ConfocalImageType.query.order_by(ConfocalImageType.name).all()
     if not image_types:
@@ -69,7 +165,8 @@ def view_grid():
             grid={},
             orphans_by_ear={},
             has_other_column=False,
-            filters={'sort_by': 'id', 'conflicts_only': False},
+            filters={**f, 'image_type': '', 'conflicts_only': '1' if conflicts_only else ''},
+            **_ear_filter_lookups(),
         )
 
     selected_id = request.args.get('image_type', type=int)
@@ -79,18 +176,8 @@ def view_grid():
     if selected_image_type is None:
         selected_image_type = image_types[0]
 
-    sort_by = request.args.get('sort_by', 'id')
-    conflicts_only = request.args.get('conflicts_only') in ('1', 'true', 'on')
-
-    ear_query = Ear.query.join(Animal)
-    if species_id != -1:
-        ear_query = ear_query.filter(Ear.animal.has(species_id=species_id))
-    if sort_by == 'euthanasia':
-        ear_query = ear_query.add_columns(Animal.termination_date).order_by(
-            Animal.termination_date.desc().nulls_last())
-    else:
-        ear_query = ear_query.add_columns(Animal.custom_id).order_by(Animal.custom_id)
-    ears = [row[0] for row in ear_query.distinct().all()]
+    ear_query = _apply_ear_filters(Ear.query.join(Animal), f)
+    ears = _apply_ear_sort(ear_query, f).all()
 
     # Column set: distinct frequencies across all in-scope ConfocalImage rows
     # for the selected image type. Fixed regardless of row filters.
@@ -152,7 +239,9 @@ def view_grid():
         grid=grid,
         orphans_by_ear=orphans_by_ear,
         has_other_column=has_other_column,
-        filters={'sort_by': sort_by, 'conflicts_only': conflicts_only},
+        filters={**f, 'image_type': selected_image_type.id,
+                 'conflicts_only': '1' if conflicts_only else ''},
+        **_ear_filter_lookups(),
     )
 
 

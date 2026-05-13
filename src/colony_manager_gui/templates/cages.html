@@ -6,27 +6,51 @@
 Cages
 {% endblock %}
 
+{% set filter_options = {
+        'status_filter': [('active', 'Active'), ('inactive', 'Inactive'), ('all', 'All')],
+        'sex_filter': [('all', 'All'), ('male', 'M'), ('female', 'F'), ('mixed', 'Mixed')],
+        'occupancy_filter': [('all', 'All'), ('empty', 'Empty'), ('single', 'Single'), ('multi', 'Multi')],
+        'notes_filter': [('all', 'All'), ('yes', 'Yes'), ('no', 'No')],
+        'sort_by': [('custom_id', 'ID'), ('age', 'Age'), ('animal_count', '# Animals'), ('active_count', '# Active')],
+        'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
+        } %}
+
 {% block content %}
 <div class="card shadow-sm mb-4">
-    <div class="card-header d-flex justify-content-between">
-        <div>
-            <i class="fas fa-filter me-2"></i>Filters & Sorting
-            <span class="badge text-secondary border ms-3 fw-normal">
-                {{ cages|length }} Results
-            </span>
-        </div>
-        <a href="{{ url_for('cages.list_cages') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
-            <i class="fas fa-undo-alt me-1"></i>
-        </a>
-    </div>
+    <form action="{{ url_for('cages.list_cages') }}" method="GET">
+        {% for name, value in filters.items() %}
+            {% if name not in ('source_id', 'tag_id', 'procedure_id') %}
+                <input type="hidden" name="{{ name }}" value="{{ value }}">
+            {% endif %}
+        {% endfor %}
 
-    <div class="card-body">
-        <div class="row g-3">
-            {{ macros.filter_button_group('status_filter', 'Status', filters,  [('active', 'Active'), ('inactive', 'Inactive'), ('all', 'All')]) }}
-            {{ macros.filter_button_group('sort_by', 'Sort By', filters,  [('custom_id', 'ID'), ('age', 'Age')]) }}
-            {{ macros.filter_button_group('age_unit', 'Age Unit', filters,  [('day', 'D'), ('week', 'W'), ('month', 'M')]) }}
+        <div class="card-header d-flex justify-content-between">
+            <div>
+                <i class="fas fa-filter me-2"></i>Filters & Sorting
+                <span class="badge text-secondary border ms-3 fw-normal">
+                    {{ cages|length }} Results
+                </span>
+            </div>
+            <a href="{{ url_for('cages.list_cages') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+                <i class="fas fa-undo-alt me-1"></i>
+            </a>
         </div>
-    </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+                {{ macros.filter_button_group('status_filter', 'Status', filters, filter_options['status_filter']) }}
+                {{ macros.filter_button_group('sex_filter', 'Sex', filters, filter_options['sex_filter']) }}
+                {{ macros.filter_button_group('occupancy_filter', 'Occupancy', filters, filter_options['occupancy_filter']) }}
+                {{ macros.filter_button_group('notes_filter', 'Notes', filters, filter_options['notes_filter']) }}
+                {{ macros.filter_dropdown('source_id', 'Source', filters, sources, label_attr='name') }}
+                {{ macros.filter_dropdown('tag_id', 'Animal Tag', filters, animal_tags) }}
+                {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
+                {{ macros.filter_button_group('sort_by', 'Sort By', filters, filter_options['sort_by']) }}
+                {{ macros.sort_direction_toggle(filters) }}
+                {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
+            </div>
+        </div>
+    </form>
 </div>
 
 <div class="card shadow-sm">

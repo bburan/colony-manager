@@ -88,6 +88,7 @@ def list_animals():
 
     event_filter = request.args.get('event_filter', 'all')
     status_filter = request.args.get('status_filter', 'active')
+    sex_filter = request.args.get('sex_filter', 'all')
     study_filter = request.args.get('study_filter', 'all')
     procedure_filter = request.args.get('procedure_id', 'all')
     tag_filter = request.args.get('tag_id', 'all')
@@ -115,6 +116,9 @@ def list_animals():
         query = query.filter(Animal.termination_date.is_(None))
     elif status_filter == 'terminated':
         query = query.filter(Animal.termination_date.is_not(None))
+
+    if sex_filter in ('male', 'female'):
+        query = query.filter(Animal.sex == sex_filter)
 
     if study_filter != 'all':
         query = query.filter(Animal.studies.any(Study.id == int(study_filter)))
@@ -188,6 +192,7 @@ def list_animals():
             'sort_by': sort_by,
             'sort_dir': sort_dir,
             'status_filter': status_filter,
+            'sex_filter': sex_filter,
             'event_filter': event_filter,
             'study_filter': study_filter,
             'procedure_id': procedure_filter,

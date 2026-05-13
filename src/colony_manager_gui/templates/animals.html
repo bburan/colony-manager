@@ -8,6 +8,7 @@ Animal Overview
 {% set filter_options = {
         'sort_by': [('id', 'ID'), ('age', 'Age'), ('event_date', 'Last Event')],
         'status_filter': [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')],
+        'sex_filter': [('all', 'All'), ('male', 'M'), ('female', 'F')],
         'event_filter': [('all', 'All'), ('no_events', 'No Events'), ('has_events', 'Has Event'), ('due_overdue', 'Due/Overdue'), ('overdue', 'Overdue')],
         'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
         } %}
@@ -48,6 +49,7 @@ Animal Overview
         <div class="card-body">
             <div class="row g-3">
                 {{ macros.filter_button_group('status_filter', 'Status', filters, filter_options['status_filter']) }}
+                {{ macros.filter_button_group('sex_filter', 'Sex', filters, filter_options['sex_filter']) }}
                 {{ macros.filter_button_group('event_filter', 'Events', filters, filter_options['event_filter']) }}
                 {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
                 {{ macros.filter_dropdown('tag_id', 'Animal Tag', filters, animal_tags) }}

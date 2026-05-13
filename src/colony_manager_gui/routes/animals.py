@@ -3,13 +3,14 @@ import re
 from datetime import date
 
 from sqlalchemy import func, case
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Cage, Study, Ear, Feed, FeedLog,
     WeightLog, Data, DataType, AnimalEventData,
     ConfocalImageData, AnimalData, EarData, study_animals,
+    animal_event_data_targets, data_candidate_animals,
 )
 
 from .. import db
@@ -208,10 +209,67 @@ def list_animals():
 def view_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     feed = Feed.query.order_by(Feed.weight).all()
+
+    # Bulk-load events with their lazy relationships so the events accordion
+    # and the events_by_date grouping don't fan out into N queries per event
+    # (procedure / target / tags would each lazy-load otherwise).
+    events = (AnimalEvent.query
+        .filter(AnimalEvent.animal_id == animal_id)
+        .options(
+            joinedload(AnimalEvent.procedure),
+            joinedload(AnimalEvent.procedure_target),
+            selectinload(AnimalEvent.tags),
+        )
+        .all())
+    animal._events_cached_list = events
+
+    # Bulk-load event data_files in one query (dynamic relationship, so we
+    # can't use selectinload directly) and attach a sorted cache per event.
+    files_by_event = {e.id: [] for e in events}
+    if events:
+        event_file_rows = (db.session.query(
+                animal_event_data_targets.c.animal_event_id,
+                AnimalEventData,
+            )
+            .join(AnimalEventData,
+                  AnimalEventData.id == animal_event_data_targets.c.animal_event_data_id)
+            .options(joinedload(AnimalEventData.datatype))
+            .filter(animal_event_data_targets.c.animal_event_id.in_(files_by_event.keys()))
+            .all())
+        for ev_id, f in event_file_rows:
+            files_by_event[ev_id].append(f)
+    for ev in events:
+        ev._sorted_data_files_cached = sorted(
+            files_by_event.get(ev.id, []), key=lambda f: f.name)
+
+    # Files accordion: load once with datatype joined to avoid one query per
+    # row for ``f.datatype.name``.
+    animal_data_files = (animal.data_files
+        .options(joinedload(Data.datatype))
+        .all())
+    animal_data_files.sort(key=lambda f: f.name)
+
+    # Unassigned candidate event files (events accordion). Pre-filter to the
+    # animal_event subset and eager-load each file's events so the
+    # per-file ``f.events`` check doesn't issue its own query.
+    candidate_event_files = (db.session.query(AnimalEventData)
+        .join(data_candidate_animals,
+              AnimalEventData.id == data_candidate_animals.c.data_id)
+        .filter(data_candidate_animals.c.animal_id == animal_id)
+        .options(selectinload(AnimalEventData.events),
+                 joinedload(AnimalEventData.datatype))
+        .all())
+    unassigned_files = [
+        f for f in candidate_event_files
+        if not any(ev.animal_id == animal_id for ev in f.events)
+    ]
+
     return render_template(
         'view_animal.html',
         animal=animal,
         feeds=feed,
+        animal_data_files=animal_data_files,
+        unassigned_files=unassigned_files,
     )
 
 @animals_bp.route('/create', methods=['POST'])

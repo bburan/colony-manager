@@ -651,8 +651,11 @@ class Animal(VersionedModel):
 
     @property
     def events_by_date(self):
+        events = getattr(self, '_events_cached_list', None)
+        if events is None:
+            events = list(self.events)
         groups = {}
-        for e in self.events:
+        for e in events:
             groups.setdefault(e.date, []).append(e)
         return dict((d, sorted(groups[d], key=lambda x: x.procedure.name)) for d in sorted(groups.keys()))
 
@@ -866,7 +869,7 @@ class Animal(VersionedModel):
                 'baseline': w.baseline
             }
 
-        for f in self.feedings.all():
+        for f in self.feedings.options(joinedload(FeedLog.feed_type)).all():
             day = history.setdefault(f.date, {'weight': None, 'note': '', 'feed': {}, 'total_feed': 0, 'baseline_pct': None})
             day['feed'][f.feed_id] = f.quantity
             day['total_feed'] += (f.quantity * f.feed_type.weight)
@@ -1048,6 +1051,13 @@ class AnimalEvent(VersionedModel):
     @property
     def date(self):
         return self.scheduled_date if self.completion_date is None else self.completion_date
+
+    @property
+    def sorted_data_files(self):
+        cached = getattr(self, '_sorted_data_files_cached', _MISSING)
+        if cached is not _MISSING:
+            return cached
+        return sorted(self.data_files.all(), key=lambda f: f.name)
 
 class ImmunolabelingPanel(VersionedModel):
     id = Column(Integer, primary_key=True)

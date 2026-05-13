@@ -57,12 +57,12 @@
         }
         .df-filename {
             color: #212529;
-            font-size: 0.875rem;
-            line-height: 1.4;
+            font-size: 0.78rem;
+            line-height: 1.35;
         }
         .df-meta {
             color: #6c757d;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
         }
         .df-status-icon { font-size: 0.7rem; }
         .df-status-icon.reviewed { color: #198754; }
@@ -71,10 +71,10 @@
         .df-note-indicator { color: #6c757d; font-size: 0.7rem; }
         .datatype-badge {
             display: inline-block;
-            font-size: 0.68rem;
+            font-size: 0.62rem;
             font-weight: 500;
             letter-spacing: 0.02em;
-            padding: 0.15rem 0.5rem;
+            padding: 0.1rem 0.4rem;
             border-radius: 0.25rem;
             background-color: #eef0f2;
             color: #495057;
@@ -492,11 +492,12 @@
                 // Post data
                 const formData = new FormData();
                 formData.append('status', setStatus);
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+                if (csrfMeta) headers['X-CSRFToken'] = csrfMeta.getAttribute('content');
                 const res = await fetch(url, {
                     method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
+                    headers: headers,
                     body: formData
                 });
                 
@@ -506,21 +507,29 @@
                     if (data.status === 'success') {
                         // Update status logic in DOM
                         group.setAttribute('data-status', data.new_status);
-                        
-                        // Handle icon color updating based on the new status
-                        const li = group.closest('li') || group.closest('.d-flex');
-                        if (li) {
-                            const icon = li.querySelector('.data-file-icon');
-                            if (icon) {
-                                icon.classList.remove('text-success', 'text-danger', 'text-muted');
-                                if (data.new_status === 'reviewed') {
-                                    icon.classList.add('text-success');
-                                } else if (data.new_status === 'exclude') {
-                                    icon.classList.add('text-danger');
-                                } else {
-                                    icon.classList.add('text-muted');
-                                }
-                            }
+
+                        // Update every status indicator for this data file
+                        // (a file can appear multiple times on the page).
+                        const dataId = group.getAttribute('data-data-id');
+                        if (dataId) {
+                            const statusClass = data.new_status === 'reviewed'
+                                ? 'reviewed'
+                                : data.new_status === 'exclude'
+                                    ? 'excluded'
+                                    : 'unreviewed';
+                            const tooltipTitle = data.new_status === 'reviewed'
+                                ? 'Reviewed'
+                                : data.new_status === 'exclude'
+                                    ? 'Excluded'
+                                    : 'Unreviewed';
+                            document.querySelectorAll(
+                                '.df-status-icon[data-data-id="' + dataId + '"]'
+                            ).forEach(function (icon) {
+                                icon.classList.remove('reviewed', 'excluded', 'unreviewed');
+                                icon.classList.add(statusClass);
+                                icon.setAttribute('title', tooltipTitle);
+                                icon.setAttribute('data-bs-original-title', tooltipTitle);
+                            });
                         }
                     } else {
                         console.error('Failed to update status', data);

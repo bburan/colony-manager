@@ -65,16 +65,15 @@
                             aria-expanded="false"
                             aria-controls="collapseFiles">
                         <i class="fas fa-images me-2"></i> Files
-                        {% set animal_file_count = animal.data_files.count() %}
-                        {% if animal_file_count %}
-                        <span class="badge bg-secondary ms-2">{{ animal_file_count }}</span>
+                        {% if animal_data_files %}
+                        <span class="badge bg-secondary ms-2">{{ animal_data_files|length }}</span>
                         {% endif %}
                     </button>
                 </h2>
                 <div id="collapseFiles" class="accordion-collapse collapse"
                      aria-labelledby="headingFiles">
                     <div class="accordion-body">
-                        {% with files=animal.data_files|sort(attribute='name'), animal=animal %}
+                        {% with files=animal_data_files, animal=animal %}
                             {% include 'partials/entity_data_files.html' %}
                         {% endwith %}
                     </div>
@@ -106,13 +105,6 @@
                         </div>
                         {{ macros.render_event_list(animal.events_by_date) }}
 
-                        {% set unassigned_files = [] %}
-                        {% for f in animal.candidate_data_files %}
-                            {% if f.target_type == 'animal_event' %}
-                                {% set linked = f.events|selectattr('animal_id', 'equalto', animal.id)|list %}
-                                {% if not linked %}{% set _ = unassigned_files.append(f) %}{% endif %}
-                            {% endif %}
-                        {% endfor %}
                         {% if unassigned_files %}
                             {{ macros.render_data_files(animal, unassigned_files) }}
                         {% else %}

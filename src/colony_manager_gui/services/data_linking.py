@@ -11,7 +11,7 @@ should reuse a ``desc_cache`` dict.
 """
 import os
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import or_
 
@@ -35,7 +35,7 @@ def to_json_safe(value):
         return {k: to_json_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [to_json_safe(v) for v in value]
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, (date, datetime, time)):
         return value.isoformat()
     return value
 

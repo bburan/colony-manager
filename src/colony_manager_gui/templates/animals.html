@@ -6,7 +6,7 @@ Animal Overview
 {% endblock %}
 
 {% set filter_options = {
-        'sort_by': [('id', 'ID'), ('age', 'Age')],
+        'sort_by': [('id', 'ID'), ('age', 'Age'), ('event_date', 'Last Event')],
         'status_filter': [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')],
         'event_filter': [('all', 'All'), ('no_events', 'No Events'), ('has_events', 'Has Event'), ('due_overdue', 'Due/Overdue'), ('overdue', 'Overdue')],
         'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
@@ -14,42 +14,50 @@ Animal Overview
 
 {% block content %}
 <div class="card shadow-sm mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center gap-3">
-        <div class="d-flex align-items-center">
-            <i class="fas fa-filter me-2"></i>Filters & Sorting
-            <span class="badge bg-light text-secondary border ms-3 fw-normal">
-                {{ animals|length }} Results
-            </span>
+    <form action="{{ url_for('animals.list_animals') }}" method="GET">
+        {# Hidden inputs preserve filters not rendered as form controls so
+           that selecting a dropdown / submitting the search box doesn't drop
+           the button-group selections. #}
+        {% for name, value in filters.items() %}
+            {% if name not in ('search_query', 'procedure_id', 'tag_id', 'event_tag_id') %}
+                <input type="hidden" name="{{ name }}" value="{{ value }}">
+            {% endif %}
+        {% endfor %}
+
+        <div class="card-header d-flex justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-filter me-2"></i>Filters & Sorting
+                <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                    {{ animals|length }} Results
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-3">
+                <div class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
+                    <input type="text" name="search_query" class="form-control border-end-0"
+                           placeholder="Search ID..." value="{{ filters['search_query'] or '' }}">
+                    <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                </div>
+
+                <a href="{{ url_for('animals.list_animals') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
+                    <i class="fas fa-undo-alt me-1"></i>
+                </a>
+            </div>
         </div>
 
-        <div class="d-flex align-items-center gap-3">
-            <form action="{{ url_for('animals.list_animals') }}" method="GET" class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
-                {# Carry over existing filters as hidden inputs so search doesn't reset them #}
-                {% for name, value in filters.items() %}
-                    {% if name == 'search_query' %}
-                        <input type="text" name="search_query" class="form-control border-end-0" placeholder="Search ID or Procedure..." value="{{ filters['search_query'] or '' }}">
-                        <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
-                    {% else %}
-                        <input type="hidden" name="{{ name }}" value="{{ value }}">
-                    {% endif %}
-                {% endfor %}
-
-            </form>
-
-            <a href="{{ url_for('animals.list_animals') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
-                <i class="fas fa-undo-alt me-1"></i>
-            </a>
+        <div class="card-body">
+            <div class="row g-3">
+                {{ macros.filter_button_group('status_filter', 'Status', filters, filter_options['status_filter']) }}
+                {{ macros.filter_button_group('event_filter', 'Events', filters, filter_options['event_filter']) }}
+                {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
+                {{ macros.filter_dropdown('tag_id', 'Animal Tag', filters, animal_tags) }}
+                {{ macros.filter_dropdown('event_tag_id', 'Event Tag', filters, event_tags) }}
+                {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
+                {{ macros.sort_direction_toggle(filters) }}
+                {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
+            </div>
         </div>
-    </div>
-
-    <div class="card-body">
-        <div class="row g-3">
-            {{ macros.filter_button_group('status_filter', 'Status', filters, filter_options['status_filter']) }}
-            {{ macros.filter_button_group('event_filter', 'Events', filters, filter_options['event_filter']) }}
-            {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
-            {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
-        </div>
-    </div>
+    </form>
 </div>
 
 <div class="card shadow-sm">

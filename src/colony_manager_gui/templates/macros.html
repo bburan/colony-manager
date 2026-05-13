@@ -1,3 +1,34 @@
+{% macro filter_dropdown(name, label, filters, items, all_label='All') %}
+<div class="col-auto">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+        {{ label }}
+    </label>
+    <select name="{{ name }}" class="form-select form-select-sm shadow-sm"
+            onchange="this.form.submit()" style="max-width: 220px;">
+        <option value="all" {% if filters[name] == 'all' %}selected{% endif %}>{{ all_label }}</option>
+        {% for item in items %}
+        <option value="{{ item.id }}" {% if filters[name] == item.id|string %}selected{% endif %}>{{ item.display_name }}</option>
+        {% endfor %}
+    </select>
+</div>
+{% endmacro %}
+
+{% macro sort_direction_toggle(filters) %}
+{% set next_dir = 'asc' if filters['sort_dir'] == 'desc' else 'desc' %}
+{% set params = filters.copy() %}
+{% set _ = params.update({'sort_dir': next_dir}) %}
+<div class="col-auto">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+        Dir
+    </label>
+    <a href="{{ url_for(request.endpoint, **params) }}"
+       class="btn btn-sm btn-outline-secondary shadow-sm"
+       title="Toggle sort direction">
+        <i class="fas fa-arrow-{{ 'down' if filters['sort_dir'] == 'desc' else 'up' }}"></i>
+    </a>
+</div>
+{% endmacro %}
+
 {% macro filter_button_group(name, label, filters, options) %}
 <div class="col-auto">
     <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">

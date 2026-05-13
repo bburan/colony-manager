@@ -1,16 +1,16 @@
 from sqlalchemy import exists
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response
 
-import os
-
-from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
     Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
-    ConfocalImageData, _canonical_side,
+    ConfocalImageData,
 )
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
 from .util import flash_form_errors, render_error_alert, is_htmx, render_modal
+from ..services.data_linking import (
+    parse_orphan_confocal_files, resync_confocal_image,
+)
 
 histology_bp = Blueprint('histology', __name__)
 
@@ -52,48 +52,6 @@ def list_histology():
             'analysis_filter': analysis_filter,
         },
     )
-
-
-def _parse_orphan_confocal_files(ear):
-    """Re-parse unmatched ConfocalImageData files attached to ``ear`` as
-    candidates. Returns a list of dicts with keys: file, frequency,
-    image_type_name, side.
-    """
-    results = []
-    desc_cache = {}
-    for f in ear.candidate_data_files:
-        if f.target_type != 'confocal_image' or f.confocal_images:
-            continue
-        dotted = f.datatype.description_class
-        if not dotted:
-            continue
-        if dotted not in desc_cache:
-            try:
-                desc_cache[dotted] = load_description_class(dotted)
-            except Exception:
-                desc_cache[dotted] = None
-        desc_cls = desc_cache[dotted]
-        if desc_cls is None:
-            continue
-        full_path = os.path.join(f.location.base_path, f.relative_path)
-        try:
-            parsed = desc_cls(full_path).parse() or {}
-        except Exception:
-            continue
-        try:
-            freq = float(parsed.get('frequency'))
-        except (TypeError, ValueError):
-            continue
-        side = _canonical_side(parsed.get('side') or parsed.get('ear'))
-        if side and side != ear.side:
-            continue
-        results.append({
-            'file': f,
-            'frequency': freq,
-            'image_type_name': parsed.get('image_type'),
-            'side': side,
-        })
-    return results
 
 
 @histology_bp.route('/grid')
@@ -161,7 +119,7 @@ def view_grid():
     has_other_column = False
     freq_col_set = set(frequencies)
     for ear in ears:
-        parsed = _parse_orphan_confocal_files(ear)
+        parsed = parse_orphan_confocal_files(ear)
         orphans = [
             p for p in parsed
             if p['image_type_name'] == selected_image_type.name
@@ -259,55 +217,6 @@ def update_ear_histology(ear_id):
     return _update_ear(ear_id, HistologyForm, 'partials/ear_histology_card.html')
 
 
-def _resync_confocal_image(image):
-    """Link unmatched ConfocalImageData rows whose parsed metadata matches *image*.
-
-    Walks ``image.ear.candidate_data_files`` filtered to unmatched
-    confocal rows, re-parses each via the row's description class, and
-    links if the parsed frequency + image type + side line up. Re-parse
-    is cheap because description-class ``parse()`` methods are filename
-    regexes (no disk I/O).
-    """
-    if image.frequency is None or image.image_type_id is None:
-        return 0
-    image_type_name = image.image_type.name
-    desc_cache = {}
-    linked = 0
-    for f in image.ear.candidate_data_files:
-        if f.target_type != 'confocal_image' or f.confocal_images:
-            continue
-        dotted = f.datatype.description_class
-        if not dotted:
-            continue
-        if dotted not in desc_cache:
-            try:
-                desc_cache[dotted] = load_description_class(dotted)
-            except Exception:
-                desc_cache[dotted] = None
-        desc_cls = desc_cache[dotted]
-        if desc_cls is None:
-            continue
-        full_path = os.path.join(f.location.base_path, f.relative_path)
-        try:
-            parsed = desc_cls(full_path).parse() or {}
-        except Exception:
-            continue
-        try:
-            parsed_freq = float(parsed.get('frequency'))
-        except (TypeError, ValueError):
-            continue
-        if parsed_freq != image.frequency:
-            continue
-        if parsed.get('image_type') != image_type_name:
-            continue
-        side = _canonical_side(parsed.get('side') or parsed.get('ear'))
-        if side and side != image.ear.side:
-            continue
-        f.confocal_images.append(image)
-        linked += 1
-    return linked
-
-
 # --- Confocal Image Routes ---
 @histology_bp.route('/ears/<int:ear_id>/confocal_images/create', methods=['POST'])
 def create_confocal_image(ear_id):
@@ -329,7 +238,7 @@ def create_confocal_image(ear_id):
             new_images.append(new_image)
         db.session.flush()  # populate image.id and image_type_id
         for img in new_images:
-            _resync_confocal_image(img)
+            resync_confocal_image(img)
         db.session.commit()
         if request.headers.get('HX-Request'):
             html = render_template('partials/confocal_image_table.html', ear=ear)

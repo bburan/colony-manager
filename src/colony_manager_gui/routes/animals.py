@@ -7,8 +7,8 @@ from sqlalchemy.orm import joinedload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, Cage, Study, Ear, Feed, FeedLog,
-    WeightLog, Data, DataType, AnimalEventData, AnimalEventDataType,
-    ConfocalImageData, AnimalData, EarData, study_animals, _expand_sides,
+    WeightLog, Data, DataType, AnimalEventData,
+    ConfocalImageData, AnimalData, EarData, study_animals,
 )
 
 from .. import db
@@ -16,6 +16,9 @@ from .. import forms
 from .. import models
 from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
 from .util import flash_form_errors, render_modal
+from ..services.data_linking import (
+    parsed_animal_sides, resync_event_files, auto_create_animal_event,
+)
 
 
 animals_bp = Blueprint('animals', __name__)
@@ -255,78 +258,12 @@ def update_animal_event(event_id):
     if form.validate_on_submit():
         form.populate_obj(event)
         db.session.commit()
-        _resync_event_files(event)
+        resync_event_files(event)
         db.session.commit()
         flash('Event updated successfully.', 'success')
     else:
         flash_form_errors(form, f'Error updating event')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=event.animal_id))
-
-
-def _parsed_animal_sides(f, animal_custom_id):
-    """Sides the parser assigns to ``animal_custom_id`` in file ``f``.
-
-    Returns
-    -------
-    None
-        The parser did not see this animal in this file.
-    list[str]
-        Canonical sides for this animal in this file. Empty list means
-        "animal is present, but no side was parsed".
-    """
-    try:
-        cls = f.datatype.get_description()
-        parsed = cls(f).parse() or {}
-    except Exception:
-        return None
-    raw_ids = parsed.get('animal_id')
-    if not raw_ids:
-        return None
-    ids = list(raw_ids) if isinstance(raw_ids, (list, tuple)) else [raw_ids]
-    if animal_custom_id not in ids:
-        return None
-    sides = _expand_sides(parsed.get('side') or parsed.get('ear'), len(ids))
-    if sides is None:
-        return []
-    return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
-
-
-def _resync_event_files(event):
-    """Unlink files whose date or parsed side no longer matches the event, then link matching files."""
-    new_date = event.completion_date or event.scheduled_date
-    animal_custom_id = event.animal.custom_id
-
-    # 1. Unlink files (this event only) whose date or parsed side no longer
-    #    matches. A file with no parsed side is allowed to stay linked —
-    #    same convention as the initial sync match.
-    for f in list(event.data_files):
-        if f.date != new_date:
-            f.events.remove(event)
-            continue
-        if event.side is not None:
-            f_sides = _parsed_animal_sides(f, animal_custom_id)
-            if f_sides and event.side not in set(f_sides):
-                f.events.remove(event)
-
-    # 2. Link AnimalEventData files matching date, animal candidacy, and the
-    #    DataType's default procedure. Side must match when both the event
-    #    and the file's parser specify one.
-    candidate_files = AnimalEventData.query.filter(
-        AnimalEventData.date == new_date,
-    ).all()
-    for f in candidate_files:
-        dt = f.datatype
-        if getattr(dt, 'default_procedure_id', None) != event.procedure_id:
-            continue
-        if event in f.events:
-            continue
-        if not any(a.id == event.animal_id for a in f.candidate_animals):
-            continue
-        if event.side is not None:
-            f_sides = _parsed_animal_sides(f, animal_custom_id)
-            if f_sides and event.side not in set(f_sides):
-                continue
-        f.events.append(event)
 
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
@@ -695,105 +632,18 @@ def update_data_notes(data_id):
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
 def auto_create_event(animal_id, data_id):
     """Auto-create an AnimalEvent for an unassigned AnimalEventData file, then link matching files."""
+    animal = Animal.query.get_or_404(animal_id)
     data_file = AnimalEventData.query.get_or_404(data_id)
-    datatype = data_file.datatype
-
-    if not getattr(datatype, 'default_procedure_id', None):
-        flash('Cannot auto-create: DataType has no Default Procedure configured.', 'danger')
+    result = auto_create_animal_event(animal, data_file)
+    if result.error:
+        flash(result.error, 'danger')
         return redirect(url_for('animals.view_animal', animal_id=animal_id))
-    if not data_file.date:
-        flash('Cannot auto-create: file has no parsed date.', 'danger')
-        return redirect(url_for('animals.view_animal', animal_id=animal_id))
-
-    animal_custom_id = Animal.query.get_or_404(animal_id).custom_id
-
-    target = datatype.default_procedure_target
-    if target is not None and target.requires_side:
-        own_sides = _parsed_animal_sides(data_file, animal_custom_id)
-        sides = sorted(set(own_sides)) if own_sides else []
-        if not sides:
-            flash(
-                'Cannot auto-create: target requires a side but the parser '
-                'did not resolve one for this animal.', 'danger')
-            return redirect(url_for('animals.view_animal', animal_id=animal_id))
-    else:
-        sides = [None]
-
-    # Reuse an existing matching event when one is already on the animal —
-    # otherwise a second wand-click for a sibling file (or any later
-    # wand-click after this date already has the event) duplicates it.
-    target_events = []
-    created_count = 0
-    for side in sides:
-        query = AnimalEvent.query.filter_by(
-            animal_id=animal_id,
-            procedure_id=datatype.default_procedure_id,
-            procedure_target_id=datatype.default_procedure_target_id,
-        ).filter(
-            db.or_(
-                AnimalEvent.scheduled_date == data_file.date,
-                AnimalEvent.completion_date == data_file.date,
-            )
-        )
-        if side is None:
-            query = query.filter(AnimalEvent.side.is_(None))
-        else:
-            query = query.filter(AnimalEvent.side == side)
-        existing = query.first()
-        if existing:
-            target_events.append(existing)
-        else:
-            event = AnimalEvent(
-                animal_id=animal_id,
-                procedure_id=datatype.default_procedure_id,
-                procedure_target_id=datatype.default_procedure_target_id,
-                side=side,
-                scheduled_date=data_file.date,
-                completion_date=data_file.date,
-            )
-            db.session.add(event)
-            target_events.append(event)
-            created_count += 1
-    db.session.flush()
-
-    # Link any AnimalEventData on this date whose datatype shares the
-    # event's procedure — covers same-datatype siblings *and* sister
-    # datatypes (e.g. ABR + DPOAE both defaulting to Physiology).
-    # ``candidate_animals`` is deliberately not in the SQL filter: it can
-    # be stale (file synced before the animal existed) and would silently
-    # drop files the parser would otherwise place on this animal. The
-    # reparse below is the authoritative animal/side check.
-    candidate_files = AnimalEventData.query.join(
-        AnimalEventDataType,
-        AnimalEventData.datatype_id == AnimalEventDataType.id,
-    ).filter(
-        AnimalEventDataType.default_procedure_id == datatype.default_procedure_id,
-        AnimalEventData.date == data_file.date,
-    ).all()
-    linked_count = 0
-    for f in candidate_files:
-        f_sides = _parsed_animal_sides(f, animal_custom_id)
-        if f_sides is None:
-            continue  # parser doesn't place this animal in this file
-        f_sides = set(f_sides)
-        for event in target_events:
-            if event in f.events:
-                continue
-            # No parsed side → link best-effort. Parsed side present →
-            # require it to match the event's side.
-            if event.side is not None and f_sides and event.side not in f_sides:
-                continue
-            f.events.append(event)
-            linked_count += 1
-
-    db.session.commit()
     parts = []
-    if created_count:
-        parts.append(f'{created_count} event{"s" if created_count != 1 else ""} created')
-    reused = len(target_events) - created_count
-    if reused:
-        parts.append(f'{reused} reused')
-    parts.append(f'{linked_count} file(s) linked')
+    if result.created:
+        parts.append(f'{result.created} event{"s" if result.created != 1 else ""} created')
+    if result.reused:
+        parts.append(f'{result.reused} reused')
+    parts.append(f'{result.linked} file(s) linked')
     flash(', '.join(parts).capitalize() + '.', 'success')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 

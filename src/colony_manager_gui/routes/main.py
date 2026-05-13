@@ -132,12 +132,15 @@ def view_dashboard():
     active_males = db.session.query(models.BreedingPair.male_animal_id).filter_by(is_active=True)
     active_females = db.session.query(models.BreedingPair.female_animal_id).filter_by(is_active=True)
     active_parent_ids = active_males.union(active_females)
+    # Materialize with a cap so the dashboard can't be DOS'd by a colony
+    # that has thousands of unassigned animals — the panel only needs the
+    # first page worth.
     unassigned_animals = models.Animal.query.filter(
         models.Animal.termination_date == None,
         ~models.Animal.studies.any(),
         models.Animal.custom_id != None,
         ~models.Animal.id.in_(active_parent_ids),
-    ).order_by(models.Animal.custom_id)
+    ).order_by(models.Animal.custom_id).limit(100).all()
 
     available_animals_n = models.Animal.query.filter(models.Animal.custom_id == None).count()
 

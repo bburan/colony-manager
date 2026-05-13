@@ -7,7 +7,12 @@ from sqlalchemy import (
     ForeignKey, Text, Boolean, Date, DateTime, Float, JSON, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
-                            backref)
+                            backref, joinedload)
+
+# Sentinel for cache-miss checks on optional cached attributes — ``None``
+# is a valid cached value (no baseline), so we can't use it to mean "unset".
+_MISSING = object()
+
 
 Base = declarative_base(
     metadata=MetaData(
@@ -796,21 +801,40 @@ class Animal(VersionedModel):
         else:
             return f'Animal from {self.cage.custom_id}'
 
+    @staticmethod
+    def _baseline_from_weights(weights_desc):
+        """Compute baseline from an already-ordered (date desc) WeightLog list.
+
+        Shared by the per-instance property and the bulk path used by
+        :meth:`get_daily_logs` so the same algorithm runs in both places.
+        """
+        baselines = []
+        for w in weights_desc:
+            if w.weight is None:
+                continue
+            if w.baseline:
+                baselines.append(w)
+            elif baselines:
+                break
+        if baselines:
+            return mean(w.weight for w in baselines)
+        return None
+
     @property
     def baseline_weight(self):
         '''
         Get the most recent baseline weight as the average of all weights consecutively marked as baseline.
+
+        Honors a request-scoped cache populated by :meth:`get_daily_logs`
+        so the dashboard's weight table doesn't issue one extra query per
+        ``animal.baseline_weight`` access (and the template reads it twice
+        per cell).
         '''
-        baselines = []
-        for w in self.weights.filter(WeightLog.weight != None).order_by(WeightLog.date.desc()).all():
-            if w.baseline:
-                baselines.append(w)
-            elif len(baselines) > 0:
-                break
-        if len(baselines) > 0:
-            return mean(w.weight for w in baselines)
-        else:
-            return None
+        cached = getattr(self, '_baseline_weight_cached', _MISSING)
+        if cached is not _MISSING:
+            return cached
+        weights = self.weights.filter(WeightLog.weight != None).order_by(WeightLog.date.desc()).all()
+        return self._baseline_from_weights(weights)
 
     def weight_feed_history(self):
         # When current_baseline is None, we are in accumulation mode. When we get to the first non-baseline weight, then we calculate the mean baseline weight and set that to current_baselinmean baseline weight and set that to current_baseline
@@ -865,7 +889,12 @@ class Animal(VersionedModel):
         total_days = (end_date - start_date).days + 1
 
         weights = cls.session.query(cls, WeightLog).join(WeightLog)
-        feeds = cls.session.query(cls, FeedLog).join(FeedLog)
+        # ``feed_log.feed_type.weight`` is read once per log when computing
+        # ``total_feed`` below — joinedload it here so we don't fan out into
+        # one SELECT per feed log.
+        feeds = (cls.session.query(cls, FeedLog)
+                 .join(FeedLog)
+                 .options(joinedload(FeedLog.feed_type)))
 
         if species is not None:
             weights = weights.filter(Animal.species == species)
@@ -894,6 +923,26 @@ class Animal(VersionedModel):
             f_animals, feeds = [], []
 
         animals = sorted(set(w_animals) | set(f_animals), key=lambda x: x.display_id)
+
+        # Bulk-load every WeightLog for these animals (ordered date desc)
+        # and stash the computed baseline on each instance. The dashboard
+        # weight template reads ``animal.baseline_weight`` twice per cell;
+        # without this each access fires its own ``self.weights.filter()``
+        # query against the dynamic relationship.
+        if animals:
+            animal_ids = [a.id for a in animals]
+            by_animal = {a.id: [] for a in animals}
+            for w in (cls.session.query(WeightLog)
+                      .filter(WeightLog.animal_id.in_(animal_ids),
+                              WeightLog.weight != None)
+                      .order_by(WeightLog.animal_id, WeightLog.date.desc())
+                      .all()):
+                by_animal[w.animal_id].append(w)
+            for a in animals:
+                a._baseline_weight_cached = cls._baseline_from_weights(
+                    by_animal.get(a.id, [])
+                )
+
         results = {a: [{'date': start_date + timedelta(days=i), 'weight': None, 'feeds': [], 'total_feed': 0} \
                        for i in range(total_days)] for a in animals}
 

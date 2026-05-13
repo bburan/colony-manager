@@ -15,7 +15,7 @@
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
             <div class="card-header">
-                Details
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Details</h2>
             </div>
             <div class="card-body">
                 <dl class="row mb-0 small">
@@ -33,8 +33,8 @@
 
         <section class="card shadow-sm mb-4">
             <header class="card-header d-flex justify-content-between align-items-center">
-                Animals in this cage
-                <button class="btn btn-small"
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Animals in this cage</h2>
+                <button class="btn btn-sm"
                         data-bs-toggle="tooltip"
                         title="Create new animal in cage"
                         hx-get="{{ url_for('animals.create_animal_modal', cage_id=cage.id) }}" hx-target="#modalBody"><i class="fas fa-paw"> +</i></button>
@@ -49,8 +49,8 @@
 
     <div class="col-lg-4">
         <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between">
-                Notes
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Notes</h2>
                 <button class="btn btn-sm"
                         data-bs-toggle="tooltip"
                         title="Edit notes"

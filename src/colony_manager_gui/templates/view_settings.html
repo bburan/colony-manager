@@ -46,38 +46,41 @@
             {% endfor %}
         </div>
 
-        <div class="card shadow-sm border-0 mt-5 mb-3" id="setting-datatypes" style="scroll-margin-top: 1.5rem;">
-            <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap">
-                <h2 class="h5 mb-0 fw-bold text-uppercase text-secondary">Data Types & Parsers</h2>
-                <button class="btn btn-primary btn-sm"
-                        hx-get="{{ url_for('main.create_datatype_modal') }}"
-                        hx-target="#modalBody">
-                    <i class="fas fa-plus"></i> Add DataType
-                </button>
-            </header>
-
-            <ul class="list-group list-group-flush small" id="list-datatypes">
-                {% for dt in datatypes|sort(attribute='name', case_sensitive=False) %}
-                    {% include 'partials/datatype_list_item.html' %}
-                {% else %}
-                <li class="list-group-item p-4 text-center text-muted" id="no-datatypes-msg">
-                    No Data Types configured.
-                </li>
-                {% endfor %}
-            </ul>
+        <div class="card shadow-sm mb-3" id="setting-datatypes" style="scroll-margin-top: 1.5rem;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Data Types &amp; Parsers</h2>
+                    <button class="btn btn-primary btn-sm"
+                            hx-get="{{ url_for('main.create_datatype_modal') }}"
+                            hx-target="#modalBody">
+                        <i class="fas fa-plus"></i> Add DataType
+                    </button>
+                </div>
+                <ul class="list-group list-group-flush small" id="list-datatypes">
+                    {% for dt in datatypes|sort(attribute='name', case_sensitive=False) %}
+                        {% include 'partials/datatype_list_item.html' %}
+                    {% else %}
+                    <li class="list-group-item p-4 text-center text-muted" id="no-datatypes-msg">
+                        No Data Types configured.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
         <div id="error-datatypes"></div>
 
-        <div class="card shadow-sm border-0 mb-5" id="setting-jobs" style="scroll-margin-top: 1.5rem;">
-            <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h2 class="h5 mb-0 fw-bold text-uppercase text-secondary">Sync Jobs</h2>
-                <small class="text-muted">Auto-refreshes every 5s</small>
-            </header>
-            <div id="recent-jobs-panel"
-                 hx-get="{{ url_for('main.list_recent_jobs') }}"
-                 hx-trigger="every 5s"
-                 hx-swap="innerHTML">
-                {% include 'partials/recent_jobs_panel.html' %}
+        <div class="card shadow-sm mb-3" id="setting-jobs" style="scroll-margin-top: 1.5rem;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Sync Jobs</h2>
+                    <small class="text-muted">Auto-refreshes every 5s</small>
+                </div>
+                <div id="recent-jobs-panel"
+                     hx-get="{{ url_for('main.list_recent_jobs') }}"
+                     hx-trigger="every 5s"
+                     hx-swap="innerHTML">
+                    {% include 'partials/recent_jobs_panel.html' %}
+                </div>
             </div>
         </div>
     </div>

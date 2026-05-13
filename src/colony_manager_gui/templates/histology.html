@@ -15,8 +15,8 @@ Histology
 {% endwith %}
 
 <div class="card shadow-sm">
-    <div class="card-header d-flex justify-content-between">
-        Ears
+    <div class="card-header">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Ears</h2>
     </div>
 	<div class="card-body">
         <table class="table table-hover align-middle mb-0 small">
@@ -36,6 +36,8 @@ Histology
             <tbody>
             {% for ear in ears %}
                 {% include 'partials/ear_row.html' %}
+            {% else %}
+            <tr><td colspan="9" class="text-center text-muted small fst-italic py-4">No ears match the current filters.</td></tr>
             {% endfor %}
             </tbody>
         </table>

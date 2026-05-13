@@ -26,19 +26,19 @@
             {% endif %}
         {% endfor %}
 
-        <div class="card-header d-flex justify-content-between">
-            <div>
-                <i class="fas fa-filter me-2"></i>Filters & Sorting
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center">
+                <i class="fas fa-filter me-2"></i>Filters &amp; Sorting
                 <span class="badge bg-light text-secondary border ms-3 fw-normal">
                     {{ result_count }} {{ result_label|default('Results') }}
                 </span>
-            </div>
+            </h2>
             <a href="{{ reset_url }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">
                 <i class="fas fa-undo-alt me-1"></i>
             </a>
         </div>
 
-        <div class="card-body pt-1 pb-3 px-3">
+        <div class="card-body pt-2 pb-3 px-3">
             <div class="row g-3">
                 {{ macros.filter_button_group('side_filter', 'Side', filters, filter_options['side_filter']) }}
                 {{ macros.filter_button_group('sex_filter', 'Sex', filters, filter_options['sex_filter']) }}

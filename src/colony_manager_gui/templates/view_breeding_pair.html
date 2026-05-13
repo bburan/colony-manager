@@ -9,16 +9,18 @@ Breeding Pair {{ pair.custom_id }}
 <div class="row">
     <div class="col-4">
         <div class="card shadow-sm mb-4">
-            <div class="card-header">Information</div>
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Information</h2>
+            </div>
             <div class="card-body">
-                <dl class="row">
-                    <dt class="col-6">Male</dt>
+                <dl class="row mb-0 small">
+                    <dt class="col-6 text-muted fw-normal">Male</dt>
                     <dd class="col-6">{{ pair.male.display_id }}</dd>
-                    <dt class="col-6">Female</dt>
+                    <dt class="col-6 text-muted fw-normal">Female</dt>
                     <dd class="col-6">{{ pair.female.display_id }}</dd>
-                    <dt class="col-6">Start Date</dt>
+                    <dt class="col-6 text-muted fw-normal">Start Date</dt>
                     <dd class="col-6">{{ pair.start_date.strftime('%B %d, %Y') }}</dd>
-                    <dt class="col-6">Litters</dt>
+                    <dt class="col-6 text-muted fw-normal">Litters</dt>
                     <dd class="col-6">{{ pair.litters.count() }}</dd>
                 </dl>
             </div>
@@ -26,12 +28,12 @@ Breeding Pair {{ pair.custom_id }}
     </div>
     <div class="col-8">
         <div class="card shadow-sm mb-4">
-            <div class="card-header d-flex justify-content-between">
-                Litters
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Litters</h2>
                 <button class="btn btn-sm" hx-get="{{ url_for('breeding.create_litter_modal', breeding_pair_id=pair.id) }}" hx-target="#modalBody"><i class="fas fa-paw"> +</i></button>
             </div>
             <div class="card-body">
-                <table class="table table-hover small">
+                <table class="table table-sm table-hover align-middle small mb-0">
                     <thead>
                         <th>Birth</th>
                         <th>Count</th>
@@ -54,6 +56,8 @@ Breeding Pair {{ pair.custom_id }}
                                     </div>
                                 </td>
                             </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted small fst-italic py-4">No litters recorded.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

@@ -79,12 +79,6 @@
                     <i class="fas fa-comment df-note-indicator flex-shrink-0" title="{{ f.notes }}"></i>
                     {% endif %}
                 </button>
-                <a href="{{ url_for('data_files.view_raw', data_id=f.id) }}"
-                   target="_blank"
-                   class="btn btn-sm flex-shrink-0"
-                   data-bs-toggle="tooltip" title="Open file">
-                    <i class="fas fa-up-right-from-square"></i>
-                </a>
                 <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
             </div>
             <div x-show="open" x-cloak class="df-body px-3 pt-2 pb-3">

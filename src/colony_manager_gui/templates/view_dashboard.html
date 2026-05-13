@@ -19,16 +19,19 @@ Dashboard
     <div class="col-md-6 col-lg-3">
         <div class="card shadow-sm h-100">
             <a href="{{ url_for(url) }}" class="stretched-link"></a>
-            <div class="card-body p-4">
-                <div class="d-flex align-items-top">
-                    <i class="fas {{ icon }} fa-2x"></i>
-                    <div class="ms-4">
-                        <h3 class="small fw-bold text-uppercase mb-1">
+            <div class="card-body">
+                <div class="d-flex align-items-top gap-3">
+                    <i class="fas {{ icon }} fa-lg text-secondary mt-1"></i>
+                    <div class="flex-grow-1">
+                        <h3 class="h6 small fw-bold text-uppercase text-secondary mb-2">
                             {{ label }}
                         </h3>
-                        <ul class="list-group list-group-flush">
+                        <ul class="list-unstyled small mb-0">
                             {% for species, number in info %}
-                                <li class="list-group-item">{{ species }} {{ number }}</li>
+                                <li class="d-flex justify-content-between border-bottom py-1">
+                                    <span class="text-muted">{{ species }}</span>
+                                    <span class="fw-semibold">{{ number }}</span>
+                                </li>
                             {% endfor %}
                         </ul>
                     </div>
@@ -43,7 +46,7 @@ Dashboard
     <div class="col-6">
         <div class="card shadow-sm">
             <div class="card-header">
-                <i class="fas fa-calendar me-2"></i>Upcoming Schedule (overdue and next 7 days)
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-calendar me-2"></i>Upcoming Schedule (overdue and next 7 days)</h2>
             </div>
             <div class="card-body">
                 {% include "partials/upcoming_schedule.html" %}
@@ -53,7 +56,9 @@ Dashboard
 
     <div class="col-6">
         <div class="card shadow-sm">
-            <div class="card-header"><i class="fas fa-weight-scale me-2"></i>Weights</div>
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-weight-scale me-2"></i>Weights</h2>
+            </div>
             <div class="card-body">
             {% include "partials/weight_table.html" %}
             </div>
@@ -65,7 +70,7 @@ Dashboard
     <div class="col-6">
         <div class="card shadow-sm">
             <div class="card-header d-flex align-items-center justify-content-between">
-                <span><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</span>
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</h2>
                 <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events|length }}</span>
             </div>
             <div class="card-body">
@@ -78,7 +83,7 @@ Dashboard
     <div class="col-6">
         <div class="card shadow-sm">
             <div class="card-header d-flex align-items-center justify-content-between">
-                <span><i class="fas fa-microscope me-2"></i>Recent Confocal Images (last 7 days)</span>
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-microscope me-2"></i>Recent Confocal Images (last 7 days)</h2>
                 <span class="badge bg-secondary-subtle text-secondary rounded-pill">
                     {{ recent_confocal_groups|length + (1 if unmatched_recent_confocal else 0) }}
                 </span>
@@ -95,14 +100,18 @@ Dashboard
 <div class="row mb-4">
     <div class="col-4">
         <div class="card shadow-sm">
-            <div class="card-header">Upcoming Litters</div>
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Upcoming Litters</h2>
+            </div>
             <div class="card-body">
-                <ul class="list-group">
+                <ul class="list-group list-group-flush small">
                     {% for litter in upcoming_litters %}
-                    <li class="list-group-item">
+                    <li class="list-group-item px-0 py-1">
                         {{ litter.pup_count }} pups {{  litter.age_in_days }} days old from {{ litter.breeding_pair.custom_id }}
                         <a class="stretched-link" href="{{ url_for('breeding.view_breeding_pair', breeding_pair_id=litter.breeding_pair.id) }}"></a>
                     </li>
+                    {% else %}
+                    <li class="text-muted small fst-italic mb-0">No upcoming litters.</li>
                     {% endfor %}
                 </ul>
             </div>
@@ -111,15 +120,19 @@ Dashboard
 
     <div class="col-4">
         <div class="card shadow-sm">
-            <div class="card-header">Animals Without a Study</div>
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Animals Without a Study</h2>
+            </div>
             <div class="card-body">
-                <div>{{ available_animals_n }} animals available for testing</div>
-                <ul class="list-group">
+                <div class="small text-muted mb-2">{{ available_animals_n }} animals available for testing</div>
+                <ul class="list-group list-group-flush small">
                     {% for animal in unassigned_animals %}
-                        <li class="list-group-item">
+                        <li class="list-group-item px-0 py-1">
                             {{ animal.custom_id }}
                             <a class="stretched-link" href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"></a>
                         </li>
+                    {% else %}
+                    <li class="text-muted small fst-italic mb-0">None.</li>
                     {% endfor %}
                 </ul>
             </div>
@@ -128,14 +141,18 @@ Dashboard
 
     <div class="col-4">
         <div class="card shadow-sm">
-            <div class="card-header">Recently Terminated</div>
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Recently Terminated</h2>
+            </div>
             <div class="card-body">
-                <ul class="list-group">
+                <ul class="list-group list-group-flush small">
                     {% for animal in recent_terminations %}
-                        <li class="list-group-item">
+                        <li class="list-group-item px-0 py-1">
                         {{ animal.display_id }} on {{ animal.termination_date.strftime('%B %d, %Y') }}
                         <a class="stretched-link" href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"></a>
                         </li>
+                    {% else %}
+                    <li class="text-muted small fst-italic mb-0">No recent terminations.</li>
                     {% endfor %}
                 </ul>
             </div>
@@ -153,7 +170,9 @@ Dashboard
     {% for text, images in images %}
         <div class="col-6">
             <div class="card shadow-sm">
-                <div class="card-header">Images pending {{ text }}</div>
+                <div class="card-header">
+                    <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Images pending {{ text }}</h2>
+                </div>
                 <div class="card-body">
                     <ul class="list-group list-group-flush small">
                         {% for ear_group in images|groupby('ear') %}

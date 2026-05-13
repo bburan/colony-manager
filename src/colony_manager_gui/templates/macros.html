@@ -52,6 +52,11 @@
             title="{{ cb_name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
             <i class="fas fa-image"></i>
         </button>
+        {% elif cb_info.type == 'dict' %}
+        <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
+            title="{{ cb_name }}" onclick="openDictModal('{{ url_for('animals.view_data_dict', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
+            <i class="fas fa-list"></i>
+        </button>
         {% endif %}
     {% endfor %}
     {% endif %}

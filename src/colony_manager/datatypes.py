@@ -116,6 +116,24 @@ def pdf_callback(name):
     return decorator
 
 
+def dict_callback(name):
+    """Mark a method as a dict-returning callback (e.g. experiment settings).
+
+    The method should return a flat ``{label: value}`` mapping that will
+    be rendered in the UI as a definition list inside a modal popup.
+
+    Parameters
+    ----------
+    name : str
+        Friendly name shown in the UI (e.g. ``'Settings'``).
+    """
+    def decorator(method):
+        method._callback_type = 'dict'
+        method._callback_name = name
+        return method
+    return decorator
+
+
 def image_callback(name):
     """Mark a method as an image callback (returns path or BytesIO).
 

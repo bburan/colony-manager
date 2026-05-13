@@ -709,6 +709,30 @@ def view_data_pdf(data_id, callback_name):
         return f"Error generating PDF: {str(e)}", 500
 
 
+@animals_bp.route('/data/<int:data_id>/dict/<path:callback_name>')
+def view_data_dict(data_id, callback_name):
+    """Invoke a dict callback and render as an HTML partial."""
+    pair, err = _resolve_callback(data_id, callback_name)
+    if err:
+        msg, status = err
+        return msg, status
+    desc, cb_info = pair
+    try:
+        result = desc.invoke_callback(callback_name)
+        if not isinstance(result, dict):
+            return (
+                f"Callback did not return a dict: got "
+                f"{type(result).__name__}"
+            ), 500
+        return render_template(
+            'partials/data_file_dict.html',
+            items=result,
+            title=callback_name,
+        )
+    except Exception as e:
+        return f"Error rendering callback: {str(e)}", 500
+
+
 @animals_bp.route('/data/<int:data_id>/image/<path:callback_name>')
 def view_data_image(data_id, callback_name):
     """Invoke an image callback and stream the resulting JPG."""

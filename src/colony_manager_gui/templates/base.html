@@ -601,6 +601,18 @@
       </div>
     </div>
 
+    <div class="modal fade" id="dictModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-sm">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title h6 fw-bold text-uppercase text-secondary" id="dictModalTitle">Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3" id="dictModalBody"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content shadow-sm">
@@ -614,6 +626,23 @@
     </div>
 
     <script>
+    async function openDictModal(url, title) {
+        const modalElement = document.getElementById('dictModal');
+        const titleEl = document.getElementById('dictModalTitle');
+        const bodyEl = document.getElementById('dictModalBody');
+        titleEl.textContent = title || 'Settings';
+        bodyEl.innerHTML = '<div class="d-flex justify-content-center p-5"><div class="spinner-border text-primary" role="status"></div></div>';
+        const inst = bootstrap.Modal.getOrCreateInstance(modalElement);
+        inst.show();
+        try {
+            const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) throw new Error(await resp.text() || 'Server returned an error');
+            bodyEl.innerHTML = await resp.text();
+        } catch (e) {
+            bodyEl.innerHTML = '<div class="alert alert-danger m-3">' + e.message + '</div>';
+        }
+    }
+
     function openImageModal(url, title) {
         const modalElement = document.getElementById('imageModal');
         const titleEl = document.getElementById('imageModalTitle');

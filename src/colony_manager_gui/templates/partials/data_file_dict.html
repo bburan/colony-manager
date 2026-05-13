@@ -1,0 +1,11 @@
+{# Args: items (dict), title (str) #}
+{% if items %}
+<dl class="row small mb-0">
+    {% for k, v in items.items() %}
+    <dt class="col-sm-4 text-muted">{{ k }}</dt>
+    <dd class="col-sm-8 mb-1">{{ v if v is not none else '—' }}</dd>
+    {% endfor %}
+</dl>
+{% else %}
+<div class="text-muted small fst-italic">No data.</div>
+{% endif %}

@@ -18,6 +18,23 @@ def render_error_alert(message=None, form=None, alert_class='py-2 small', oob_id
     )
 
 
+def render_modal(form, *, label, submit_url, item=None,
+                 partial='partials/form_modal.html', **extra):
+    """Render a standard form-modal partial.
+
+    Every modal-render route in the app follows the same shape: load
+    object, build a form, then call ``render_template('partials/form_modal.html',
+    form=..., item=..., label=..., submit_url=...)``. This consolidates the
+    call. Pass ``partial`` to override the template (e.g. ``form_event_modal.html``)
+    and any additional kwargs in ``extra`` flow through unchanged
+    (``hx_target``, ``hx_swap``, ``target_requires_side``, etc).
+    """
+    return render_template(
+        partial, form=form, item=item, label=label, submit_url=submit_url,
+        **extra,
+    )
+
+
 def htmx_or_redirect(*, partial=None, context=None, body=None,
                      trigger=None, oob_clear_id=None,
                      flash_message=None, flash_category='success',

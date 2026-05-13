@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from colony_manager.models import Study, Animal
 from .. import db
 from ..forms import StudyForm, AddToStudyForm, QuickAddToStudyForm, NoteForm
-from .util import flash_form_errors
+from .util import flash_form_errors, render_modal
 
 studies_bp = Blueprint('studies', __name__)
 
@@ -110,13 +110,13 @@ def add_study_animal(animal_id):
 # --- Modal Routes ---
 @studies_bp.route('/create_modal')
 def create_study_modal():
-    form = StudyForm()
-    return render_template('partials/form_modal.html', form=form, item=None,
-                           label='Add Study', submit_url=url_for('studies.create_study'))
+    return render_modal(StudyForm(), label='Add Study',
+                        submit_url=url_for('studies.create_study'))
+
 
 @studies_bp.route('/<int:study_id>/edit_modal')
 def edit_study_modal(study_id):
     study = Study.query.get_or_404(study_id)
-    form = StudyForm(obj=study)
-    return render_template('partials/form_modal.html', form=form, item=study,
-                           label=f'Edit Study {study.name}', submit_url=url_for('studies.update_study', study_id=study.id))
+    return render_modal(StudyForm(obj=study), item=study,
+                        label=f'Edit Study {study.name}',
+                        submit_url=url_for('studies.update_study', study_id=study.id))

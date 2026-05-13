@@ -10,7 +10,7 @@ from colony_manager.models import (
 )
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
-from .util import flash_form_errors, render_error_alert, is_htmx
+from .util import flash_form_errors, render_error_alert, is_htmx, render_modal
 
 histology_bp = Blueprint('histology', __name__)
 
@@ -376,24 +376,26 @@ def delete_confocal_image(image_id):
 @histology_bp.route('/ears/<int:ear_id>/edit_note_modal')
 def edit_ear_note_modal(ear_id):
     ear = Ear.query.get_or_404(ear_id)
-    form = NoteForm(obj=ear)
     hx_target = request.args.get('hx_target', '#ear-notes-card')
-    return render_template('partials/form_modal.html', form=form, item=ear,
-                           label=f'Edit note for {ear.animal.custom_id} {ear.side}', 
-                           submit_url=url_for('histology.update_ear_note', ear_id=ear.id, hx_target=hx_target),
-                           hx_target=hx_target,
-                           hx_swap="outerHTML")
+    return render_modal(
+        NoteForm(obj=ear), item=ear,
+        label=f'Edit note for {ear.animal.custom_id} {ear.side}',
+        submit_url=url_for('histology.update_ear_note', ear_id=ear.id, hx_target=hx_target),
+        hx_target=hx_target, hx_swap='outerHTML',
+    )
+
 
 @histology_bp.route('/ears/<int:ear_id>/edit_histology_modal')
 def edit_ear_histology_modal(ear_id):
     ear = Ear.query.get_or_404(ear_id)
-    form = HistologyForm(obj=ear)
     hx_target = request.args.get('hx_target', '#ear-histology-card')
-    return render_template('partials/form_modal.html', form=form, item=ear,
-                           label=f'Edit histology for {ear.animal.custom_id} {ear.side}', 
-                           submit_url=url_for('histology.update_ear_histology', ear_id=ear.id, hx_target=hx_target),
-                           hx_target=hx_target,
-                           hx_swap="outerHTML")
+    return render_modal(
+        HistologyForm(obj=ear), item=ear,
+        label=f'Edit histology for {ear.animal.custom_id} {ear.side}',
+        submit_url=url_for('histology.update_ear_histology', ear_id=ear.id, hx_target=hx_target),
+        hx_target=hx_target, hx_swap='outerHTML',
+    )
+
 
 @histology_bp.route('/confocal_images/<int:image_id>/edit_modal')
 def edit_confocal_image_modal(image_id):
@@ -404,12 +406,12 @@ def edit_confocal_image_modal(image_id):
 @histology_bp.route('/ears/<int:ear_id>/confocal_images/create_modal')
 def create_confocal_images_modal(ear_id):
     ear = Ear.query.get_or_404(ear_id)
-    form = ConfocalImageForm()
-    return render_template('partials/form_modal.html', form=form, item=ear,
-                           label=f'Add images for {ear.animal.custom_id} {ear.side}', 
-                           submit_url=url_for('histology.create_confocal_image', ear_id=ear.id),
-                           hx_target="#confocal-image-table-container",
-                           hx_swap="outerHTML")
+    return render_modal(
+        ConfocalImageForm(), item=ear,
+        label=f'Add images for {ear.animal.custom_id} {ear.side}',
+        submit_url=url_for('histology.create_confocal_image', ear_id=ear.id),
+        hx_target='#confocal-image-table-container', hx_swap='outerHTML',
+    )
 
 # --- AJAX Popover Routes ---
 @histology_bp.route('/ears/<int:ear_id>/images_popover')

@@ -15,7 +15,7 @@ from .. import db
 from .. import forms
 from .. import models
 from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
-from .util import flash_form_errors
+from .util import flash_form_errors, render_modal
 
 
 animals_bp = Blueprint('animals', __name__)
@@ -422,53 +422,50 @@ def update_animal_daily_log(animal_id, date):
 def create_animal_modal(cage_id):
     cage = Cage.query.get_or_404(cage_id)
     animal = cage.animals.first()
-    form = AnimalForm(
-        cage=cage,
-        dob=animal.dob,
-        sex=animal.sex,
-    )
-    return render_template('partials/form_modal.html', form=form, item=None,
-                           label='Create new animal', submit_url=url_for('animals.create_animal'))
+    form = AnimalForm(cage=cage, dob=animal.dob, sex=animal.sex)
+    return render_modal(form, label='Create new animal',
+                        submit_url=url_for('animals.create_animal'))
+
 
 @animals_bp.route('/<int:animal_id>/edit_modal')
 def edit_animal_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = AnimalForm(obj=animal)
-    return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Edit {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+    return render_modal(AnimalForm(obj=animal), item=animal,
+                        label=f'Edit {animal.display_id}',
+                        submit_url=url_for('animals.update_animal', animal_id=animal.id))
+
 
 @animals_bp.route('/<int:animal_id>/assign_id_modal')
 def assign_animal_id_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
     form = AnimalCustomIDForm(custom_id=f'{animal.cage.custom_id}-')
-    return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Assign ID for {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+    return render_modal(form, item=animal,
+                        label=f'Assign ID for {animal.display_id}',
+                        submit_url=url_for('animals.update_animal', animal_id=animal.id))
+
 
 @animals_bp.route('/<int:animal_id>/edit_note_modal')
 def edit_animal_note_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = NoteForm(obj=animal)
-    return render_template('partials/form_modal.html', form=form, item=animal,
-                           label=f'Edit note for {animal.display_id}', submit_url=url_for('animals.update_animal', animal_id=animal.id))
+    return render_modal(NoteForm(obj=animal), item=animal,
+                        label=f'Edit note for {animal.display_id}',
+                        submit_url=url_for('animals.update_animal', animal_id=animal.id))
+
 
 @animals_bp.route('/<int:animal_id>/terminate_modal')
 def terminate_animal_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = TerminationForm(obj=animal)
-    return render_template(
-        'partials/form_modal.html', form=form, item=animal,
-                           label=f'Remove {animal.display_id}', submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
+    return render_modal(TerminationForm(obj=animal), item=animal,
+                        label=f'Remove {animal.display_id}',
+                        submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
+
 
 @animals_bp.route('/<int:animal_id>/quick_add_study_modal')
 def add_study_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = QuickAddToStudyForm()
-    return render_template(
-        'partials/form_modal.html',
-        form=form,
-        item=animal,
-        label=f'Add study for {animal.display_id}',
-        submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
+    return render_modal(QuickAddToStudyForm(), item=animal,
+                        label=f'Add study for {animal.display_id}',
+                        submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
 
 # --- Animal Event Modals ---
 def _target_requires_side_map():
@@ -481,34 +478,37 @@ def _target_requires_side_map():
 @animals_bp.route('/<int:animal_id>/events/create_modal')
 def create_animal_event_modal(animal_id):
     animal = Animal.query.get_or_404(animal_id)
-    form = AnimalEventForm(animal=animal)
-    return render_template(
-        'partials/form_event_modal.html', form=form, item=animal,
+    return render_modal(
+        AnimalEventForm(animal=animal), item=animal,
         label=f'Create event for {animal.display_id}',
         submit_url=url_for('animals.create_animal_event', animal_id=animal.id),
+        partial='partials/form_event_modal.html',
         target_requires_side=_target_requires_side_map(),
         is_edit=False,
     )
 
+
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
-    form = AnimalEventEditForm(obj=event)
-    return render_template(
-        'partials/form_event_modal.html', form=form, item=event,
+    return render_modal(
+        AnimalEventEditForm(obj=event), item=event,
         label=f'Edit event for {event.animal.display_id}',
         submit_url=url_for('animals.update_animal_event', event_id=event.id),
+        partial='partials/form_event_modal.html',
         target_requires_side=_target_requires_side_map(),
         is_edit=True,
     )
+
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
     event = AnimalEvent.query.get_or_404(event_id)
     form = AnimalEventEditForm(obj=event)
     mark_disabled(form)
-    return render_template('partials/form_modal.html', form=form, item=event,
-                           label=f'Remove event for {event.animal.display_id}', submit_url=url_for('animals.delete_animal_event', event_id=event.id))
+    return render_modal(form, item=event,
+                        label=f'Remove event for {event.animal.display_id}',
+                        submit_url=url_for('animals.delete_animal_event', event_id=event.id))
 
 
 # --- Animal Weight/Feed Modals ---
@@ -526,12 +526,11 @@ def create_animal_daily_log_modal(animal_id, date=None):
     form = DailyLogForm(feedings=feed_data, date=date, current_baseline=animal.baseline_weight)
     if disable_date:
         mark_readonly(form, 'date')
-    return render_template(
-        'partials/form_daily_log_modal.html',
-        form=form,
-        item=animal,
+    return render_modal(
+        form, item=animal,
         label=f'Add entry for {animal.display_id}',
-        submit_url=url_for('animals.create_animal_daily_log', animal_id=animal.id)
+        submit_url=url_for('animals.create_animal_daily_log', animal_id=animal.id),
+        partial='partials/form_daily_log_modal.html',
     )
 
 def _generate_daily_log_form(animal_id, date):
@@ -574,28 +573,23 @@ def _generate_daily_log_form(animal_id, date):
 def update_animal_daily_log_modal(animal_id, date):
     animal, form = _generate_daily_log_form(animal_id, date)
     mark_disabled(form, 'date')
-    return render_template(
-        'partials/form_daily_log_modal.html',
-        form=form,
-        item=animal,
+    return render_modal(
+        form, item=animal,
         label=f'Update entry for {animal.display_id}',
-        submit_url=url_for('animals.update_animal_daily_log',
-                           animal_id=animal.id,
-                           date=date)
+        submit_url=url_for('animals.update_animal_daily_log', animal_id=animal.id, date=date),
+        partial='partials/form_daily_log_modal.html',
     )
+
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete_modal')
 def delete_animal_daily_log_modal(animal_id, date):
     animal, form = _generate_daily_log_form(animal_id, date)
     mark_disabled(form)
-    return render_template(
-        'partials/form_daily_log_modal.html',
-        form=form,
-        item=animal,
+    return render_modal(
+        form, item=animal,
         label=f'Delete entry for {animal.display_id}',
-        submit_url=url_for('animals.delete_animal_daily_log',
-                           animal_id=animal.id,
-                           date=date)
+        submit_url=url_for('animals.delete_animal_daily_log', animal_id=animal.id, date=date),
+        partial='partials/form_daily_log_modal.html',
     )
 
 

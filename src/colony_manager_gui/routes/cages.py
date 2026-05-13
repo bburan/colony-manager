@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload
 from colony_manager.models import Cage, Animal
 from .. import db
 from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
-from .util import flash_form_errors  # Importing the new utility
+from .util import flash_form_errors, render_modal
 
 cages_bp = Blueprint('cages', __name__)
 
@@ -131,18 +131,13 @@ def update_cage_note(cage_id):
 # --- Modal Routes ---
 @cages_bp.route('/create_modal')
 def create_cage_modal():
-    form = CageForm()
-    return render_template('partials/form_modal.html', form=form, item=None,
-                           label='Add Cage', submit_url=url_for('cages.create_cage'))
+    return render_modal(CageForm(), label='Add Cage',
+                        submit_url=url_for('cages.create_cage'))
+
 
 @cages_bp.route('/<int:cage_id>/edit_note_modal')
 def update_cage_note_modal(cage_id):
     cage = Cage.query.get_or_404(cage_id)
-    form = NoteForm(obj=cage)
-    return render_template(
-        'partials/form_modal.html',
-        form=form,
-        item=cage,
-        label=f'Edit note for {cage.custom_id}',
-        submit_url=url_for('cages.update_cage_note', cage_id=cage.id)
-    )
+    return render_modal(NoteForm(obj=cage), item=cage,
+                        label=f'Edit note for {cage.custom_id}',
+                        submit_url=url_for('cages.update_cage_note', cage_id=cage.id))

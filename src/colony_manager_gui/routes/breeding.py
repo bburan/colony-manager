@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from colony_manager.models import BreedingPair, Litter, Animal, Cage
 from .. import db
 from ..forms import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
-from .util import flash_form_errors
+from .util import flash_form_errors, render_modal
 
 breeding_bp = Blueprint('breeding', __name__)
 
@@ -159,34 +159,39 @@ def wean_litter(litter_id):
 
 @breeding_bp.route('/create_modal')
 def create_breeding_pair_modal():
-    form = BreedingPairForm()
-    return render_template('partials/bp_form_modal.html', form=form, item=None,
-                           label='Add Breeding Pair', submit_url=url_for('breeding.create_breeding_pair'))
+    return render_modal(BreedingPairForm(), label='Add Breeding Pair',
+                        submit_url=url_for('breeding.create_breeding_pair'),
+                        partial='partials/bp_form_modal.html')
+
 
 @breeding_bp.route('/<int:breeding_pair_id>/litters/create_modal')
 def create_litter_modal(breeding_pair_id):
     pair = BreedingPair.query.get_or_404(breeding_pair_id)
-    form = LitterForm()
-    return render_template('partials/form_modal.html', form=form, item=pair,
-                           label=f'Add litter for {pair.custom_id}', submit_url=url_for('breeding.create_litter', breeding_pair_id=pair.id))
+    return render_modal(LitterForm(), item=pair,
+                        label=f'Add litter for {pair.custom_id}',
+                        submit_url=url_for('breeding.create_litter', breeding_pair_id=pair.id))
+
 
 @breeding_bp.route('/litters/<int:litter_id>/edit_modal')
 def edit_litter_modal(litter_id):
     litter = Litter.query.get_or_404(litter_id)
-    form = LitterForm(obj=litter)
-    return render_template('partials/form_modal.html', form=form, item=litter,
-                           label=f'Edit litter for {litter.breeding_pair.custom_id}', submit_url=url_for('breeding.update_litter', litter_id=litter.id))
+    return render_modal(LitterForm(obj=litter), item=litter,
+                        label=f'Edit litter for {litter.breeding_pair.custom_id}',
+                        submit_url=url_for('breeding.update_litter', litter_id=litter.id))
+
 
 @breeding_bp.route('/litters/<int:litter_id>/delete_modal')
 def delete_litter_modal(litter_id):
     litter = Litter.query.get_or_404(litter_id)
-    form = LitterDeleteForm(obj=litter)
-    return render_template('partials/form_modal.html', form=form, item=litter,
-                           label=f'Delete litter from {litter.breeding_pair.custom_id}', submit_url=url_for('breeding.delete_litter', litter_id=litter.id))
+    return render_modal(LitterDeleteForm(obj=litter), item=litter,
+                        label=f'Delete litter from {litter.breeding_pair.custom_id}',
+                        submit_url=url_for('breeding.delete_litter', litter_id=litter.id))
+
 
 @breeding_bp.route('/litters/<int:litter_id>/wean_modal')
 def wean_litter_modal(litter_id):
     litter = Litter.query.get_or_404(litter_id)
-    form = WeaningForm()
-    return render_template('partials/bp_wean_form_modal.html', form=form, item=litter,
-                           label=f'Wean litter from {litter.breeding_pair.custom_id}', submit_url=url_for('breeding.wean_litter', litter_id=litter.id))
+    return render_modal(WeaningForm(), item=litter,
+                        label=f'Wean litter from {litter.breeding_pair.custom_id}',
+                        submit_url=url_for('breeding.wean_litter', litter_id=litter.id),
+                        partial='partials/bp_wean_form_modal.html')

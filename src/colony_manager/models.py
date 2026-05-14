@@ -585,10 +585,6 @@ class Cage(VersionedModel):
         return self.animals.filter_by(termination_date=None).count()
 
     @property
-    def sources(self):
-        return sorted({a.source for a in self._iter_animals()})
-
-    @property
     def is_active(self):
         return self.active_animals_count > 0
 

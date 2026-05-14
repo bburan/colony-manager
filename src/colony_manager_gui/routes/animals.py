@@ -2,7 +2,7 @@ import datetime
 import re
 from datetime import date
 
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
@@ -679,11 +679,27 @@ def list_unmatched_data():
     """Files where the sync script could not link to any target."""
     from colony_manager.models import DataType, DATA_SUBCLASSES
     from sqlalchemy import union_all
+    from datetime import datetime
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     target_type_filter = request.args.get('target_type', 'all')
     datatype_id_filter = request.args.get('datatype_id', None, type=int)
+    status_filter = request.args.get('status', 'all')
+    search_filter = (request.args.get('q', '') or '').strip()
+    date_from_raw = (request.args.get('date_from', '') or '').strip()
+    date_to_raw = (request.args.get('date_to', '') or '').strip()
+    sort = request.args.get('sort', 'date')
+    direction = request.args.get('dir', 'desc')
+
+    def _parse_date(raw):
+        try:
+            return datetime.strptime(raw, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
+    date_from = _parse_date(date_from_raw)
+    date_to = _parse_date(date_to_raw)
 
     if target_type_filter == 'animal_event':
         query = AnimalEventData.query.filter(~AnimalEventData.events.any())
@@ -704,7 +720,32 @@ def list_unmatched_data():
     if datatype_id_filter:
         query = query.filter(Data.datatype_id == datatype_id_filter)
 
-    query = query.order_by(Data.date.desc(), Data.name)
+    if status_filter and status_filter != 'all':
+        query = query.filter(Data.status == status_filter)
+
+    if search_filter:
+        like = f'%{search_filter}%'
+        query = query.filter(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
+
+    if date_from is not None:
+        query = query.filter(Data.date >= date_from)
+    if date_to is not None:
+        query = query.filter(Data.date <= date_to)
+
+    sort_columns = {
+        'date': Data.date,
+        'name': Data.name,
+        'datatype': DataType.name,
+        'status': Data.status,
+    }
+    sort_col = sort_columns.get(sort, Data.date)
+    if sort == 'datatype':
+        query = query.join(DataType, Data.datatype_id == DataType.id)
+    if direction == 'asc':
+        query = query.order_by(sort_col.asc(), Data.name.asc())
+    else:
+        query = query.order_by(sort_col.desc(), Data.name.asc())
+
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     datatypes = DataType.query.order_by(DataType.name).all()
@@ -716,6 +757,12 @@ def list_unmatched_data():
             'target_type': target_type_filter,
             'datatype_id': datatype_id_filter,
             'per_page': per_page,
+            'status': status_filter,
+            'q': search_filter,
+            'date_from': date_from_raw,
+            'date_to': date_to_raw,
+            'sort': sort,
+            'dir': direction,
         },
         datatypes=datatypes,
     )

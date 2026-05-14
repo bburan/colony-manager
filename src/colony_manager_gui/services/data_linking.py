@@ -9,6 +9,7 @@ entity — so they're consolidated here.
 but loading the class itself isn't, so callers that iterate many files
 should reuse a ``desc_cache`` dict.
 """
+import math
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, time
@@ -162,7 +163,7 @@ def resync_confocal_image(image):
             parsed_freq = float(parsed.get('frequency'))
         except (TypeError, ValueError):
             continue
-        if parsed_freq != image.frequency:
+        if not math.isclose(parsed_freq, image.frequency, abs_tol=1e-6):
             continue
         if parsed.get('image_type') != image_type_name:
             continue

@@ -4,40 +4,113 @@
 Unmatched Data Files
 {% endblock %}
 
+{# Build a dict of all current filter values for pagination/sort links. #}
+{% set link_args = {
+    'target_type': filters.target_type,
+    'datatype_id': filters.datatype_id or '',
+    'per_page': filters.per_page,
+    'status': filters.status,
+    'q': filters.q,
+    'date_from': filters.date_from,
+    'date_to': filters.date_to,
+    'sort': filters.sort,
+    'dir': filters.dir,
+} %}
+
+{% macro sort_header(label, key) -%}
+    {% set is_active = filters.sort == key %}
+    {% set next_dir = 'asc' if (is_active and filters.dir == 'desc') else ('desc' if is_active else ('desc' if key == 'date' else 'asc')) %}
+    {% set h_args = link_args.copy() %}
+    {% set _ = h_args.update({'sort': key, 'dir': next_dir, 'page': 1}) %}
+    <a href="{{ url_for('animals.list_unmatched_data', **h_args) }}" class="text-decoration-none text-reset">
+        {{ label }}
+        {% if is_active %}
+            <i class="fas fa-arrow-{{ 'down' if filters.dir == 'desc' else 'up' }} small ms-1"></i>
+        {% endif %}
+    </a>
+{%- endmacro %}
+
 {% block content %}
 <div class="card shadow-sm mb-3">
-    <div class="card-body py-2">
-        <form method="GET" class="row g-2 align-items-end">
-            <div class="col-auto">
-                <label class="form-label small mb-1">Target Type</label>
-                <select name="target_type" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="all" {% if filters.target_type == 'all' %}selected{% endif %}>All Types</option>
-                    <option value="animal_event" {% if filters.target_type == 'animal_event' %}selected{% endif %}>Animal Event</option>
-                    <option value="confocal_image" {% if filters.target_type == 'confocal_image' %}selected{% endif %}>Confocal Image</option>
-                    <option value="animal" {% if filters.target_type == 'animal' %}selected{% endif %}>Animal</option>
-                    <option value="ear" {% if filters.target_type == 'ear' %}selected{% endif %}>Ear</option>
-                </select>
+    <form method="GET" action="{{ url_for('animals.list_unmatched_data') }}">
+        <input type="hidden" name="sort" value="{{ filters.sort }}">
+        <input type="hidden" name="dir" value="{{ filters.dir }}">
+        <input type="hidden" name="page" value="1">
+
+        <div class="card-header d-flex justify-content-between align-items-center gap-3">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center">
+                <i class="fas fa-filter me-2"></i>Filters &amp; Sorting
+                <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                    {{ pagination.total }} Results
+                </span>
+            </h2>
+
+            <div class="d-flex align-items-center gap-3">
+                <div class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
+                    <input type="text" name="q" class="form-control border-end-0"
+                           placeholder="Search filename or path..." value="{{ filters.q }}">
+                    <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                </div>
+
+                <a href="{{ url_for('animals.list_unmatched_data') }}"
+                   class="btn btn-link btn-sm text-decoration-none text-muted p-0"
+                   title="Reset all filters">
+                    <i class="fas fa-undo-alt me-1"></i>
+                </a>
             </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">DataType</label>
-                <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">All DataTypes</option>
-                    {% for dt in datatypes %}
-                    <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
-                    {% endfor %}
-                </select>
+        </div>
+
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Target Type</label>
+                    <select name="target_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" {% if filters.target_type == 'all' %}selected{% endif %}>All Types</option>
+                        <option value="animal_event" {% if filters.target_type == 'animal_event' %}selected{% endif %}>Animal Event</option>
+                        <option value="confocal_image" {% if filters.target_type == 'confocal_image' %}selected{% endif %}>Confocal Image</option>
+                        <option value="animal" {% if filters.target_type == 'animal' %}selected{% endif %}>Animal</option>
+                        <option value="ear" {% if filters.target_type == 'ear' %}selected{% endif %}>Ear</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">DataType</label>
+                    <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All DataTypes</option>
+                        {% for dt in datatypes %}
+                        <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Status</label>
+                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" {% if filters.status == 'all' %}selected{% endif %}>All</option>
+                        <option value="unreviewed" {% if filters.status == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
+                        <option value="reviewed" {% if filters.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
+                        <option value="ignored" {% if filters.status == 'ignored' %}selected{% endif %}>Ignored</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Date from</label>
+                    <input type="date" name="date_from" value="{{ filters.date_from }}"
+                           class="form-control form-control-sm" onchange="this.form.submit()">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Date to</label>
+                    <input type="date" name="date_to" value="{{ filters.date_to }}"
+                           class="form-control form-control-sm" onchange="this.form.submit()">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Per page</label>
+                    <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for n in [25, 50, 100, 200] %}
+                        <option value="{{ n }}" {% if filters.per_page == n %}selected{% endif %}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
-            <div class="col-auto">
-                <label class="form-label small mb-1">Per page</label>
-                <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
-                    {% for n in [25, 50, 100, 200] %}
-                    <option value="{{ n }}" {% if filters.per_page == n %}selected{% endif %}>{{ n }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <input type="hidden" name="page" value="1">
-        </form>
-    </div>
+        </div>
+    </form>
 </div>
 
 <div class="card shadow-sm">
@@ -50,13 +123,13 @@ Unmatched Data Files
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    <th>DataType</th>
+                    <th>{{ sort_header('DataType', 'datatype') }}</th>
                     <th>Target</th>
-                    <th>Filename</th>
+                    <th>{{ sort_header('Filename', 'name') }}</th>
                     <th>Location</th>
-                    <th>Date</th>
+                    <th>{{ sort_header('Date', 'date') }}</th>
                     <th>Candidates</th>
-                    <th>Status</th>
+                    <th>{{ sort_header('Status', 'status') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -69,7 +142,7 @@ Unmatched Data Files
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
                     <td class="small">
                         {% set has_candidates = f.candidate_animals or f.candidate_ears %}
-                        {% if f.target_type == 'ear' %}
+                        {% if f.target_type in ('ear', 'confocal_image') %}
                             {% for e in f.candidate_ears %}
                                 <a href="{{ url_for('histology.view_ear', ear_id=e.id) }}"
                                    class="badge bg-light text-dark text-decoration-none">{{ e.full_display }}</a>
@@ -104,19 +177,19 @@ Unmatched Data Files
         <nav aria-label="Unmatched files pagination">
             <ul class="pagination pagination-sm mb-0 justify-content-center">
                 <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.prev_num, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">«</a>
+                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.prev_num, **link_args) }}">«</a>
                 </li>
                 {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if p %}
                     <li class="page-item {% if p == pagination.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=p, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">{{ p }}</a>
+                        <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=p, **link_args) }}">{{ p }}</a>
                     </li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.next_num, target_type=filters.target_type, datatype_id=filters.datatype_id or '', per_page=filters.per_page) }}">»</a>
+                    <a class="page-link" href="{{ url_for('animals.list_unmatched_data', page=pagination.next_num, **link_args) }}">»</a>
                 </li>
             </ul>
         </nav>

@@ -322,7 +322,7 @@ class ConfocalImageDataType(DataType):
             image = ConfocalImage.query.join(Ear).filter(
                 Ear.animal_id == animal.id,
                 Ear.side == ear,
-                ConfocalImage.frequency == float(frequency),
+                func.abs(ConfocalImage.frequency - float(frequency)) < 1e-6,
                 ConfocalImage.image_type_id == image_type.id,
             ).first()
             if image:

@@ -1,14 +1,30 @@
 """Shared pytest fixtures.
 
-The tests in this directory cover the security regressions shipped in
-PRs 1–7. They're deliberately unit-style: no Postgres, no Flask app
-factory, no real DB. The wider integration suite (CSRF on the raw-form
-endpoints, admin-only routes returning 403, etc.) needs a real Postgres
-because of ``pg_advisory_xact_lock`` in the bootstrap-user flow and is
-tracked as a follow-up.
+Two tiers of tests live here:
+
+* **Unit tests** — no Postgres, no Flask app factory. Cover the
+  security regressions shipped in PRs 1–7 and any other helper-level
+  code (``is_safe_url``, escapes, public decorator, etc.).
+* **Integration tests** — Postgres-backed, model + sync core + GUI
+  routes. Use the fixtures from :mod:`tests.db_fixtures` (``db_session``,
+  ``app``, ``client``) which clone a per-worker template database per
+  test. See ``tests/README.md`` for setup.
 """
 import pytest
 from flask import Flask
+
+# Re-export the Postgres fixtures so individual test modules don't have
+# to import them explicitly. Tests that don't need a DB simply don't
+# request ``db_session`` / ``app`` and pay zero startup cost. Plain
+# imports (rather than ``pytest_plugins = ...``) sidestep pytest's
+# deprecation warning for plugin declarations in non-rootdir conftests.
+from .db_fixtures import (  # noqa: F401  (fixtures discovered by name)
+    template_db,
+    test_db,
+    db_session,
+    app,
+    client,
+)
 
 
 @pytest.fixture

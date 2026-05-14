@@ -1,6 +1,12 @@
 <table class="table table-hover small">
     <thead class="bg-light text-secondary text-uppercase fw-bold">
         <tr>
+            {% if show_select_column|default(False) %}
+            <th style="width: 2rem;">
+                <input type="checkbox" class="form-check-input" id="bulk-select-all"
+                       title="Select all on this page">
+            </th>
+            {% endif %}
             <th>Note</th>
             <th>Animal ID</th>
             <th>Species</th>
@@ -14,6 +20,12 @@
     <tbody>
         {% for animal in animals %}
         <tr class="{{ '' if animal.is_active else 'table-danger' }}">
+            {% if show_select_column|default(False) %}
+            <td>
+                <input type="checkbox" class="form-check-input bulk-select-row"
+                       form="bulk-action-form" name="animal_ids" value="{{ animal.id }}">
+            </td>
+            {% endif %}
             <td>
                 <button type="button"
                     class="btn btn-sm btn-{{ '' if animal.notes else 'outline-' }}secondary" 
@@ -89,7 +101,11 @@
         </tr>
         {% else %}
         <tr>
-            <td colspan="8" class="text-center py-5 text-muted">No animals found in this category.</td>
+            {% set empty_cols = 6
+                + (1 if show_study_column|default(True) else 0)
+                + (1 if show_termination_action|default(True) else 0)
+                + (1 if show_select_column|default(False) else 0) %}
+            <td colspan="{{ empty_cols }}" class="text-center py-5 text-muted">No animals found in this category.</td>
         </tr>
         {% endfor %}
     </tbody>

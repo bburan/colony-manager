@@ -62,14 +62,72 @@ Animal Overview
     </form>
 </div>
 
+<form id="bulk-action-form" method="POST" action="{{ url_for('studies.bulk_assign_animals') }}"
+      onsubmit="return document.querySelectorAll('.bulk-select-row:checked').length > 0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
 <div class="card shadow-sm">
-    <div class="card-header">
-        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Animals</h2>
+    <div class="card-header d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center">
+            Animals
+            <span class="badge bg-light text-secondary border ms-2 fw-normal" id="bulk-selection-count">
+                0 selected
+            </span>
+        </h2>
+
+        <div class="d-flex align-items-center gap-2">
+            <label for="bulk-study-select" class="small text-muted mb-0">Assign to study:</label>
+            <select id="bulk-study-select" name="study_id" form="bulk-action-form"
+                    class="form-select form-select-sm" style="max-width: 220px;">
+                <option value="">— Pick a study —</option>
+                {% for s in studies %}
+                <option value="{{ s.id }}">{{ s.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" form="bulk-action-form"
+                    id="bulk-apply-btn"
+                    class="btn btn-sm btn-primary"
+                    disabled>
+                Apply
+            </button>
+        </div>
     </div>
     <div class="card-body">
         {% set show_cage_column = True %}
+        {% set show_select_column = True %}
         {% set age_unit = filters['age_unit'] %}
         {% include 'partials/animal_table.html' %}
     </div>
 </div>
+
+<script>
+(function() {
+    const selectAll = document.getElementById('bulk-select-all');
+    const rows = document.querySelectorAll('.bulk-select-row');
+    const count = document.getElementById('bulk-selection-count');
+    const applyBtn = document.getElementById('bulk-apply-btn');
+    const studySel = document.getElementById('bulk-study-select');
+
+    function refresh() {
+        const n = document.querySelectorAll('.bulk-select-row:checked').length;
+        count.textContent = n + ' selected';
+        applyBtn.disabled = !(n > 0 && studySel.value);
+        if (selectAll) {
+            selectAll.checked = (n > 0 && n === rows.length);
+            selectAll.indeterminate = (n > 0 && n < rows.length);
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            rows.forEach(cb => { cb.checked = selectAll.checked; });
+            refresh();
+        });
+    }
+    rows.forEach(cb => cb.addEventListener('change', refresh));
+    studySel.addEventListener('change', refresh);
+    refresh();
+})();
+</script>
 {% endblock %}

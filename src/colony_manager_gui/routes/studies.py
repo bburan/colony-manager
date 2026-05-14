@@ -91,6 +91,45 @@ def remove_study_animal(study_id, animal_id):
     return redirect(request.referrer or url_for('studies.view_study', study_id=study.id))
 
 
+@studies_bp.route('/bulk_assign', methods=['POST'])
+def bulk_assign_animals():
+    """Add a list of animals (by ID) to a study in one shot.
+
+    Posted from the Animal Overview bulk-action bar: ``study_id`` plus
+    repeated ``animal_ids`` fields.
+    """
+    try:
+        study_id = int(request.form.get('study_id') or 0)
+    except (TypeError, ValueError):
+        study_id = 0
+    animal_ids = request.form.getlist('animal_ids', type=int)
+
+    if not study_id or not animal_ids:
+        flash('Pick a study and at least one animal.', 'warning')
+        return redirect(request.referrer or url_for('animals.list_animals'))
+
+    study = Study.query.get_or_404(study_id)
+    existing = {a.id for a in study.animals.all()}
+    animals = Animal.query.filter(Animal.id.in_(animal_ids)).all()
+
+    added = 0
+    for animal in animals:
+        if animal.id in existing:
+            continue
+        study.animals.append(animal)
+        added += 1
+    db.session.commit()
+
+    skipped = len(animals) - added
+    if added and skipped:
+        flash(f'Added {added} animals to "{study.name}" ({skipped} already in study).', 'success')
+    elif added:
+        flash(f'Added {added} animals to "{study.name}".', 'success')
+    else:
+        flash(f'All selected animals were already in "{study.name}".', 'info')
+    return redirect(request.referrer or url_for('animals.list_animals'))
+
+
 @studies_bp.route('/add/<int:animal_id>', methods=['POST'])
 def add_study_animal(animal_id):
     animal = Animal.query.get_or_404(animal_id)

@@ -182,6 +182,7 @@ def list_animals():
     procedures = AnimalProcedure.get_ordered()
     animal_tags = AnimalTag.get_ordered()
     event_tags = AnimalEventTag.get_ordered()
+    studies = Study.query.order_by(Study.name).all()
 
     return render_template(
         'animals.html',
@@ -189,6 +190,7 @@ def list_animals():
         procedures=procedures,
         animal_tags=animal_tags,
         event_tags=event_tags,
+        studies=studies,
         filters={
             'sort_by': sort_by,
             'sort_dir': sort_dir,

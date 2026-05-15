@@ -41,7 +41,8 @@
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
-            {% set animals = cage.animals|sort(attribute='custom_id') %}
+            {# ``animals`` is sorted in the route (None custom_ids last)
+               so we don't have to do None-safe sorting in Jinja. #}
             {% include 'partials/animal_table.html' %}
             </div>
         </section>

@@ -118,6 +118,38 @@ def test_view_cage_returns_404_for_unknown_id(logged_in_client):
     assert response.status_code == 404
 
 
+def test_view_cage_renders_with_unassigned_custom_id(logged_in_client, db_session):
+    """Regression: cages whose animals include any ``custom_id=None`` row
+    used to crash with ``TypeError: '<' not supported between instances
+    of 'str' and 'NoneType'`` because the template sorted via Jinja's
+    ``|sort(attribute=...)`` without None-handling.
+    """
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='MIX-1')
+    # One animal with a custom_id, one without.
+    make_animal(db_session, cage=cage, species=species, custom_id='M-A')
+    no_id = make_animal(db_session, cage=cage, species=species)
+    no_id.custom_id = None
+    db_session.commit()
+
+    response = logged_in_client.get(f'/cages/{cage.id}')
+    assert response.status_code == 200
+    assert b'M-A' in response.data
+
+
+def test_view_cage_renders_with_all_animals_unassigned(logged_in_client, db_session):
+    """Same regression, but every animal in the cage has custom_id=None."""
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='UNS-1')
+    for _ in range(2):
+        a = make_animal(db_session, cage=cage, species=species)
+        a.custom_id = None
+    db_session.commit()
+
+    response = logged_in_client.get(f'/cages/{cage.id}')
+    assert response.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # Modals
 # ---------------------------------------------------------------------------

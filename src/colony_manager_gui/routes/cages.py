@@ -180,7 +180,15 @@ def list_cages():
 @cages_bp.route('/<int:cage_id>')
 def view_cage(cage_id):
     cage = db.get_or_404(Cage, cage_id)
-    return render_template('view_cage.html', cage=cage)
+    # Sort animals by custom_id with NULLs at the end. The previous
+    # Jinja ``|sort(attribute='custom_id')`` filter raised TypeError on
+    # any cage that held animals with no custom_id yet (e.g. before the
+    # user assigned IDs from the cage detail page).
+    animals = sorted(
+        cage.animals,
+        key=lambda a: (a.custom_id is None, a.custom_id or ''),
+    )
+    return render_template('view_cage.html', cage=cage, animals=animals)
 
 
 @cages_bp.route('/create', methods=['POST'])

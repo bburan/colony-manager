@@ -12,6 +12,8 @@ from werkzeug.utils import safe_join
 
 from colony_manager.models import Data
 
+from .. import db
+
 
 data_files_bp = Blueprint('data_files', __name__)
 
@@ -40,7 +42,7 @@ def _is_image(name):
 
 @data_files_bp.route('/data/<int:data_id>/raw')
 def view_raw(data_id):
-    data_file = Data.query.get_or_404(data_id)
+    data_file = db.get_or_404(Data, data_id)
     full = _resolve_disk_path(data_file)
     mimetype, _ = mimetypes.guess_type(full)
     return send_file(full, mimetype=mimetype or 'application/octet-stream')
@@ -48,7 +50,7 @@ def view_raw(data_id):
 
 @data_files_bp.route('/data/<int:data_id>/thumbnail')
 def view_thumbnail(data_id):
-    data_file = Data.query.get_or_404(data_id)
+    data_file = db.get_or_404(Data, data_id)
     if not _is_image(data_file.name):
         abort(404)
 

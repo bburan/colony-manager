@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from sqlalchemy import select
 
 from colony_manager.models import Study, Animal
 from .. import db
@@ -10,19 +11,29 @@ studies_bp = Blueprint('studies', __name__)
 
 @studies_bp.route('/')
 def list_studies():
-    studies = Study.query.all()
+    studies = db.session.scalars(select(Study)).all()
     return render_template('studies.html', studies=studies)
 
 
 @studies_bp.route('/<int:study_id>')
 def view_study(study_id):
-    study = Study.query.get_or_404(study_id)
+    study = db.get_or_404(Study, study_id)
     edit_form = StudyForm(obj=study)
     add_form = AddToStudyForm()
-    add_form.animals.query = Animal.query.filter(Animal.custom_id != None)
+    # WTForms-SQLAlchemy's QuerySelectField expects a Query object on
+    # ``.query``, not a Select. Use the legacy ``db.session.query(...)``
+    # form rather than ``select(...)``; it's not the global Model.query
+    # monkey-patch we're removing, just SQLAlchemy's session-level
+    # Query API which remains supported in 2.0.
+    add_form.animals.query = db.session.query(Animal).filter(
+        Animal.custom_id != None  # noqa: E711  (SQL IS NOT NULL needs ``!=``)
+    )
 
     if edit_form.data and edit_form.validate_on_submit():
-        if edit_form.name.data != study.name and Study.query.filter_by(name=edit_form.name.data).first():
+        name_collision = db.session.scalars(
+            select(Study).where(Study.name == edit_form.name.data)
+        ).first()
+        if edit_form.name.data != study.name and name_collision:
             flash('A study with this name already exists.', 'danger')
         else:
             study.name = edit_form.name.data
@@ -52,7 +63,7 @@ def create_study():
 
 @studies_bp.route('/<int:study_id>/update', methods=['POST'])
 def update_study(study_id):
-    study = Study.query.get_or_404(study_id)
+    study = db.get_or_404(Study, study_id)
     form = StudyForm(obj=study)
     if form.validate_on_submit():
         form.populate_obj(study)
@@ -65,9 +76,11 @@ def update_study(study_id):
 
 @studies_bp.route('/<int:study_id>/animals/add', methods=['POST'])
 def add_study_animals(study_id):
-    study = Study.query.get_or_404(study_id)
+    study = db.get_or_404(Study, study_id)
     form = AddToStudyForm()
-    form.animals.query = Animal.query.all()
+    # See view_study for why this uses db.session.query(...) instead
+    # of select(...).
+    form.animals.query = db.session.query(Animal)
     if form.validate_on_submit():
         for animal in form.animals.data:
             study.animals.append(animal)
@@ -80,8 +93,8 @@ def add_study_animals(study_id):
 
 @studies_bp.route('/<int:study_id>/animals/<int:animal_id>/delete', methods=['POST'])
 def remove_study_animal(study_id, animal_id):
-    study = Study.query.get_or_404(study_id)
-    animal = Animal.query.get_or_404(animal_id)
+    study = db.get_or_404(Study, study_id)
+    animal = db.get_or_404(Animal, animal_id)
     if animal in study.animals.all():
         study.animals.remove(animal)
         db.session.commit()
@@ -108,9 +121,11 @@ def bulk_assign_animals():
         flash('Pick a study and at least one animal.', 'warning')
         return redirect(request.referrer or url_for('animals.list_animals'))
 
-    study = Study.query.get_or_404(study_id)
+    study = db.get_or_404(Study, study_id)
     existing = {a.id for a in study.animals.all()}
-    animals = Animal.query.filter(Animal.id.in_(animal_ids)).all()
+    animals = db.session.scalars(
+        select(Animal).where(Animal.id.in_(animal_ids))
+    ).all()
 
     added = 0
     for animal in animals:
@@ -132,7 +147,7 @@ def bulk_assign_animals():
 
 @studies_bp.route('/add/<int:animal_id>', methods=['POST'])
 def add_study_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = QuickAddToStudyForm()
     if form.validate_on_submit():
         study = form.study.data
@@ -155,7 +170,7 @@ def create_study_modal():
 
 @studies_bp.route('/<int:study_id>/edit_modal')
 def edit_study_modal(study_id):
-    study = Study.query.get_or_404(study_id)
+    study = db.get_or_404(Study, study_id)
     return render_modal(StudyForm(obj=study), item=study,
                         label=f'Edit Study {study.name}',
                         submit_url=url_for('studies.update_study', study_id=study.id))

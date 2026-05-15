@@ -50,7 +50,19 @@ docker compose exec redis redis-cli LLEN rq:queue:sync
 # Most recent jobs (SQL)
 docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB \
     -c "SELECT id, kind, status, enqueued_at, finished_at FROM sync_job ORDER BY id DESC LIMIT 10;"
+
+# Live worker + queue stats via the RQ CLI
+docker compose exec worker rq info --url redis://redis:6379/0
+docker compose exec worker rq info -i 5 --url redis://redis:6379/0  # top-style refresh
 ```
+
+For a sustained dashboard, bring up the optional `rq-dashboard` service
+defined in `docker-compose.example.yml` and browse to
+`http://localhost:9181`. It surfaces queued / running / finished /
+failed jobs with stack traces and one-click requeue. **It has no built-
+in auth** — the example compose binds it to `127.0.0.1:9181` so only
+the host reaches it; set `RQ_DASHBOARD_USERNAME` / `RQ_DASHBOARD_PASSWORD`
+and switch the bind to `9181:9181` if you want LAN access.
 
 ### Scaling
 

@@ -98,6 +98,30 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - COLONY_MANAGER_DESCRIPTION_REGISTRY=${COLONY_MANAGER_DESCRIPTION_REGISTRY}
 
+  # Optional admin UI for RQ. Browse queued / running / finished /
+  # failed jobs, requeue failures, inspect worker state. Hits the
+  # same Redis the web + worker services use.
+  #
+  # ⚠️  AUTH: rq-dashboard has no auth by default. The bind below
+  # (``127.0.0.1:9181:9181``) only exposes it to the Docker host —
+  # use an SSH tunnel to view from elsewhere, or set
+  # ``RQ_DASHBOARD_USERNAME`` / ``RQ_DASHBOARD_PASSWORD`` env vars
+  # and switch the bind to ``9181:9181`` if you want it on the LAN.
+  rq-dashboard:
+    image: eoranged/rq-dashboard:latest
+    container_name: rq-dashboard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9181:9181"
+    depends_on:
+      - redis
+    environment:
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
+      # Uncomment and set these if you change the bind above to
+      # expose the dashboard beyond localhost:
+      # - RQ_DASHBOARD_USERNAME=${RQ_DASHBOARD_USERNAME}
+      # - RQ_DASHBOARD_PASSWORD=${RQ_DASHBOARD_PASSWORD}
+
 volumes:
   # Define any volume here where we are relying on CloudSync to detect
   # changes and upload to the cloud.

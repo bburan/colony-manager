@@ -2,6 +2,7 @@ import importlib
 import os
 from urllib.parse import urlparse, urljoin
 import sqlalchemy
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort
 from flask_login import current_user, login_user
@@ -59,13 +60,18 @@ def view_dashboard():
     active_breeding_pairs_count = queries.count_active_breeding_pairs(db.session)
 
     # 2. Upcoming Events Table (Next 7 days + Overdue)
-    upcoming_events = models.AnimalEvent.query.options(
-        joinedload(models.AnimalEvent.animal),
-        joinedload(models.AnimalEvent.procedure),
-    ).filter(
-        models.AnimalEvent.completion_date == None,
-        models.AnimalEvent.scheduled_date <= today + timedelta(days=7)
-    ).order_by(models.AnimalEvent.scheduled_date.asc()).all()
+    upcoming_events = db.session.scalars(
+        select(models.AnimalEvent)
+        .options(
+            joinedload(models.AnimalEvent.animal),
+            joinedload(models.AnimalEvent.procedure),
+        )
+        .where(
+            models.AnimalEvent.completion_date == None,  # noqa: E711
+            models.AnimalEvent.scheduled_date <= today + timedelta(days=7),
+        )
+        .order_by(models.AnimalEvent.scheduled_date.asc())
+    ).all()
 
     # Recently completed events (last 7 days), most recent first. The
     # template walks each event's animal/procedure/target. ``data_files``
@@ -74,33 +80,43 @@ def view_dashboard():
     # cheap COUNT(*) per event, and iteration is gated behind an Alpine
     # accordion so it only fires on click.
     recent_events_threshold = today - timedelta(days=7)
-    recent_events = models.AnimalEvent.query.options(
-        joinedload(models.AnimalEvent.animal),
-        joinedload(models.AnimalEvent.procedure),
-        joinedload(models.AnimalEvent.procedure_target),
-    ).filter(
-        models.AnimalEvent.completion_date != None,
-        models.AnimalEvent.completion_date >= recent_events_threshold,
-    ).order_by(
-        models.AnimalEvent.completion_date.desc(),
-        models.AnimalEvent.id.desc(),
+    recent_events = db.session.scalars(
+        select(models.AnimalEvent)
+        .options(
+            joinedload(models.AnimalEvent.animal),
+            joinedload(models.AnimalEvent.procedure),
+            joinedload(models.AnimalEvent.procedure_target),
+        )
+        .where(
+            models.AnimalEvent.completion_date != None,  # noqa: E711
+            models.AnimalEvent.completion_date >= recent_events_threshold,
+        )
+        .order_by(
+            models.AnimalEvent.completion_date.desc(),
+            models.AnimalEvent.id.desc(),
+        )
     ).all()
 
     # Confocal image files acquired in the last 7 days (by file mtime),
     # grouped by ConfocalImage. Insertion order = most-recently-modified first.
     # We walk each file's confocal_images, then per-image its image_type and
     # ear→animal — load the whole chain in one shot.
-    recent_confocal_files = models.ConfocalImageData.query.options(
-        joinedload(models.ConfocalImageData.datatype),
-        selectinload(models.ConfocalImageData.confocal_images)
-            .joinedload(models.ConfocalImage.image_type),
-        selectinload(models.ConfocalImageData.confocal_images)
-            .joinedload(models.ConfocalImage.ear)
-            .joinedload(models.Ear.animal),
-    ).filter(
-        models.ConfocalImageData.mtime != None,
-        models.ConfocalImageData.mtime >= recent_events_threshold,
-    ).order_by(models.ConfocalImageData.mtime.desc()).all()
+    recent_confocal_files = db.session.scalars(
+        select(models.ConfocalImageData)
+        .options(
+            joinedload(models.ConfocalImageData.datatype),
+            selectinload(models.ConfocalImageData.confocal_images)
+                .joinedload(models.ConfocalImage.image_type),
+            selectinload(models.ConfocalImageData.confocal_images)
+                .joinedload(models.ConfocalImage.ear)
+                .joinedload(models.Ear.animal),
+        )
+        .where(
+            models.ConfocalImageData.mtime != None,  # noqa: E711
+            models.ConfocalImageData.mtime >= recent_events_threshold,
+        )
+        .order_by(models.ConfocalImageData.mtime.desc())
+    ).all()
     recent_confocal_groups = []
     _seen_image_ids = {}
     unmatched_recent_confocal = []
@@ -119,30 +135,51 @@ def view_dashboard():
 
     # Animals terminated in the last 30 days. Template renders display_id,
     # which falls back to cage.custom_id when the animal has no custom id.
-    recent_terminations = models.Animal.query.options(
-        joinedload(models.Animal.cage),
-    ).filter(
-        models.Animal.termination_date >= (date.today() - timedelta(days=7))
-    ).order_by(models.Animal.termination_date.desc())
+    recent_terminations = db.session.scalars(
+        select(models.Animal)
+        .options(joinedload(models.Animal.cage))
+        .where(
+            models.Animal.termination_date >= (date.today() - timedelta(days=7))
+        )
+        .order_by(models.Animal.termination_date.desc())
+    ).all()
 
-    upcoming_litters = models.Litter.query.options(
-        joinedload(models.Litter.breeding_pair),
-    ).filter(models.Litter.wean_date == None).order_by(models.Litter.dob).all()
+    upcoming_litters = db.session.scalars(
+        select(models.Litter)
+        .options(joinedload(models.Litter.breeding_pair))
+        .where(models.Litter.wean_date == None)  # noqa: E711
+        .order_by(models.Litter.dob)
+    ).all()
 
-    active_males = db.session.query(models.BreedingPair.male_animal_id).filter_by(is_active=True)
-    active_females = db.session.query(models.BreedingPair.female_animal_id).filter_by(is_active=True)
+    active_males = (
+        select(models.BreedingPair.male_animal_id)
+        .where(models.BreedingPair.is_active == True)  # noqa: E712
+    )
+    active_females = (
+        select(models.BreedingPair.female_animal_id)
+        .where(models.BreedingPair.is_active == True)  # noqa: E712
+    )
     active_parent_ids = active_males.union(active_females)
     # Materialize with a cap so the dashboard can't be DOS'd by a colony
     # that has thousands of unassigned animals — the panel only needs the
     # first page worth.
-    unassigned_animals = models.Animal.query.filter(
-        models.Animal.termination_date == None,
-        ~models.Animal.studies.any(),
-        models.Animal.custom_id != None,
-        ~models.Animal.id.in_(active_parent_ids),
-    ).order_by(models.Animal.custom_id).limit(100).all()
+    unassigned_animals = db.session.scalars(
+        select(models.Animal)
+        .where(
+            models.Animal.termination_date == None,  # noqa: E711
+            ~models.Animal.studies.any(),
+            models.Animal.custom_id != None,  # noqa: E711
+            ~models.Animal.id.in_(active_parent_ids),
+        )
+        .order_by(models.Animal.custom_id)
+        .limit(100)
+    ).all()
 
-    available_animals_n = models.Animal.query.filter(models.Animal.custom_id == None).count()
+    available_animals_n = db.session.scalar(
+        select(sqlalchemy.func.count())
+        .select_from(models.Animal)
+        .where(models.Animal.custom_id == None)  # noqa: E711
+    )
 
     # Both lists are grouped in the template by ear and image_type — load
     # the chain so the groupby doesn't fire one query per image.
@@ -150,16 +187,20 @@ def view_dashboard():
         joinedload(models.ConfocalImage.image_type),
         joinedload(models.ConfocalImage.ear).joinedload(models.Ear.animal),
     )
-    image_analysis_pending = models.ConfocalImage.query.options(
-        *_image_options
-    ).filter_by(status='pending')
-    image_analysis_review = models.ConfocalImage.query.options(
-        *_image_options
-    ).filter_by(status='need_review')
+    image_analysis_pending = db.session.scalars(
+        select(models.ConfocalImage)
+        .options(*_image_options)
+        .where(models.ConfocalImage.status == 'pending')
+    ).all()
+    image_analysis_review = db.session.scalars(
+        select(models.ConfocalImage)
+        .options(*_image_options)
+        .where(models.ConfocalImage.status == 'need_review')
+    ).all()
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
-        species = models.Species.query.get(species_id)
+        species = db.session.get(models.Species, species_id)
     else:
         species = None
 
@@ -193,9 +234,11 @@ def view_dashboard():
 
 @main_bp.route('/calendar')
 def view_calendar():
-    events = models.AnimalEvent.query.options(
-        joinedload(models.AnimalEvent.animal),
-        joinedload(models.AnimalEvent.procedure),
+    events = db.session.scalars(
+        select(models.AnimalEvent).options(
+            joinedload(models.AnimalEvent.animal),
+            joinedload(models.AnimalEvent.procedure),
+        )
     ).all()
     calendar_events = []
     for event in events:
@@ -211,14 +254,20 @@ def view_calendar():
 # --- Settings Routes ---
 @main_bp.route('/settings')
 def list_settings():
-    settings = {k: {'items': v['model'].query.all(), 'form': v['form']} for k, v in SETTINGS_MAP.items()}
+    settings = {
+        k: {
+            'items': db.session.scalars(select(v['model'])).all(),
+            'form': v['form'],
+        }
+        for k, v in SETTINGS_MAP.items()
+    }
     jobs = recent_jobs(limit=10)
     return render_template(
         'view_settings.html',
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
-        datatypes=models.DataType.query.all(),
+        datatypes=db.session.scalars(select(models.DataType)).all(),
         recent_jobs=jobs,
         parse_summary=parse_summary,
     )
@@ -239,7 +288,10 @@ def _render_nested_section(item_type):
     mutation (create/update/delete) returns this so htmx swaps the entire
     section — sidesteps having to surgically sync parent dropdowns."""
     cfg = SETTINGS_MAP[item_type]
-    info = {'items': cfg['model'].query.all(), 'form': cfg['form']}
+    info = {
+        'items': db.session.scalars(select(cfg['model'])).all(),
+        'form': cfg['form'],
+    }
     return render_template(
         'partials/setting_section_nested.html', type=item_type, info=info,
     )
@@ -278,12 +330,12 @@ def create_setting(item_type):
                           flash_title='Could not create setting',
                           redirect_to=list_url)
 
-    dupe_query = Model.query.filter(Model.name == form.name.data)
+    dupe_stmt = select(Model).where(Model.name == form.name.data)
     if _setting_is_nested(item_type, form):
         parent_obj = form.parent.data
         parent_id = parent_obj.id if parent_obj else None
-        dupe_query = dupe_query.filter(Model.parent_id == parent_id)
-    if dupe_query.first():
+        dupe_stmt = dupe_stmt.where(Model.parent_id == parent_id)
+    if db.session.scalars(dupe_stmt).first():
         return htmx_error(message='Already exists.', retarget=retarget,
                           flash_title=f'Error adding {pretty}. It might already exist.',
                           redirect_to=list_url)
@@ -311,7 +363,7 @@ def create_setting(item_type):
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/update', methods=['POST'])
 def update_setting(item_type, item_id):
-    item = SETTINGS_MAP[item_type]['model'].query.get_or_404(item_id)
+    item = db.get_or_404(SETTINGS_MAP[item_type]['model'], item_id)
     form = SETTINGS_MAP[item_type]['form'](obj=item)
     list_url = url_for('main.list_settings')
     retarget = f'#error-{item_type}'
@@ -345,7 +397,7 @@ def update_setting(item_type, item_id):
 @main_bp.route('/settings/<item_type>/<int:item_id>/delete', methods=['POST'])
 def delete_setting(item_type, item_id):
     Model = SETTINGS_MAP[item_type]['model']
-    item = Model.query.get_or_404(item_id)
+    item = db.get_or_404(Model, item_id)
     item_name = item.name
     pretty = item_type.replace("_", " ")
     list_url = url_for('main.list_settings')
@@ -458,7 +510,9 @@ def create_datatype():
         return htmx_error(message='Validation failed', form=form, retarget=retarget,
                           flash_title='Could not create DataType', redirect_to=list_url)
 
-    if models.DataType.query.filter_by(name=form.name.data).first():
+    if db.session.scalars(
+        select(models.DataType).where(models.DataType.name == form.name.data)
+    ).first():
         return htmx_error(message='This DataType already exists.', retarget=retarget,
                           redirect_to=list_url)
 
@@ -486,7 +540,7 @@ def create_datatype():
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
 def edit_datatype_modal(datatype_id):
-    dt = models.DataType.query.get_or_404(datatype_id)
+    dt = db.get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type, obj=dt)
     return render_template(
         'partials/form_datatype_modal.html',
@@ -497,7 +551,7 @@ def edit_datatype_modal(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id):
-    dt = models.DataType.query.get_or_404(datatype_id)
+    dt = db.get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type)
     list_url = url_for('main.list_settings')
     retarget = '#datatype-error'
@@ -528,7 +582,7 @@ def update_datatype(datatype_id):
 @main_bp.route('/settings/datatype/<int:datatype_id>/sync', methods=['POST'])
 def sync_datatype(datatype_id):
     """Queue a background sync_locations run for one DataType."""
-    dt = models.DataType.query.get_or_404(datatype_id)
+    dt = db.get_or_404(models.DataType, datatype_id)
     if not dt.description_class or not dt.locations.count():
         flash(
             f'Cannot sync "{dt.name}": needs a description class and at '
@@ -550,7 +604,7 @@ def rematch_datatype(datatype_id):
     it, only currently-unmatched rows are touched. Returns immediately —
     progress shows up in the recent-jobs panel on the settings page.
     """
-    dt = models.DataType.query.get_or_404(datatype_id)
+    dt = db.get_or_404(models.DataType, datatype_id)
     force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
     enqueue_datatype_rematch(dt.id, force=force)
     label = 'Force-rematch' if force else 'Rematch'
@@ -560,7 +614,7 @@ def rematch_datatype(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
 def delete_datatype(datatype_id):
-    dt = models.DataType.query.get_or_404(datatype_id)
+    dt = db.get_or_404(models.DataType, datatype_id)
     list_url = url_for('main.list_settings')
     if dt.data_files.count() > 0:
         return htmx_error(

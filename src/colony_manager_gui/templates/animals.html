@@ -20,7 +20,7 @@ Animal Overview
            that selecting a dropdown / submitting the search box doesn't drop
            the button-group selections. #}
         {% for name, value in filters.items() %}
-            {% if name not in ('search_query', 'procedure_id', 'tag_id', 'event_tag_id') %}
+            {% if name not in ('search_query', 'procedure_id', 'tag_id', 'event_tag_id', 'study_filter') %}
                 <input type="hidden" name="{{ name }}" value="{{ value }}">
             {% endif %}
         {% endfor %}
@@ -54,6 +54,7 @@ Animal Overview
                 {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
                 {{ macros.filter_dropdown('tag_id', 'Animal Tag', filters, animal_tags) }}
                 {{ macros.filter_dropdown('event_tag_id', 'Event Tag', filters, event_tags) }}
+                {{ macros.filter_dropdown('study_filter', 'Study', filters, studies, label_attr='name') }}
                 {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
                 {{ macros.sort_direction_toggle(filters) }}
                 {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}

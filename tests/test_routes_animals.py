@@ -71,6 +71,32 @@ def test_list_animals_sex_filter(logged_in_client, db_session):
     assert b'F-X' not in response.data
 
 
+def test_list_animals_study_filter(logged_in_client, db_session):
+    """``?study_filter=<id>`` narrows the list to animals enrolled in
+    that study — the dropdown wired into animals.html alongside the
+    existing tag / procedure / event-tag filters.
+    """
+    from colony_manager.models import Study
+
+    species = make_species(db_session)
+    enrolled = make_animal(db_session, species=species, custom_id='ENR-1')
+    make_animal(db_session, species=species, custom_id='SKIP-1')
+
+    target_study = Study(name='Target')
+    other_study = Study(name='Other')
+    db_session.add_all([target_study, other_study])
+    db_session.commit()
+    target_study.animals.append(enrolled)
+    db_session.commit()
+
+    response = logged_in_client.get(
+        f'/animals/?study_filter={target_study.id}'
+    )
+    assert response.status_code == 200
+    assert b'ENR-1' in response.data
+    assert b'SKIP-1' not in response.data
+
+
 def test_list_animals_event_filter_has_events(logged_in_client, db_session):
     """Exercises Animal.events.any() — runs through the refactored .where chain."""
     species = make_species(db_session)

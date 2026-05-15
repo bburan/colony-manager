@@ -891,8 +891,15 @@ class Animal(VersionedModel):
 
 
     @classmethod
-    def get_daily_logs(cls, reference_date=None, before=0, after=0, species=None):
-        """Returns animals paired with their weight logs from the last X days."""
+    def get_daily_logs(cls, session, reference_date=None, before=0, after=0, species=None):
+        """Return animals paired with their weight and feed logs over a date window.
+
+        Takes an explicit ``session`` so this works from both Flask
+        routes (passing ``db.session``) and standalone scripts/tests
+        (passing a session built from ``colony_manager.db``).
+        """
+        from sqlalchemy import select
+
         if reference_date is None:
             reference_date = date.today()
 
@@ -900,37 +907,34 @@ class Animal(VersionedModel):
         end_date = reference_date + timedelta(days=after)
         total_days = (end_date - start_date).days + 1
 
-        weights = cls.session.query(cls, WeightLog).join(WeightLog)
+        weight_stmt = select(cls, WeightLog).join(WeightLog).where(
+            WeightLog.date >= start_date,
+            WeightLog.date <= end_date,
+        )
         # ``feed_log.feed_type.weight`` is read once per log when computing
         # ``total_feed`` below — joinedload it here so we don't fan out into
         # one SELECT per feed log.
-        feeds = (cls.session.query(cls, FeedLog)
-                 .join(FeedLog)
-                 .options(joinedload(FeedLog.feed_type)))
+        feed_stmt = (
+            select(cls, FeedLog)
+            .join(FeedLog)
+            .options(joinedload(FeedLog.feed_type))
+            .where(FeedLog.date >= start_date, FeedLog.date <= end_date)
+        )
 
         if species is not None:
-            weights = weights.filter(Animal.species == species)
-            feeds = feeds.filter(Animal.species == species)
+            weight_stmt = weight_stmt.where(Animal.species == species)
+            feed_stmt = feed_stmt.where(Animal.species == species)
 
-        weights = weights.filter(
-            WeightLog.date >= start_date,
-            WeightLog.date <= end_date,
-            #WeightLog.weight.is_not(None),
-            #WeightLog.baseline == False
-        ).all()
+        weight_rows = session.execute(weight_stmt).all()
+        feed_rows = session.execute(feed_stmt).all()
 
-        feeds = feeds.filter(
-            FeedLog.date >= start_date,
-            FeedLog.date <= end_date,
-        ).all()
-
-        if len(weights):
-            w_animals, weights = zip(*weights)
+        if weight_rows:
+            w_animals, weights = zip(*weight_rows)
         else:
             w_animals, weights = [], []
 
-        if len(feeds):
-            f_animals, feeds = zip(*feeds)
+        if feed_rows:
+            f_animals, feeds = zip(*feed_rows)
         else:
             f_animals, feeds = [], []
 
@@ -944,11 +948,15 @@ class Animal(VersionedModel):
         if animals:
             animal_ids = [a.id for a in animals]
             by_animal = {a.id: [] for a in animals}
-            for w in (cls.session.query(WeightLog)
-                      .filter(WeightLog.animal_id.in_(animal_ids),
-                              WeightLog.weight != None)
-                      .order_by(WeightLog.animal_id, WeightLog.date.desc())
-                      .all()):
+            baseline_rows = session.scalars(
+                select(WeightLog)
+                .where(
+                    WeightLog.animal_id.in_(animal_ids),
+                    WeightLog.weight.is_not(None),
+                )
+                .order_by(WeightLog.animal_id, WeightLog.date.desc())
+            ).all()
+            for w in baseline_rows:
                 by_animal[w.animal_id].append(w)
             for a in animals:
                 a._baseline_weight_cached = cls._baseline_from_weights(

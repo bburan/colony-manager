@@ -187,7 +187,7 @@ def view_dashboard():
         today=today,
 
         # Table of weights for past week
-        weights=models.Animal.get_daily_logs(before=5, after=2, species=species),
+        weights=models.Animal.get_daily_logs(db.session, before=5, after=2, species=species),
     )
 
 

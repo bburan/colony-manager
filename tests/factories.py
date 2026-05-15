@@ -19,8 +19,8 @@ from itertools import count
 
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalProcedureTarget,
-    BreedingPair, Cage, Ear, Litter, Source, Species,
-    TerminationReason, User,
+    BreedingPair, Cage, Ear, Feed, FeedLog, Litter, Source, Species,
+    TerminationReason, User, WeightLog,
 )
 
 
@@ -33,6 +33,7 @@ _animal_seq = count(1)
 _termination_reason_seq = count(1)
 _procedure_seq = count(1)
 _procedure_target_seq = count(1)
+_feed_seq = count(1)
 
 
 def make_species(session, name=None):
@@ -161,6 +162,42 @@ def make_user(
         admin=admin,
     )
     obj.set_password(password)
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_feed(session, name=None, weight=0.5):
+    """Build a Feed (pellet type with a per-unit weight in grams)."""
+    obj = Feed(
+        name=name or f'Feed {next(_feed_seq)}',
+        weight=weight,
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_weight_log(session, *, animal, date, weight=20.0, baseline=False, notes=None):
+    obj = WeightLog(
+        animal_id=animal.id,
+        date=date,
+        weight=weight,
+        baseline=baseline,
+        notes=notes,
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_feed_log(session, *, animal, feed, date, quantity=1):
+    obj = FeedLog(
+        animal_id=animal.id,
+        feed_id=feed.id,
+        date=date,
+        quantity=quantity,
+    )
     session.add(obj)
     session.commit()
     return obj

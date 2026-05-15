@@ -1,19 +1,12 @@
 """Tests for ``Cage`` aggregate properties.
 
 The Cage model exposes derived facts about its animals
-(``animals_count``, ``active_animals_count``, ``sources``, ``sex``,
-``sex_symbol``, ``age_display``, ``source_display``, ``is_active``).
-Each property has two code paths:
-
-1. **Uncached** — iterate ``self.animals`` (a ``lazy='dynamic'``
-   relationship that issues SQL on access).
-2. **Cached** — read from ``_cached_animals``, set by the bulk-load
-   helper in routes/cages.py so list views don't fan out into N
-   queries per row.
-
-Coverage strategy: each aggregate is verified end-to-end against a
-seeded cage in the uncached path, plus one parity test that proves
-the cached path returns the same answer for the same fixture data.
+(``animals_count``, ``active_animals_count``, ``sex``, ``sex_symbol``,
+``age_display``, ``source_display``, ``is_active``). After the
+lazy='dynamic' purge each property reads ``self.animals`` (now a
+plain list backed by ``lazy='select'``) and computes the answer in
+Python; list views eager-load the collection via
+``selectinload(Cage.animals)`` to avoid N+1 fan-out across rows.
 """
 from datetime import date, timedelta
 
@@ -138,53 +131,34 @@ def test_age_display_empty_cage(db_session):
 
 
 # ---------------------------------------------------------------------------
-# Cached path parity
+# Property aggregation on a freshly-loaded cage
 # ---------------------------------------------------------------------------
 
-def test_cached_path_matches_uncached(db_session):
-    """``_cached_animals`` must not change any property's answer.
-
-    Routes set this cache to short-circuit the dynamic relationship's
-    queries; the in-memory iteration must produce the same aggregates
-    as iterating the lazy query.
+def test_properties_aggregate_correctly_after_fresh_load(db_session):
+    """Every Cage aggregate property reads from ``self.animals`` directly
+    (no per-instance cache). After committing the fixture and fetching
+    a fresh Cage, the properties must still return the right answers.
     """
     species = make_species(db_session)
     cage = make_cage(db_session, species=species)
     src = make_source(db_session, name='S')
-    a1 = make_animal(
+    make_animal(
         db_session, cage=cage, species=species, source=src, sex='male',
         dob=date.today() - timedelta(days=30),
     )
-    a2 = make_animal(
+    terminated = make_animal(
         db_session, cage=cage, species=species, source=src, sex='female',
         dob=date.today() - timedelta(days=60),
     )
-    a2.terminate(termination_date=date.today())
+    terminated.terminate(termination_date=date.today())
     db_session.commit()
+    db_session.expire_all()
 
-    uncached = (
-        cage.animals_count,
-        cage.active_animals_count,
-        cage.is_active,
-        sorted(cage.sex),
-        cage.sex_symbol,
-        cage.age_display('day'),
-        cage.source_display,
-    )
-
-    # Re-fetch a fresh Cage so we know the uncached read above didn't
-    # leak state, then prime the cache the way routes/cages do.
     fresh = db_session.get(Cage, cage.id)
-    fresh._cached_animals = [a1, a2]
-
-    cached = (
-        fresh.animals_count,
-        fresh.active_animals_count,
-        fresh.is_active,
-        sorted(fresh.sex),
-        fresh.sex_symbol,
-        fresh.age_display('day'),
-        fresh.source_display,
-    )
-
-    assert uncached == cached
+    assert fresh.animals_count == 2
+    assert fresh.active_animals_count == 1
+    assert fresh.is_active is True
+    assert sorted(fresh.sex) == ['female', 'male']
+    assert fresh.sex_symbol == '⚥'
+    assert fresh.age_display('day') == '30.0 to 60.0 days'
+    assert fresh.source_display == 'S'

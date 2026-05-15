@@ -31,8 +31,8 @@ Breeding Management
                 <td><a href="{{ url_for('animals.view_animal', animal_id=pair.male.id) }}">{{ pair.male.display_id }}</a></td>
                 <td><a href="{{ url_for('animals.view_animal', animal_id=pair.female.id) }}">{{ pair.female.display_id }}</a></td>
                 <td>{{ pair.start_date.strftime('%B %d, %Y') }}</td>
-                <td>{{ pair.litters.count() }}</td>
-                <td>{{ pair.litters.filter(wean_date == None).count() }}</td>
+                <td>{{ pair.litters|length }}</td>
+                <td>{{ pair.litters|selectattr('wean_date', 'none')|list|length }}</td>
             </tr>
             {% else %}
             <tr><td colspan="6" class="text-center text-muted small fst-italic py-4">No breeding pairs.</td></tr>

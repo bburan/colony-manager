@@ -75,10 +75,9 @@ def view_dashboard():
 
     # Recently completed events (last 7 days), most recent first. The
     # template walks each event's animal/procedure/target. ``data_files``
-    # is a dynamic relationship (lazy='dynamic') and can't be eager-loaded
-    # — the template's ``event.data_files.count()`` per row stays one
-    # cheap COUNT(*) per event, and iteration is gated behind an Alpine
-    # accordion so it only fires on click.
+    # is now a lazy='select' collection; per-row iteration in the
+    # template stays gated behind an Alpine accordion so it only loads
+    # on click.
     recent_events_threshold = today - timedelta(days=7)
     recent_events = db.session.scalars(
         select(models.AnimalEvent)
@@ -456,7 +455,7 @@ def _save_datatype_children(dt):
     submitted_paths = request.form.getlist('locations')
     submitted_ids = request.form.getlist('location_ids')
 
-    existing_locs = {loc.id: loc for loc in dt.locations.all()}
+    existing_locs = {loc.id: loc for loc in dt.locations}
     seen_ids = set()
 
     for loc_id_str, path in zip(submitted_ids, submitted_paths):
@@ -583,7 +582,7 @@ def update_datatype(datatype_id):
 def sync_datatype(datatype_id):
     """Queue a background sync_locations run for one DataType."""
     dt = db.get_or_404(models.DataType, datatype_id)
-    if not dt.description_class or not dt.locations.count():
+    if not dt.description_class or not dt.locations:
         flash(
             f'Cannot sync "{dt.name}": needs a description class and at '
             f'least one location.',
@@ -616,7 +615,7 @@ def rematch_datatype(datatype_id):
 def delete_datatype(datatype_id):
     dt = db.get_or_404(models.DataType, datatype_id)
     list_url = url_for('main.list_settings')
-    if dt.data_files.count() > 0:
+    if dt.data_files:
         return htmx_error(
             message='Cannot delete (linked to files).',
             oob_id='error-datatypes', status=200,

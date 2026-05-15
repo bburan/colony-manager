@@ -95,7 +95,7 @@ def add_study_animals(study_id):
 def remove_study_animal(study_id, animal_id):
     study = db.get_or_404(Study, study_id)
     animal = db.get_or_404(Animal, animal_id)
-    if animal in study.animals.all():
+    if animal in study.animals:
         study.animals.remove(animal)
         db.session.commit()
         flash(f'Animal {animal.custom_id} removed from study.', 'success')
@@ -122,7 +122,7 @@ def bulk_assign_animals():
         return redirect(request.referrer or url_for('animals.list_animals'))
 
     study = db.get_or_404(Study, study_id)
-    existing = {a.id for a in study.animals.all()}
+    existing = {a.id for a in study.animals}
     animals = db.session.scalars(
         select(Animal).where(Animal.id.in_(animal_ids))
     ).all()

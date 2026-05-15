@@ -23,7 +23,7 @@
         </div>
 
         {% set existing_ear_sides = animal.ears | map(attribute='side') | list %}
-        {% if animal.ears.count() > 0 or not animal.is_active %}
+        {% if animal.ears or not animal.is_active %}
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Ears</h2>

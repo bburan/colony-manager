@@ -9,8 +9,7 @@ from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Cage, Study, Ear, Feed, FeedLog,
     WeightLog, Data, DataType, AnimalEventData,
-    ConfocalImageData, AnimalData, EarData, study_animals,
-    animal_event_data_targets, data_candidate_animals,
+    ConfocalImageData, AnimalData, EarData, data_candidate_animals,
 )
 
 from .. import db
@@ -24,63 +23,6 @@ from ..services.data_linking import (
 
 
 animals_bp = Blueprint('animals', __name__)
-
-
-def _attach_event_aggregates(animals, today):
-    """Bulk-load event/study aggregates and stash them on each animal.
-
-    Replaces the per-row dynamic-relationship queries that the
-    ``Animal.event_*`` / ``has_events`` / ``events_count`` /
-    ``studies_count`` properties would otherwise issue once each per
-    rendered row. Two grouped queries cover any number of animals.
-    """
-    if not animals:
-        return
-    animal_ids = [a.id for a in animals]
-
-    event_rows = db.session.execute(
-        select(
-            AnimalEvent.animal_id,
-            func.count(AnimalEvent.id).label('total'),
-            func.coalesce(
-                func.bool_or(
-                    (AnimalEvent.scheduled_date == today)
-                    & AnimalEvent.completion_date.is_(None)
-                ),
-                False,
-            ).label('any_due'),
-            func.coalesce(
-                func.bool_or(
-                    (AnimalEvent.scheduled_date < today)
-                    & AnimalEvent.completion_date.is_(None)
-                ),
-                False,
-            ).label('any_overdue'),
-            func.max(AnimalEvent.completion_date).label('last_completion'),
-        )
-        .where(AnimalEvent.animal_id.in_(animal_ids))
-        .group_by(AnimalEvent.animal_id)
-    ).all()
-    events_by_id = {r.animal_id: r for r in event_rows}
-
-    study_rows = db.session.execute(
-        select(
-            study_animals.c.animal_id,
-            func.count(study_animals.c.study_id).label('total'),
-        )
-        .where(study_animals.c.animal_id.in_(animal_ids))
-        .group_by(study_animals.c.animal_id)
-    ).all()
-    studies_by_id = {r.animal_id: r.total for r in study_rows}
-
-    for a in animals:
-        row = events_by_id.get(a.id)
-        a._events_count_cached = row.total if row else 0
-        a._has_events_cached = bool(row and row.total)
-        a._event_due_cached = bool(row and row.any_due)
-        a._event_overdue_cached = bool(row and row.any_overdue)
-        a._last_event_date_cached = row.last_completion if (row and row.last_completion) else date.min
-        a._studies_count_cached = studies_by_id.get(a.id, 0)
 
 
 _SORT_DIR_DEFAULTS = {'id': 'asc', 'age': 'asc', 'event_date': 'desc'}
@@ -107,9 +49,14 @@ def list_animals():
 
     # ``species`` and ``cage`` are dereferenced once per row in the table
     # template; eager-load both so the row render isn't 1+2N queries.
+    # ``events`` and ``studies`` drive the per-row aggregate properties
+    # (events_count, event_due, etc.); load both in bulk so those don't
+    # fan out into N queries either.
     stmt = select(Animal).options(
         joinedload(Animal.species),
         joinedload(Animal.cage),
+        selectinload(Animal.events),
+        selectinload(Animal.studies),
     ).where(Animal.custom_id.is_not(None))
 
     species_id = int(session.get('selected_species', -1))
@@ -182,8 +129,7 @@ def list_animals():
         col = Animal.custom_id
         order = col.desc() if sort_dir == 'desc' else col.asc()
 
-    animals = db.session.scalars(stmt.order_by(order)).all()
-    _attach_event_aggregates(animals, today)
+    animals = db.session.scalars(stmt.order_by(order)).unique().all()
 
     procedures = AnimalProcedure.get_ordered(db.session)
     animal_tags = AnimalTag.get_ordered(db.session)
@@ -217,51 +163,33 @@ def list_animals():
 
 @animals_bp.route('/<int:animal_id>')
 def view_animal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    # Eager-load the relationships the page touches per event row and
+    # per file row. ``selectinload(Animal.events)`` chains into the
+    # event's procedure / target / tags / data_files so the events
+    # accordion + the events_by_date grouping don't fan out into N
+    # queries.
+    animal = db.session.scalars(
+        select(Animal)
+        .where(Animal.id == animal_id)
+        .options(
+            selectinload(Animal.events).joinedload(AnimalEvent.procedure),
+            selectinload(Animal.events).joinedload(AnimalEvent.procedure_target),
+            selectinload(Animal.events).selectinload(AnimalEvent.tags),
+            selectinload(Animal.events).selectinload(AnimalEvent.data_files)
+                .joinedload(Data.datatype),
+            selectinload(Animal.data_files).joinedload(Data.datatype),
+        )
+    ).first()
+    if animal is None:
+        from flask import abort
+        abort(404)
+
     feed = db.session.scalars(
         select(Feed).order_by(Feed.weight)
     ).all()
 
-    # Bulk-load events with their lazy relationships so the events accordion
-    # and the events_by_date grouping don't fan out into N queries per event
-    # (procedure / target / tags would each lazy-load otherwise).
-    events = db.session.scalars(
-        select(AnimalEvent)
-        .where(AnimalEvent.animal_id == animal_id)
-        .options(
-            joinedload(AnimalEvent.procedure),
-            joinedload(AnimalEvent.procedure_target),
-            selectinload(AnimalEvent.tags),
-        )
-    ).all()
-    animal._events_cached_list = events
-
-    # Bulk-load event data_files in one query (dynamic relationship, so we
-    # can't use selectinload directly) and attach a sorted cache per event.
-    files_by_event = {e.id: [] for e in events}
-    if events:
-        event_file_rows = db.session.execute(
-            select(
-                animal_event_data_targets.c.animal_event_id,
-                AnimalEventData,
-            )
-            .join(AnimalEventData,
-                  AnimalEventData.id == animal_event_data_targets.c.animal_event_data_id)
-            .options(joinedload(AnimalEventData.datatype))
-            .where(animal_event_data_targets.c.animal_event_id.in_(files_by_event.keys()))
-        ).all()
-        for ev_id, f in event_file_rows:
-            files_by_event[ev_id].append(f)
-    for ev in events:
-        ev._sorted_data_files_cached = sorted(
-            files_by_event.get(ev.id, []), key=lambda f: f.name)
-
-    # Files accordion: load once with datatype joined to avoid one query per
-    # row for ``f.datatype.name``.
-    animal_data_files = (animal.data_files
-        .options(joinedload(Data.datatype))
-        .all())
-    animal_data_files.sort(key=lambda f: f.name)
+    # Files accordion: sort the already-loaded data_files list.
+    animal_data_files = sorted(animal.data_files, key=lambda f: f.name)
 
     # Unassigned candidate event files (events accordion). Pre-filter to the
     # animal_event subset and eager-load each file's events so the
@@ -512,8 +440,15 @@ def update_animal_daily_log(animal_id, date):
 @animals_bp.route('/create_modal/<int:cage_id>')
 def create_animal_modal(cage_id):
     cage = db.get_or_404(Cage, cage_id)
-    animal = cage.animals.first()
-    form = AnimalForm(cage=cage, dob=animal.dob, sex=animal.sex)
+    # Prefill dob/sex from any existing animal in the cage so the user
+    # only has to type the new ID. If the cage is empty, fall back to
+    # the form defaults (today / male).
+    animal = cage.animals[0] if cage.animals else None
+    form = AnimalForm(
+        cage=cage,
+        dob=animal.dob if animal else None,
+        sex=animal.sex if animal else None,
+    )
     return render_modal(form, label='Create new animal',
                         submit_url=url_for('animals.create_animal'))
 

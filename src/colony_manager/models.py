@@ -184,7 +184,6 @@ class AnimalProcedure(VersionedModel, NestedMixin):
     subcategories = relationship(
         'AnimalProcedure',
         backref=backref('parent', remote_side=[id]),
-        lazy='dynamic'
     )
 
     events = relationship('AnimalEvent', backref='procedure', lazy=True)
@@ -218,8 +217,8 @@ class DataType(VersionedModel):
     auto_create = Column(Boolean, nullable=False, default=False, server_default='false')
     description_class = Column(String(200), nullable=True)
 
-    locations = relationship('DataLocation', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
-    data_files = relationship('Data', backref='datatype', lazy='dynamic', cascade="all, delete-orphan")
+    locations = relationship('DataLocation', backref='datatype', cascade="all, delete-orphan")
+    data_files = relationship('Data', backref='datatype', cascade="all, delete-orphan")
 
     __mapper_args__ = {
         'polymorphic_on': target_type,
@@ -445,7 +444,7 @@ class DataLocation(VersionedModel):
     id = Column(Integer, primary_key=True)
     datatype_id = Column(Integer, ForeignKey('data_type.id'), nullable=False)
     base_path = Column(String(1024), nullable=False)
-    data_files = relationship('Data', backref='location', lazy='dynamic', cascade="all, delete-orphan")
+    data_files = relationship('Data', backref='location', cascade="all, delete-orphan")
 
 
 class Data(VersionedModel):
@@ -475,13 +474,13 @@ class Data(VersionedModel):
     candidate_animals = relationship(
         'Animal',
         secondary=data_candidate_animals,
-        backref=backref('candidate_data_files', lazy='dynamic'),
+        backref='candidate_data_files',
     )
 
     candidate_ears = relationship(
         'Ear',
         secondary=data_candidate_ears,
-        backref=backref('candidate_data_files', lazy='dynamic'),
+        backref='candidate_data_files',
     )
 
     __table_args__ = (
@@ -510,7 +509,7 @@ class AnimalEventData(Data):
     events = relationship(
         'AnimalEvent',
         secondary=animal_event_data_targets,
-        backref=backref('data_files', lazy='dynamic'),
+        backref='data_files',
     )
 
     __mapper_args__ = {'polymorphic_identity': 'animal_event'}
@@ -527,7 +526,7 @@ class ConfocalImageData(Data):
     confocal_images = relationship(
         'ConfocalImage',
         secondary=confocal_image_data_targets,
-        backref=backref('data_files', lazy='dynamic'),
+        backref='data_files',
     )
 
     __mapper_args__ = {'polymorphic_identity': 'confocal_image'}
@@ -544,7 +543,7 @@ class AnimalData(Data):
     animals = relationship(
         'Animal',
         secondary=animal_data_targets,
-        backref=backref('data_files', lazy='dynamic'),
+        backref='data_files',
     )
 
     __mapper_args__ = {'polymorphic_identity': 'animal'}
@@ -561,7 +560,7 @@ class EarData(Data):
     ears = relationship(
         'Ear',
         secondary=ear_data_targets,
-        backref=backref('data_files', lazy='dynamic'),
+        backref='data_files',
     )
 
     __mapper_args__ = {'polymorphic_identity': 'ear'}
@@ -597,29 +596,20 @@ class Cage(VersionedModel):
     custom_id = Column(String(50), unique=True, nullable=False)
     notes = Column(Text, nullable=True)
     species_id = Column(Integer, ForeignKey('species.id', use_alter=True), nullable=False)
-    animals = relationship('Animal', backref='cage', lazy='dynamic', cascade="all, delete-orphan")
+    animals = relationship('Animal', backref='cage', cascade="all, delete-orphan")
 
-    # ``animals`` is lazy='dynamic', so every property below would issue a
-    # query when touched. List views call
-    # :func:`colony_manager_gui.routes.cages._attach_cage_animals` to
-    # populate ``_cached_animals`` once for the whole page; the helpers
-    # then iterate the in-memory list instead.
-
-    def _iter_animals(self):
-        cached = getattr(self, '_cached_animals', None)
-        return cached if cached is not None else self.animals
+    # ``animals`` defaults to ``lazy='select'``: first access materializes
+    # the full collection in one query. List views should use
+    # ``selectinload(Cage.animals)`` (optionally chained to ``Animal.source``)
+    # at query time to avoid the per-row fan-out.
 
     @property
     def animals_count(self):
-        cached = getattr(self, '_cached_animals', None)
-        return len(cached) if cached is not None else self.animals.count()
+        return len(self.animals)
 
     @property
     def active_animals_count(self):
-        cached = getattr(self, '_cached_animals', None)
-        if cached is not None:
-            return sum(1 for a in cached if a.termination_date is None)
-        return self.animals.filter_by(termination_date=None).count()
+        return sum(1 for a in self.animals if a.termination_date is None)
 
     @property
     def is_active(self):
@@ -627,11 +617,11 @@ class Cage(VersionedModel):
 
     @property
     def sex(self):
-        return sorted(set(a.sex for a in self._iter_animals()))
+        return sorted({a.sex for a in self.animals})
 
     @property
     def sex_symbol(self):
-        result = sorted(set(a.sex_symbol for a in self._iter_animals()))
+        result = sorted({a.sex_symbol for a in self.animals})
         if len(result) == 2:
             return '⚥'
         elif len(result) == 1:
@@ -639,7 +629,7 @@ class Cage(VersionedModel):
         return ''
 
     def age_display(self, unit='day'):
-        ages = sorted(set(getattr(a, f'age_in_{unit}s') for a in self._iter_animals()))
+        ages = sorted({getattr(a, f'age_in_{unit}s') for a in self.animals})
         if len(ages) == 0:
             return 'N/A'
         elif len(ages) == 1:
@@ -648,7 +638,7 @@ class Cage(VersionedModel):
 
     @property
     def source_display(self):
-        sources = set(a.source_display for a in self._iter_animals())
+        sources = {a.source_display for a in self.animals}
         if len(sources) == 0:
             return 'N/A'
         return ', '.join(sorted(sources))
@@ -660,7 +650,6 @@ class AnimalTag(VersionedModel, NestedMixin):
     subtags = relationship(
         'AnimalTag',
         backref=backref('parent', remote_side=[id]),
-        lazy='dynamic'
     )
 
 class Animal(VersionedModel):
@@ -675,11 +664,11 @@ class Animal(VersionedModel):
     notes = Column(Text, nullable=True)
     termination_date = Column(Date, nullable=True)
     termination_reason_id = Column(Integer, ForeignKey('termination_reason.id', use_alter=True), nullable=True)
-    events = relationship('AnimalEvent', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    ears = relationship('Ear', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    events = relationship('AnimalEvent', backref='animal', cascade="all, delete-orphan")
+    ears = relationship('Ear', backref='animal', cascade="all, delete-orphan")
     breeding_pair = relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
-    weights = relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    feedings = relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
+    weights = relationship('WeightLog', backref='animal', cascade="all, delete-orphan")
+    feedings = relationship('FeedLog', backref='animal', cascade="all, delete-orphan")
     # ``order_by`` here keeps tag rendering stable across pages — the
     # template can iterate ``animal.tags`` directly without sorting on
     # the Jinja side. Same pattern on AnimalEvent.tags and Ear.tags.
@@ -688,56 +677,43 @@ class Animal(VersionedModel):
 
     @property
     def events_by_date(self):
-        events = getattr(self, '_events_cached_list', None)
-        if events is None:
-            events = list(self.events)
         groups = {}
-        for e in events:
+        for e in self.events:
             groups.setdefault(e.date, []).append(e)
         return dict((d, sorted(groups[d], key=lambda x: x.procedure.name)) for d in sorted(groups.keys()))
 
-    # The four ``event_*`` / ``has_events`` properties below each issue a
-    # query against the dynamic ``events`` relationship when accessed. List
-    # views set the matching ``_*_cached`` attribute via
-    # :func:`colony_manager_gui.routes.animals._attach_event_aggregates`
-    # so a page rendering N animals doesn't fan out into 4N queries.
+    # These properties read directly from the now-lazy='select' events
+    # relationship. List views that render N animals should chain
+    # ``selectinload(Animal.events)`` on the outer query to keep this
+    # from fanning out into N queries.
 
     @property
     def has_events(self):
-        if hasattr(self, '_has_events_cached'):
-            return self._has_events_cached
-        return self.events.count() > 0
+        return bool(self.events)
 
     @property
     def events_count(self):
-        if hasattr(self, '_events_count_cached'):
-            return self._events_count_cached
-        return self.events.count()
+        return len(self.events)
 
     @property
     def studies_count(self):
-        if hasattr(self, '_studies_count_cached'):
-            return self._studies_count_cached
-        return self.studies.count()
+        return len(self.studies)
 
     @property
     def event_due(self):
-        if hasattr(self, '_event_due_cached'):
-            return self._event_due_cached
         return any(e.scheduled_date == date.today() and e.completion_date is None for e in self.events)
 
     @property
     def event_overdue(self):
-        if hasattr(self, '_event_overdue_cached'):
-            return self._event_overdue_cached
         return any(e.scheduled_date < date.today() and e.completion_date is None for e in self.events)
 
     @property
     def last_event_date(self):
-        if hasattr(self, '_last_event_date_cached'):
-            return self._last_event_date_cached
-        last_event = self.events.filter_by(status='completed').order_by(AnimalEvent.completion_date.desc()).first()
-        return last_event.completion_date if last_event else date.min
+        completion_dates = [
+            e.completion_date for e in self.events
+            if e.status == 'completed' and e.completion_date is not None
+        ]
+        return max(completion_dates) if completion_dates else date.min
 
     @property
     def age_in_days(self):
@@ -873,7 +849,11 @@ class Animal(VersionedModel):
         cached = getattr(self, '_baseline_weight_cached', _MISSING)
         if cached is not _MISSING:
             return cached
-        weights = self.weights.filter(WeightLog.weight != None).order_by(WeightLog.date.desc()).all()
+        weights = sorted(
+            (w for w in self.weights if w.weight is not None),
+            key=lambda w: w.date,
+            reverse=True,
+        )
         return self._baseline_from_weights(weights)
 
     def weight_feed_history(self):
@@ -881,7 +861,7 @@ class Animal(VersionedModel):
         baselines = []
         current_baseline = None
         history = {}
-        for w in self.weights.order_by(WeightLog.date).all():
+        for w in sorted(self.weights, key=lambda w: w.date):
             if w.weight is not None:
                 if w.baseline:
                     current_baseline = None
@@ -906,7 +886,12 @@ class Animal(VersionedModel):
                 'baseline': w.baseline
             }
 
-        for f in self.feedings.options(joinedload(FeedLog.feed_type)).all():
+        # ``self.feedings`` is now lazy='select'; the joinedload that
+        # used to live on the per-call ``.options(...)`` chain is no
+        # longer applicable. Each ``f.feed_type`` access lazy-loads,
+        # but the typical view (the per-animal weight/feed accordion)
+        # has at most a few dozen entries — fine.
+        for f in self.feedings:
             day = history.setdefault(f.date, {'weight': None, 'note': '', 'feed': {}, 'total_feed': 0, 'baseline_pct': None})
             day['feed'][f.feed_id] = f.quantity
             day['total_feed'] += (f.quantity * f.feed_type.weight)
@@ -971,8 +956,8 @@ class Animal(VersionedModel):
         # Bulk-load every WeightLog for these animals (ordered date desc)
         # and stash the computed baseline on each instance. The dashboard
         # weight template reads ``animal.baseline_weight`` twice per cell;
-        # without this each access fires its own ``self.weights.filter()``
-        # query against the dynamic relationship.
+        # without this each access would re-iterate ``self.weights`` and
+        # recompute the same answer.
         if animals:
             animal_ids = [a.id for a in animals]
             by_animal = {a.id: [] for a in animals}
@@ -1025,7 +1010,7 @@ class BreedingPair(VersionedModel):
     female = relationship('Animal', foreign_keys=[female_animal_id],
                           backref='breeding_pair_female')
     is_active = Column(Boolean, default=True, nullable=False)
-    litters = relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
+    litters = relationship('Litter', backref='breeding_pair', cascade="all, delete-orphan")
     offspring = relationship('Animal', back_populates='breeding_pair', foreign_keys='Animal.breeding_pair_id')
 
 class Litter(VersionedModel):
@@ -1079,7 +1064,6 @@ class AnimalEventTag(VersionedModel, NestedMixin):
     subtags = relationship(
         'AnimalEventTag',
         backref=backref('parent', remote_side=[id]),
-        lazy='dynamic'
     )
 
 class AnimalEvent(VersionedModel):
@@ -1108,10 +1092,7 @@ class AnimalEvent(VersionedModel):
 
     @property
     def sorted_data_files(self):
-        cached = getattr(self, '_sorted_data_files_cached', _MISSING)
-        if cached is not _MISSING:
-            return cached
-        return sorted(self.data_files.all(), key=lambda f: f.name)
+        return sorted(self.data_files, key=lambda f: f.name)
 
 class ImmunolabelingPanel(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -1167,7 +1148,6 @@ class EarTag(VersionedModel, NestedMixin):
     subtags = relationship(
         'EarTag',
         backref=backref('parent', remote_side=[id]),
-        lazy='dynamic'
     )
 
 class ConfocalImageType(VersionedModel):
@@ -1191,7 +1171,7 @@ class Study(VersionedModel):
     id = Column(Integer, primary_key=True)
     name = Column(String(150), unique=True, nullable=False)
     description = Column(Text, nullable=True)
-    animals = relationship('Animal', secondary=study_animals, lazy='dynamic', backref=backref('studies', lazy='dynamic'))
+    animals = relationship('Animal', secondary=study_animals, backref='studies')
 
 
 class UserRole(VersionedModel):
@@ -1205,7 +1185,7 @@ class User(VersionedModel):
     last_name = Column(String(150), unique=False, nullable=False)
     email = Column(String(150), unique=True, nullable=False)
     password_hash = Column(String(512))
-    roles = relationship('UserRole', secondary='user_roles', backref=backref('users', lazy='dynamic'))
+    roles = relationship('UserRole', secondary='user_roles', backref='users')
     active = Column(Boolean, default=False, nullable=False)
     admin = Column(Boolean, default=False, nullable=False)
 

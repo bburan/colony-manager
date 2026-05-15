@@ -18,7 +18,7 @@
 } %}
 {% set status = img.status or 'pending' %}
 {% set color = status_colors.get(status, '#adb5bd') %}
-{% set file_count = img.data_files.count() %}
+{% set file_count = img.data_files|length %}
 {% set has_files = file_count > 0 %}
 {% set status_implies_work = status in ('imaged', 'analyzed', 'need_review', 'region_bad') %}
 {% set missing_files_conflict = status_implies_work and not has_files %}

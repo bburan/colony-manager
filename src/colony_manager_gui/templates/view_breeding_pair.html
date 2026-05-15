@@ -21,7 +21,7 @@ Breeding Pair {{ pair.custom_id }}
                     <dt class="col-6 text-muted fw-normal">Start Date</dt>
                     <dd class="col-6">{{ pair.start_date.strftime('%B %d, %Y') }}</dd>
                     <dt class="col-6 text-muted fw-normal">Litters</dt>
-                    <dd class="col-6">{{ pair.litters.count() }}</dd>
+                    <dd class="col-6">{{ pair.litters|length }}</dd>
                 </dl>
             </div>
         </div>
@@ -42,7 +42,7 @@ Breeding Pair {{ pair.custom_id }}
                         <th>Actions</th>
                     </thead>
                     <tbody>
-                        {% for litter in pair.litters.all()|sort(attribute='dob', reverse=True) %}
+                        {% for litter in pair.litters|sort(attribute='dob', reverse=True) %}
                             <tr>
                                 <td>{{ litter.dob.strftime('%B %d, %Y') }}</td>
                                 <td>{{ litter.pup_count }}</td>

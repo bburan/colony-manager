@@ -13,7 +13,7 @@ Study {{ study.name }}
                     <i class="fas fa-paw me-2"></i>Animals in Study
                 </h2>
                 <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle">
-                    {{ study.animals.count() }} Enrolled
+                    {{ study.animals|length }} Enrolled
                 </span>
             </div>
 

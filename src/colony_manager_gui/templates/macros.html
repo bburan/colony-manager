@@ -213,7 +213,7 @@
 
 {% macro render_event_summary(animal) %}
 <div class="small" style="min-width: 280px;">
-    {% if animal.events.count() == 0 %}
+    {% if animal.events|length == 0 %}
         <p class="text-muted mb-0">No events recorded.</p>
     {% else %}
     {% set groups = {} %}

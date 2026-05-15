@@ -256,7 +256,8 @@ def view_grid():
 
     if conflicts_only:
         # Bulk-load the set of ConfocalImage ids that have at least one
-        # linked data file. Avoids ``img.data_files.count()`` per image.
+        # linked data file. Avoids ``len(img.data_files)`` triggering a
+        # per-image lazy-load when the grid spans many cells.
         all_img_ids = [img.id for cells in grid.values() for img in cells.values()]
         linked_image_ids = set()
         if all_img_ids:

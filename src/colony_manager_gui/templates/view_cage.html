@@ -41,7 +41,7 @@
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
-            {% set animals = cage.animals.order_by('custom_id') %}
+            {% set animals = cage.animals|sort(attribute='custom_id') %}
             {% include 'partials/animal_table.html' %}
             </div>
         </section>

@@ -96,7 +96,7 @@ def test_bulk_assign_animals_to_study(logged_in_client, db_session):
     )
     assert response.status_code == 302
     db_session.refresh(study)
-    assert set(study.animals.all()) == {a1, a2}
+    assert set(study.animals) == {a1, a2}
 
 
 def test_bulk_assign_with_missing_inputs_redirects(logged_in_client):
@@ -120,7 +120,7 @@ def test_remove_study_animal(logged_in_client, db_session):
     )
     assert response.status_code == 302
     db_session.refresh(study)
-    assert animal not in study.animals.all()
+    assert animal not in study.animals
 
 
 def test_add_study_animal_quick_add(logged_in_client, db_session):
@@ -141,7 +141,7 @@ def test_add_study_animal_quick_add(logged_in_client, db_session):
     assert response.status_code == 302
     db_session.expire_all()
     db_session.refresh(study)
-    assert animal in study.animals.all()
+    assert animal in study.animals
 
 
 def test_remove_study_animal_404_for_unknown_study(logged_in_client, db_session):

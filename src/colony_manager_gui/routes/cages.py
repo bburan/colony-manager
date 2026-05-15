@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from colony_manager.models import (
     Cage, Animal, AnimalEvent, AnimalProcedure, AnimalTag, Source,
@@ -10,32 +10,6 @@ from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
 from .util import flash_form_errors, render_modal
 
 cages_bp = Blueprint('cages', __name__)
-
-
-def _attach_cage_animals(cages):
-    """Bulk-load each cage's animals (with source) and stash on ``_cached_animals``.
-
-    The cages-list template touches ``cage.animals.count()``,
-    ``cage.animals.filter_by(termination_date=None).count()``,
-    ``cage.sex_symbol``, ``cage.age_display(...)``, and
-    ``cage.source_display`` per row — every one of those would issue its
-    own query against the dynamic ``animals`` relationship. This helper
-    fetches every relevant animal in a single query and lets the
-    cache-aware ``Cage`` properties iterate the in-memory list.
-    """
-    if not cages:
-        return
-    cage_ids = [c.id for c in cages]
-    animals = db.session.scalars(
-        select(Animal)
-        .options(joinedload(Animal.source))
-        .where(Animal.cage_id.in_(cage_ids))
-    ).all()
-    by_cage = {cid: [] for cid in cage_ids}
-    for a in animals:
-        by_cage.setdefault(a.cage_id, []).append(a)
-    for c in cages:
-        c._cached_animals = by_cage.get(c.id, [])
 
 
 _CAGE_SORT_DIR_DEFAULTS = {
@@ -62,7 +36,15 @@ def list_cages():
     procedure_filter = request.args.get('procedure_id', 'all')
     age_unit = request.args.get('age_unit', 'day')
 
-    stmt = select(Cage).options(joinedload(Cage.species))
+    # ``selectinload(Cage.animals).joinedload(Animal.source)`` replaces
+    # the bespoke bulk-load helper this route used to call: it loads
+    # all cages' animals (plus their source) in one extra query, so the
+    # template's per-row ``cage.animals_count`` / ``sex_symbol`` /
+    # ``source_display`` properties don't fan out into N queries.
+    stmt = select(Cage).options(
+        joinedload(Cage.species),
+        selectinload(Cage.animals).joinedload(Animal.source),
+    )
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
@@ -169,8 +151,7 @@ def list_cages():
         col = Cage.custom_id
         order = col.desc() if sort_dir == 'desc' else col.asc()
 
-    cages = db.session.scalars(stmt.order_by(order)).all()
-    _attach_cage_animals(cages)
+    cages = db.session.scalars(stmt.order_by(order)).unique().all()
 
     sources = db.session.scalars(
         select(Source).order_by(Source.name)

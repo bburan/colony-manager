@@ -8,7 +8,7 @@
 {% if events %}
 <ul class="list-group list-group-flush small">
     {% for event in events %}
-    {% set file_count = event.data_files.count() %}
+    {% set file_count = event.data_files|length %}
     <li class="list-group-item px-0 py-2" x-data="{ open: false }">
         <button type="button"
                 class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-2 w-100 text-start"

@@ -65,6 +65,7 @@ def create_app():
 
     @app.context_processor
     def inject_global_vars():
+        from sqlalchemy import select
         from colony_manager.models import Species
         from colony_manager_gui.forms import CSRFOnlyForm
         species_id = int(session.get('selected_species', -1))
@@ -74,7 +75,7 @@ def create_app():
             selected_species = 'All'
         return {
             'datetime': datetime,
-            'species': db.session.query(Species).all(),
+            'species': db.session.scalars(select(Species)).all(),
             'selected_species': selected_species,
             'csrf_only_form': CSRFOnlyForm(),
         }

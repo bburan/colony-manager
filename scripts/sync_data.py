@@ -34,13 +34,19 @@ def _resolve_datatype_id(value):
     """Resolve ``--datatype`` to an integer id.
 
     Accepts either a numeric id or a DataType ``name``. Returns
-    ``None`` and logs an error if no matching row exists.
+    ``None`` and logs an error if no matching row exists. Runs inside
+    the Flask app context (set up in ``__main__``), so ``db.session``
+    is bound to the configured database.
     """
+    from sqlalchemy import select
     from colony_manager.models import DataType
+    from colony_manager_gui import db
     if value.isdigit():
-        dt = DataType.query.get(int(value))
+        dt = db.session.get(DataType, int(value))
     else:
-        dt = DataType.query.filter_by(name=value).first()
+        dt = db.session.scalars(
+            select(DataType).where(DataType.name == value)
+        ).first()
     if dt is None:
         log.error('No DataType matches %r.', value)
         return None

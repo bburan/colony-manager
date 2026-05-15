@@ -14,7 +14,7 @@ import os
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
@@ -199,8 +199,8 @@ def resync_event_files(event):
     # Link AnimalEventData files matching date, animal candidacy, and the
     # DataType's default procedure. Side must match when both the event
     # and the file's parser specify one.
-    candidate_files = AnimalEventData.query.filter(
-        AnimalEventData.date == new_date,
+    candidate_files = db.session.scalars(
+        select(AnimalEventData).where(AnimalEventData.date == new_date)
     ).all()
     for f in candidate_files:
         dt = f.datatype
@@ -261,21 +261,20 @@ def auto_create_animal_event(animal, data_file):
     target_events = []
     created_count = 0
     for side in sides:
-        query = AnimalEvent.query.filter_by(
-            animal_id=animal.id,
-            procedure_id=datatype.default_procedure_id,
-            procedure_target_id=datatype.default_procedure_target_id,
-        ).filter(
+        stmt = select(AnimalEvent).where(
+            AnimalEvent.animal_id == animal.id,
+            AnimalEvent.procedure_id == datatype.default_procedure_id,
+            AnimalEvent.procedure_target_id == datatype.default_procedure_target_id,
             or_(
                 AnimalEvent.scheduled_date == data_file.date,
                 AnimalEvent.completion_date == data_file.date,
-            )
+            ),
         )
         if side is None:
-            query = query.filter(AnimalEvent.side.is_(None))
+            stmt = stmt.where(AnimalEvent.side.is_(None))
         else:
-            query = query.filter(AnimalEvent.side == side)
-        existing = query.first()
+            stmt = stmt.where(AnimalEvent.side == side)
+        existing = db.session.scalars(stmt).first()
         if existing:
             target_events.append(existing)
         else:
@@ -299,12 +298,16 @@ def auto_create_animal_event(animal, data_file):
     # be stale (file synced before the animal existed) and would silently
     # drop files the parser would otherwise place on this animal. The
     # reparse below is the authoritative animal/side check.
-    candidate_files = AnimalEventData.query.join(
-        AnimalEventDataType,
-        AnimalEventData.datatype_id == AnimalEventDataType.id,
-    ).filter(
-        AnimalEventDataType.default_procedure_id == datatype.default_procedure_id,
-        AnimalEventData.date == data_file.date,
+    candidate_files = db.session.scalars(
+        select(AnimalEventData)
+        .join(
+            AnimalEventDataType,
+            AnimalEventData.datatype_id == AnimalEventDataType.id,
+        )
+        .where(
+            AnimalEventDataType.default_procedure_id == datatype.default_procedure_id,
+            AnimalEventData.date == data_file.date,
+        )
     ).all()
     linked_count = 0
     for f in candidate_files:

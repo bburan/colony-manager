@@ -1,5 +1,6 @@
 import re
 from datetime import date
+from sqlalchemy import select
 from flask_wtf import FlaskForm
 from wtforms import HiddenField, BooleanField, StringField, IntegerField, DateField, FloatField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length, Email, EqualTo
@@ -17,8 +18,14 @@ from colony_manager.models import (
 from . import db
 
 # --- Query Factories ---
+# WTForms-SQLAlchemy's QuerySelectField calls its ``query_factory``
+# at form-render time and expects the result to be either a SQLAlchemy
+# ``Query`` or a list. ``db.session.query(...)`` is the SA-2.0 path
+# that returns a Query (not a Select), so it's the right API here;
+# new application code outside of WTForms factories should prefer
+# ``select()`` / ``db.session.scalars(...)``.
 def order_by(model, attr='name'):
-    return lambda: model.query.order_by(attr)
+    return lambda: db.session.query(model).order_by(attr)
 
 species_factory = order_by(Species)
 source_factory = order_by(Source)
@@ -30,9 +37,20 @@ panel_factory = order_by(ImmunolabelingPanel)
 termination_reason_factory = order_by(TerminationReason)
 confocal_image_type_factory = order_by(ConfocalImageType)
 
-def male_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='male').order_by(Animal.id)
-def female_animal_factory(): return Animal.query.filter(Animal.termination_date == None, Animal.sex=='female').order_by(Animal.id)
-def active_animal_factory(): return Animal.query.filter_by(termination_date=None)
+def male_animal_factory():
+    return (db.session.query(Animal)
+            .filter(Animal.termination_date == None,  # noqa: E711
+                    Animal.sex == 'male')
+            .order_by(Animal.id))
+def female_animal_factory():
+    return (db.session.query(Animal)
+            .filter(Animal.termination_date == None,  # noqa: E711
+                    Animal.sex == 'female')
+            .order_by(Animal.id))
+def active_animal_factory():
+    return db.session.query(Animal).filter(
+        Animal.termination_date == None  # noqa: E711
+    )
 
 # --- Widgets ---
 class ButtonGroupWidget:
@@ -191,7 +209,9 @@ class CageForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
 
     def validate_custom_id(self, field):
-        if Cage.query.filter_by(custom_id=field.data).first():
+        if db.session.scalars(
+            select(Cage).where(Cage.custom_id == field.data)
+        ).first():
             raise ValidationError(f'Cage ID "{field.data}" already exists.')
 
 class HistologyForm(FlaskForm):
@@ -215,7 +235,9 @@ class AnimalCustomIDForm(FlaskForm):
 
     def validate_custom_id(self, field):
         if self.initial_custom_id != field.data:
-            if Animal.query.filter_by(custom_id=field.data).first():
+            if db.session.scalars(
+                select(Animal).where(Animal.custom_id == field.data)
+            ).first():
                 raise ValidationError(f'Animal ID "{field.data}" already exists.')
 
 class AnimalForm(AnimalCustomIDForm):
@@ -304,7 +326,9 @@ class BreedingPairForm(FlaskForm):
     male_notes = TextAreaField('Notes', validators=[Optional()])
 
     def validate_custom_id(self, field):
-        if BreedingPair.query.filter_by(custom_id=field.data).first():
+        if db.session.scalars(
+            select(BreedingPair).where(BreedingPair.custom_id == field.data)
+        ).first():
             raise ValidationError(f'Pair ID "{field.data}" already exists.')
 
 class LitterForm(FlaskForm):
@@ -344,7 +368,9 @@ class StudyForm(FlaskForm):
 
     def validate_name(self, field):
         if self.initial_name != field.data:
-            if Study.query.filter_by(name=field.data).first():
+            if db.session.scalars(
+                select(Study).where(Study.name == field.data)
+            ).first():
                 raise ValidationError(f'Study "{field.data}" already exists.')
 
 class AddToStudyForm(FlaskForm):

@@ -1,0 +1,115 @@
+# Example docker-compose for the colony-manager stack.
+#
+# Lives in the repo as a *reference*; deployments typically maintain
+# their own ``docker-compose.yml`` outside the repo (different volume
+# mounts, host paths, user ids). Copy + adapt as needed.
+#
+# What this stack runs:
+# * ``db``       — Postgres for the application database.
+# * ``redis``    — RQ job-queue broker.
+# * ``web``      — Gunicorn serving the Flask app on port 9001.
+# * ``worker``   — RQ worker that drains the 'sync' queue.
+#                  Same image as ``web``; different CMD.
+#
+# Env vars expected in ``.env`` (compose autoloads from this file):
+#   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   SECRET_KEY
+#   FLASK_ENV, FLASK_DEBUG
+#   COLONY_MANAGER_CACHE_DIR
+#   COLONY_MANAGER_DESCRIPTION_REGISTRY  (e.g. "mmm_db.registry")
+#
+# ``REDIS_URL`` is built into the compose file (points at the redis
+# service); the web + worker containers receive it directly.
+version: "3.9"
+
+services:
+  db:
+    image: postgres:18
+    container_name: db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./postgres:/var/lib/postgresql
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    # ``--appendonly yes`` enables append-only persistence so queued
+    # but not-yet-executed jobs survive a Redis restart. Running
+    # SyncJob rows would be recovered by the worker-boot stale-job
+    # sweep regardless, but persistence saves the user from having
+    # to re-trigger pending syncs after a Redis bounce.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  web:
+    container_name: flask
+    build:
+      context: .
+      dockerfile: ./app/colony-manager/Dockerfile
+    restart: unless-stopped
+    user: "1027:100"
+    ports:
+      - "9001:5000"
+    volumes:
+      - ./app:/app
+      - data:/volume1/data
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_ENV=${FLASK_ENV}
+      - FLASK_DEBUG=${FLASK_DEBUG}
+      - COLONY_MANAGER_CACHE_DIR=${COLONY_MANAGER_CACHE_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - COLONY_MANAGER_DESCRIPTION_REGISTRY=${COLONY_MANAGER_DESCRIPTION_REGISTRY}
+
+  worker:
+    container_name: rq-worker
+    build:
+      context: .
+      dockerfile: ./app/colony-manager/Dockerfile
+    restart: unless-stopped
+    user: "1027:100"
+    # The Dockerfile's default CMD launches gunicorn; override it so
+    # this container runs the RQ worker loop instead. Same image, same
+    # code, just different entry point.
+    command: ["python", "-m", "colony_manager_gui.worker"]
+    volumes:
+      - ./app:/app
+      - data:/volume1/data
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - FLASK_ENV=${FLASK_ENV}
+      - COLONY_MANAGER_CACHE_DIR=${COLONY_MANAGER_CACHE_DIR}
+      - SECRET_KEY=${SECRET_KEY}
+      - COLONY_MANAGER_DESCRIPTION_REGISTRY=${COLONY_MANAGER_DESCRIPTION_REGISTRY}
+
+volumes:
+  # Define any volume here where we are relying on CloudSync to detect
+  # changes and upload to the cloud.
+  data:
+    driver_opts:
+      # This requires NFS permissions to be set to allow localhost
+      # connections.
+      type: "nfs"
+      o: "addr=127.0.0.1,nfsvers=4"
+      device: ":/volume1/data"
+
+  # Local-only volume for Redis persistence (append-only file). Doesn't
+  # need to be NFS-mounted — RQ doesn't care about durability across
+  # host moves.
+  redis-data:

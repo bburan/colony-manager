@@ -275,3 +275,33 @@ def app(test_db):
 @pytest.fixture
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture
+def logged_in_user(db_session):
+    """Create an active admin User and return it.
+
+    Most routes require both authentication and admin (``settings.*``,
+    ``auth.list_users``, etc.); the few that don't ignore the flag.
+    Defaulting to admin keeps smoke tests one fixture wide.
+    """
+    from .factories import make_user
+    return make_user(
+        db_session, email='smoke@example.com',
+        password='smoke-secret', active=True, admin=True,
+    )
+
+
+@pytest.fixture
+def logged_in_client(app, logged_in_user):
+    """A test client with ``logged_in_user`` already authenticated.
+
+    Sets the Flask-Login session keys directly rather than POSTing the
+    login form so smoke tests don't depend on the login flow itself
+    working. Auth-flow coverage lives in test_routes_auth.py.
+    """
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(logged_in_user.id)
+        sess['_fresh'] = True
+    return client

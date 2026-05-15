@@ -24,6 +24,8 @@ from .db_fixtures import (  # noqa: F401  (fixtures discovered by name)
     db_session,
     app,
     client,
+    logged_in_user,
+    logged_in_client,
 )
 
 

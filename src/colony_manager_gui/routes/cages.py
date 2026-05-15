@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from sqlalchemy import func, and_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from colony_manager.models import (
@@ -26,8 +26,11 @@ def _attach_cage_animals(cages):
     if not cages:
         return
     cage_ids = [c.id for c in cages]
-    animals = Animal.query.options(joinedload(Animal.source)) \
-                          .filter(Animal.cage_id.in_(cage_ids)).all()
+    animals = db.session.scalars(
+        select(Animal)
+        .options(joinedload(Animal.source))
+        .where(Animal.cage_id.in_(cage_ids))
+    ).all()
     by_cage = {cid: [] for cid in cage_ids}
     for a in animals:
         by_cage.setdefault(a.cage_id, []).append(a)
@@ -59,73 +62,73 @@ def list_cages():
     procedure_filter = request.args.get('procedure_id', 'all')
     age_unit = request.args.get('age_unit', 'day')
 
-    query = Cage.query.options(joinedload(Cage.species))
+    stmt = select(Cage).options(joinedload(Cage.species))
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
-        query = query.filter(Cage.species_id == species_id)
+        stmt = stmt.where(Cage.species_id == species_id)
 
     # Active = has at least one non-terminated animal. Inactive cages
     # include both terminated-only and empty cages, matching the prior
     # ``is_active`` semantics.
     if status_filter == 'active':
-        query = query.filter(Cage.animals.any(Animal.termination_date.is_(None)))
+        stmt = stmt.where(Cage.animals.any(Animal.termination_date.is_(None)))
     elif status_filter == 'inactive':
-        query = query.filter(~Cage.animals.any(Animal.termination_date.is_(None)))
+        stmt = stmt.where(~Cage.animals.any(Animal.termination_date.is_(None)))
 
     if sex_filter in ('male', 'female'):
         # Cage matches if it has any animal of this sex AND no animal of
         # the other sex — i.e. the cage is single-sex of this kind.
         other = 'female' if sex_filter == 'male' else 'male'
-        query = query.filter(
+        stmt = stmt.where(
             Cage.animals.any(Animal.sex == sex_filter)
             & ~Cage.animals.any(Animal.sex == other)
         )
     elif sex_filter == 'mixed':
-        query = query.filter(
+        stmt = stmt.where(
             Cage.animals.any(Animal.sex == 'male')
             & Cage.animals.any(Animal.sex == 'female')
         )
 
     if source_filter != 'all':
-        query = query.filter(Cage.animals.any(
+        stmt = stmt.where(Cage.animals.any(
             Animal.source_id == int(source_filter)
         ))
 
     if notes_filter == 'yes':
-        query = query.filter(
+        stmt = stmt.where(
             Cage.notes.is_not(None) & (func.trim(Cage.notes) != '')
         )
     elif notes_filter == 'no':
-        query = query.filter(db.or_(
+        stmt = stmt.where(or_(
             Cage.notes.is_(None), func.trim(Cage.notes) == ''
         ))
 
     if tag_filter != 'all':
         tag_ids = AnimalTag.descendant_ids(db.session, int(tag_filter))
-        query = query.filter(Cage.animals.any(
+        stmt = stmt.where(Cage.animals.any(
             Animal.tags.any(AnimalTag.id.in_(tag_ids))
         ))
 
     if procedure_filter != 'all':
         proc_ids = AnimalProcedure.descendant_ids(db.session, int(procedure_filter))
-        query = query.filter(Cage.animals.any(
+        stmt = stmt.where(Cage.animals.any(
             Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
         ))
 
     # Occupancy uses *active* animal counts. Build a correlated subquery
     # so we can filter and sort on it without an extra Python pass.
     active_count_subq = (
-        db.session.query(
+        select(
             Animal.cage_id.label('cage_id'),
             func.count(Animal.id).label('active_count'),
         )
-        .filter(Animal.termination_date.is_(None))
+        .where(Animal.termination_date.is_(None))
         .group_by(Animal.cage_id)
         .subquery()
     )
     total_count_subq = (
-        db.session.query(
+        select(
             Animal.cage_id.label('cage_id'),
             func.count(Animal.id).label('total_count'),
             func.min(Animal.dob).label('min_dob'),
@@ -135,19 +138,21 @@ def list_cages():
         .subquery()
     )
 
-    query = query \
-        .outerjoin(active_count_subq, active_count_subq.c.cage_id == Cage.id) \
+    stmt = (
+        stmt
+        .outerjoin(active_count_subq, active_count_subq.c.cage_id == Cage.id)
         .outerjoin(total_count_subq, total_count_subq.c.cage_id == Cage.id)
+    )
 
     active_count_col = func.coalesce(active_count_subq.c.active_count, 0)
     total_count_col = func.coalesce(total_count_subq.c.total_count, 0)
 
     if occupancy_filter == 'empty':
-        query = query.filter(active_count_col == 0)
+        stmt = stmt.where(active_count_col == 0)
     elif occupancy_filter == 'single':
-        query = query.filter(active_count_col == 1)
+        stmt = stmt.where(active_count_col == 1)
     elif occupancy_filter == 'multi':
-        query = query.filter(active_count_col > 1)
+        stmt = stmt.where(active_count_col > 1)
 
     # Sorting (SQL).
     if sort_by == 'age':
@@ -164,10 +169,12 @@ def list_cages():
         col = Cage.custom_id
         order = col.desc() if sort_dir == 'desc' else col.asc()
 
-    cages = query.order_by(order).all()
+    cages = db.session.scalars(stmt.order_by(order)).all()
     _attach_cage_animals(cages)
 
-    sources = Source.query.order_by(Source.name).all()
+    sources = db.session.scalars(
+        select(Source).order_by(Source.name)
+    ).all()
     animal_tags = AnimalTag.get_ordered(db.session)
     procedures = AnimalProcedure.get_ordered(db.session)
 
@@ -191,7 +198,7 @@ def list_cages():
 
 @cages_bp.route('/<int:cage_id>')
 def view_cage(cage_id):
-    cage = Cage.query.get_or_404(cage_id)
+    cage = db.get_or_404(Cage, cage_id)
     return render_template('view_cage.html', cage=cage)
 
 
@@ -224,7 +231,7 @@ def create_cage():
 
 @cages_bp.route('/<int:cage_id>/update', methods=['POST'])
 def update_cage(cage_id):
-    cage = Cage.query.get_or_404(cage_id)
+    cage = db.get_or_404(Cage, cage_id)
     form = CageForm()
     if form.validate_on_submit():
         form.populate_obj(cage)
@@ -237,7 +244,7 @@ def update_cage(cage_id):
 
 @cages_bp.route('/<int:cage_id>/update_note', methods=['POST'])
 def update_cage_note(cage_id):
-    cage = Cage.query.get_or_404(cage_id)
+    cage = db.get_or_404(Cage, cage_id)
     form = NoteForm()
     if form.validate_on_submit():
         form.populate_obj(cage)
@@ -257,7 +264,7 @@ def create_cage_modal():
 
 @cages_bp.route('/<int:cage_id>/edit_note_modal')
 def update_cage_note_modal(cage_id):
-    cage = Cage.query.get_or_404(cage_id)
+    cage = db.get_or_404(Cage, cage_id)
     return render_modal(NoteForm(obj=cage), item=cage,
                         label=f'Edit note for {cage.custom_id}',
                         submit_url=url_for('cages.update_cage_note', cage_id=cage.id))

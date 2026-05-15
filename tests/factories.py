@@ -18,8 +18,10 @@ from datetime import date, timedelta
 from itertools import count
 
 from colony_manager.models import (
-    Animal, AnimalEvent, AnimalProcedure, AnimalProcedureTarget,
-    BreedingPair, Cage, Ear, Feed, FeedLog, Litter, Source, Species,
+    Animal, AnimalDataType, AnimalEvent, AnimalEventDataType,
+    AnimalProcedure, AnimalProcedureTarget, BreedingPair, Cage,
+    ConfocalImage, ConfocalImageDataType, ConfocalImageType, Ear,
+    EarDataType, Feed, FeedLog, Litter, Source, Species,
     TerminationReason, User, WeightLog,
 )
 
@@ -34,6 +36,9 @@ _termination_reason_seq = count(1)
 _procedure_seq = count(1)
 _procedure_target_seq = count(1)
 _feed_seq = count(1)
+_ear_seq = count(1)
+_confocal_type_seq = count(1)
+_datatype_seq = count(1)
 
 
 def make_species(session, name=None):
@@ -197,6 +202,77 @@ def make_feed_log(session, *, animal, feed, date, quantity=1):
         feed_id=feed.id,
         date=date,
         quantity=quantity,
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_ear(session, *, animal, side='Left'):
+    obj = Ear(animal_id=animal.id, side=side)
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_confocal_image_type(session, name=None):
+    obj = ConfocalImageType(
+        name=name or f'ImageType {next(_confocal_type_seq)}',
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_confocal_image(session, *, ear, image_type=None, frequency=8000.0):
+    image_type = image_type or make_confocal_image_type(session)
+    obj = ConfocalImage(
+        ear_id=ear.id,
+        image_type_id=image_type.id,
+        frequency=frequency,
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_animal_event_data_type(
+    session, *, name=None, default_procedure=None,
+    default_procedure_target=None,
+):
+    obj = AnimalEventDataType(
+        name=name or f'AEDataType {next(_datatype_seq)}',
+        default_procedure_id=default_procedure.id if default_procedure else None,
+        default_procedure_target_id=(
+            default_procedure_target.id if default_procedure_target else None
+        ),
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_confocal_image_data_type(session, name=None):
+    obj = ConfocalImageDataType(
+        name=name or f'CIDataType {next(_datatype_seq)}',
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_animal_data_type(session, name=None):
+    obj = AnimalDataType(
+        name=name or f'ADataType {next(_datatype_seq)}',
+    )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_ear_data_type(session, name=None):
+    obj = EarDataType(
+        name=name or f'EDataType {next(_datatype_seq)}',
     )
     session.add(obj)
     session.commit()

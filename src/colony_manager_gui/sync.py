@@ -296,7 +296,7 @@ def _sync_location(location, dry_run=False, debug=False):
                     log.info('  [DUP]  %s has same hash as %s',
                              relative_path, hash_match.relative_path)
 
-        targets = datatype.match_targets(parsed)
+        targets = datatype.match_targets(db.session, parsed)
         candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
         candidate_ears = _candidate_ears_for(
             parsed, candidate_animals, ears_by_animal_side,
@@ -533,7 +533,7 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         }
 
     for row, parsed in parsed_rows:
-        targets = dt.match_targets(parsed)
+        targets = dt.match_targets(db.session, parsed)
         candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
         candidate_ears = _candidate_ears_for(
             parsed, candidate_animals, ears_by_animal_side,

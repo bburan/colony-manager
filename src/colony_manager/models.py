@@ -254,10 +254,13 @@ class DataType(VersionedModel):
         except Exception:
             return {}
 
-    def match_targets(self, parsed):
+    def match_targets(self, session, parsed):
         """Resolve a parsed metadata dict to a list of target model instances.
 
         Subclasses override. Return an empty list if nothing matched.
+        Takes an explicit ``session`` so polymorphic dispatch works
+        from both Flask routes (passing ``db.session``) and standalone
+        scripts/tests.
         """
         return []
 
@@ -276,7 +279,9 @@ class AnimalEventDataType(DataType):
 
     TARGET_LABEL = 'Animal Event'
 
-    def match_targets(self, parsed):
+    def match_targets(self, session, parsed):
+        from sqlalchemy import select
+
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
@@ -286,21 +291,22 @@ class AnimalEventDataType(DataType):
         side = _canonical_side(parsed.get('side'))
         events = []
         for aid in animal_ids:
-            animal = Animal.query.filter_by(custom_id=aid).first()
+            animal = session.scalars(
+                select(Animal).where(Animal.custom_id == aid)
+            ).first()
             if not animal:
                 continue
-            query = AnimalEvent.query.filter_by(
-                animal_id=animal.id,
-                procedure_id=self.default_procedure_id,
-            ).filter(
+            stmt = select(AnimalEvent).where(
+                AnimalEvent.animal_id == animal.id,
+                AnimalEvent.procedure_id == self.default_procedure_id,
                 or_(
                     AnimalEvent.scheduled_date == target_date,
                     AnimalEvent.completion_date == target_date,
-                )
+                ),
             )
             if side is not None:
-                query = query.filter(AnimalEvent.side == side)
-            event = query.first()
+                stmt = stmt.where(AnimalEvent.side == side)
+            event = session.scalars(stmt).first()
             if event:
                 events.append(event)
         return events
@@ -315,7 +321,9 @@ class ConfocalImageDataType(DataType):
 
     TARGET_LABEL = 'Confocal Image'
 
-    def match_targets(self, parsed):
+    def match_targets(self, session, parsed):
+        from sqlalchemy import select
+
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
@@ -324,19 +332,25 @@ class ConfocalImageDataType(DataType):
         image_type_name = parsed.get('image_type')
         if not (animal_ids and ear and frequency is not None and image_type_name):
             return []
-        image_type = ConfocalImageType.query.filter_by(name=image_type_name).first()
+        image_type = session.scalars(
+            select(ConfocalImageType).where(ConfocalImageType.name == image_type_name)
+        ).first()
         if not image_type:
             return []
         images = []
         for aid in animal_ids:
-            animal = Animal.query.filter_by(custom_id=aid).first()
+            animal = session.scalars(
+                select(Animal).where(Animal.custom_id == aid)
+            ).first()
             if not animal:
                 continue
-            image = ConfocalImage.query.join(Ear).filter(
-                Ear.animal_id == animal.id,
-                Ear.side == ear,
-                func.abs(ConfocalImage.frequency - float(frequency)) < 1e-6,
-                ConfocalImage.image_type_id == image_type.id,
+            image = session.scalars(
+                select(ConfocalImage).join(Ear).where(
+                    Ear.animal_id == animal.id,
+                    Ear.side == ear,
+                    func.abs(ConfocalImage.frequency - float(frequency)) < 1e-6,
+                    ConfocalImage.image_type_id == image_type.id,
+                )
             ).first()
             if image:
                 images.append(image)
@@ -352,13 +366,17 @@ class AnimalDataType(DataType):
 
     TARGET_LABEL = 'Animal'
 
-    def match_targets(self, parsed):
+    def match_targets(self, session, parsed):
+        from sqlalchemy import select
+
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
         animals = []
         for aid in animal_ids:
-            animal = Animal.query.filter_by(custom_id=aid).first()
+            animal = session.scalars(
+                select(Animal).where(Animal.custom_id == aid)
+            ).first()
             if animal:
                 animals.append(animal)
         return animals
@@ -373,7 +391,9 @@ class EarDataType(DataType):
 
     TARGET_LABEL = 'Ear'
 
-    def match_targets(self, parsed):
+    def match_targets(self, session, parsed):
+        from sqlalchemy import select
+
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
@@ -384,10 +404,14 @@ class EarDataType(DataType):
         for aid, side in zip(animal_ids, sides):
             if side not in ('Left', 'Right'):
                 continue
-            animal = Animal.query.filter_by(custom_id=aid).first()
+            animal = session.scalars(
+                select(Animal).where(Animal.custom_id == aid)
+            ).first()
             if not animal:
                 continue
-            ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
+            ear = session.scalars(
+                select(Ear).where(Ear.animal_id == animal.id, Ear.side == side)
+            ).first()
             if ear:
                 ears.append(ear)
         return ears

@@ -424,6 +424,35 @@ def delete_confocal_image(image_id):
     return redirect(request.referrer or url_for('histology.list_histology'))
 
 
+@histology_bp.route('/animals/<int:animal_id>/ears/create', methods=['POST'])
+def create_ear(animal_id):
+    """Create a missing Ear (Left or Right) for an already-terminated animal.
+
+    Covers the case where ``ears_extracted`` wasn't set on the
+    termination form. Side is provided via form data. Duplicates are
+    refused — there's a unique (animal_id, side) pair implicitly via
+    histology semantics, though no DB constraint enforces it today.
+    """
+    animal = db.get_or_404(Animal, animal_id)
+    side = request.form.get('side', '').strip()
+    side = _canonical_side(side)
+    if side not in ('Left', 'Right'):
+        flash('Side must be Left or Right.', 'danger')
+        return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
+
+    existing = db.session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id, Ear.side == side)
+    ).first()
+    if existing is not None:
+        flash(f'{animal.display_id} already has a {side} ear.', 'warning')
+        return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
+
+    db.session.add(Ear(animal_id=animal.id, side=side))
+    db.session.commit()
+    flash(f'{side} ear created for {animal.display_id}.', 'success')
+    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
+
+
 @histology_bp.route('/ears/<int:ear_id>/delete', methods=['POST'])
 def delete_ear(ear_id):
     ear = db.get_or_404(Ear, ear_id)

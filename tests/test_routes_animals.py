@@ -14,12 +14,14 @@ from datetime import date, timedelta
 from sqlalchemy import select
 
 from colony_manager.models import (
-    Animal, AnimalEvent, FeedLog, WeightLog,
+    Animal, AnimalEvent, AnimalEventData, Data, DataLocation, FeedLog,
+    WeightLog,
 )
 
 from .factories import (
-    make_animal, make_breeding_pair, make_cage, make_event, make_feed,
-    make_feed_log, make_procedure, make_procedure_target, make_species,
+    make_animal, make_animal_event_data_type, make_breeding_pair,
+    make_cage, make_data_location, make_event, make_feed, make_feed_log,
+    make_procedure, make_procedure_target, make_species,
     make_termination_reason, make_weight_log,
 )
 
@@ -392,3 +394,72 @@ def test_list_unmatched_data_animal_event_filter(logged_in_client):
         '/animals/unmatched-data?target_type=animal_event'
     )
     assert response.status_code == 200
+
+
+def test_list_unmatched_data_missing_status_filter(logged_in_client):
+    """``missing`` is one of the status options exposed by the dropdown."""
+    response = logged_in_client.get(
+        '/animals/unmatched-data?status=missing'
+    )
+    assert response.status_code == 200
+
+
+def _make_unmatched_data_row(db_session, *, status='missing', name='f.txt'):
+    """Helper: build the minimum DataType + DataLocation + AnimalEventData
+    row needed to exercise the unmatched-data delete path.
+    """
+    dtype = make_animal_event_data_type(db_session)
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path=name,
+        name=name,
+        status=status,
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def test_bulk_delete_unmatched_data(logged_in_client, db_session):
+    row_a = _make_unmatched_data_row(db_session, name='a.txt')
+    row_b = _make_unmatched_data_row(db_session, name='b.txt')
+    a_id, b_id = row_a.id, row_b.id
+
+    response = logged_in_client.post(
+        '/animals/unmatched-data/delete',
+        data={'data_ids': [str(a_id), str(b_id)]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Data, a_id) is None
+    assert db_session.get(Data, b_id) is None
+
+
+def test_bulk_delete_unmatched_data_empty_selection_no_op(
+    logged_in_client, db_session,
+):
+    """Submitting with no ``data_ids`` should redirect with a warning, not 500."""
+    response = logged_in_client.post(
+        '/animals/unmatched-data/delete',
+        data={},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_bulk_delete_skips_unknown_ids(logged_in_client, db_session):
+    """Mixing real + unknown ids deletes only the real ones; no crash."""
+    row = _make_unmatched_data_row(db_session, name='real.txt')
+    row_id = row.id
+
+    response = logged_in_client.post(
+        '/animals/unmatched-data/delete',
+        data={'data_ids': [str(row_id), '99999']},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Data, row_id) is None

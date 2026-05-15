@@ -14,7 +14,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import select
 
-from colony_manager.models import Animal, Ear, WeightLog
+from colony_manager.models import Animal, AnimalTag, Ear, WeightLog
 
 from .factories import (
     make_animal, make_cage, make_source, make_species,
@@ -197,6 +197,26 @@ def test_baseline_from_weights_no_baselines_returns_none(db_session):
 
 def test_baseline_from_weights_empty_returns_none(db_session):
     assert Animal._baseline_from_weights([]) is None
+
+
+def test_tags_relationship_iterates_in_name_order(db_session):
+    """``Animal.tags`` has ``order_by='AnimalTag.name'`` so iteration is
+    deterministic regardless of which order tags were attached.
+    """
+    animal = make_animal(db_session)
+    # Insert in non-alphabetical order.
+    zebra = AnimalTag(name='zebra')
+    apple = AnimalTag(name='Apple')
+    monkey = AnimalTag(name='Monkey')
+    db_session.add_all([zebra, apple, monkey])
+    db_session.commit()
+    animal.tags = [zebra, monkey, apple]
+    db_session.commit()
+    db_session.refresh(animal)
+
+    # Postgres sorts case-sensitively by default, so 'Apple' < 'Monkey'
+    # < 'zebra' (capital letters sort before lowercase).
+    assert [t.name for t in animal.tags] == ['Apple', 'Monkey', 'zebra']
 
 
 def test_baseline_from_weights_ignores_null_weights(db_session):

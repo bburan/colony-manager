@@ -184,6 +184,89 @@ def test_delete_confocal_image(logged_in_client, db_session):
     assert db_session.get(ConfocalImage, img_id) is None
 
 
+def test_create_ear_for_terminated_animal(logged_in_client, db_session):
+    """``histology.create_ear`` lets the user add a missing Left/Right
+    ear after the animal was terminated without ``ears_extracted`` set.
+    """
+    from datetime import date
+    animal = make_animal(db_session, custom_id='CE-1')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+
+    response = logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Left'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    ears = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id)
+    ).all()
+    assert [e.side for e in ears] == ['Left']
+
+
+def test_create_ear_canonicalizes_lowercase_side(logged_in_client, db_session):
+    """Accept ``left`` / ``right`` and store the canonical form."""
+    from datetime import date
+    animal = make_animal(db_session, custom_id='CE-2')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+
+    response = logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'right'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    ears = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id)
+    ).all()
+    assert [e.side for e in ears] == ['Right']
+
+
+def test_create_ear_rejects_invalid_side(logged_in_client, db_session):
+    animal = make_animal(db_session, custom_id='CE-3')
+    response = logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Middle'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    ears = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id)
+    ).all()
+    assert ears == []
+
+
+def test_create_ear_refuses_duplicate_side(logged_in_client, db_session):
+    animal = make_animal(db_session, custom_id='CE-4')
+    make_ear(db_session, animal=animal, side='Left')
+
+    response = logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Left'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    ears = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id)
+    ).all()
+    # Still only one Left ear; the duplicate request was a no-op.
+    assert len(ears) == 1
+
+
+def test_create_ear_404_for_unknown_animal(logged_in_client):
+    response = logged_in_client.post(
+        '/histology/animals/99999/ears/create',
+        data={'side': 'Left'},
+    )
+    assert response.status_code == 404
+
+
 def test_edit_confocal_image_modal_returns_404_for_unknown_id(logged_in_client):
     response = logged_in_client.get(
         '/histology/confocal_images/99999/edit_modal'

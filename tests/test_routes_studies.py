@@ -123,6 +123,27 @@ def test_remove_study_animal(logged_in_client, db_session):
     assert animal not in study.animals.all()
 
 
+def test_add_study_animal_quick_add(logged_in_client, db_session):
+    """The animal-detail "Enroll in study" button POSTs here.
+
+    Exercises ``studies.add_study_animal`` end-to-end and verifies the
+    animal lands in the study's animal collection.
+    """
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='Q-1')
+    study = _make_study(db_session, name='Quick-Add-Target')
+
+    response = logged_in_client.post(
+        f'/studies/add/{animal.id}',
+        data={'study': str(study.id)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    db_session.refresh(study)
+    assert animal in study.animals.all()
+
+
 def test_remove_study_animal_404_for_unknown_study(logged_in_client, db_session):
     animal = make_animal(db_session)
     response = logged_in_client.post(

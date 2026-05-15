@@ -825,6 +825,30 @@ def list_unmatched_data():
         datatypes=datatypes,
     )
 
+@animals_bp.route('/unmatched-data/delete', methods=['POST'])
+def delete_unmatched_data():
+    """Bulk-delete selected Data rows (typically files marked 'missing').
+
+    Posted from the unmatched-files table: a list of ``data_ids`` from
+    the per-row checkboxes. No-op if the list is empty. Filter / sort
+    state is preserved via query-string args round-tripped in the
+    redirect; the form action carries them through ``request.referrer``.
+    """
+    data_ids = request.form.getlist('data_ids', type=int)
+    if not data_ids:
+        flash('No files selected.', 'warning')
+        return redirect(request.referrer or url_for('animals.list_unmatched_data'))
+
+    rows = db.session.scalars(
+        select(Data).where(Data.id.in_(data_ids))
+    ).all()
+    for row in rows:
+        db.session.delete(row)
+    db.session.commit()
+    flash(f'Deleted {len(rows)} file record(s).', 'success')
+    return redirect(request.referrer or url_for('animals.list_unmatched_data'))
+
+
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):
     """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""

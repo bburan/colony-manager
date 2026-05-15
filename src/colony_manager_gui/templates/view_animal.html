@@ -22,13 +22,14 @@
             </div>
         </div>
 
-        {% if animal.ears.count() > 0 %}
+        {% set existing_ear_sides = animal.ears | map(attribute='side') | list %}
+        {% if animal.ears.count() > 0 or not animal.is_active %}
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Ears</h2>
             </div>
             <div class="card-body">
-                <ul class="list-group">
+                <ul class="list-group mb-2">
                 {% for ear in animal.ears %}
                     <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">
                         <li class="d-flex justify-content-between list-group-item">{{ ear.side }}
@@ -37,7 +38,27 @@
                     </a>
                 {% endfor %}
                 </ul>
-                </div>
+                {# Offer "Add" buttons for any side that doesn't yet have an ear,
+                   but only if the animal is terminated — pre-termination there's
+                   no reason to record an ear yet. #}
+                {% if not animal.is_active %}
+                    <div class="d-flex gap-2">
+                        {% for side in ['Left', 'Right'] %}
+                            {% if side not in existing_ear_sides %}
+                                <form method="POST"
+                                      action="{{ url_for('histology.create_ear', animal_id=animal.id) }}"
+                                      class="d-inline">
+                                    {{ csrf_only_form.csrf_token }}
+                                    <input type="hidden" name="side" value="{{ side }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-plus"></i> Add {{ side }} Ear
+                                    </button>
+                                </form>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
         {% endif %}
 

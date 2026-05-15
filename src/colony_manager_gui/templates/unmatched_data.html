@@ -88,6 +88,7 @@ Unmatched Data Files
                         <option value="unreviewed" {% if filters.status == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
                         <option value="reviewed" {% if filters.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
                         <option value="ignored" {% if filters.status == 'ignored' %}selected{% endif %}>Ignored</option>
+                        <option value="missing" {% if filters.status == 'missing' %}selected{% endif %}>Missing</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -113,20 +114,42 @@ Unmatched Data Files
     </form>
 </div>
 
+{# The bulk-delete form wraps the whole results panel so the same row
+   checkboxes drive both the delete-selected button at the top and the
+   pagination footer at the bottom. Whether the bulk-delete UI shows is
+   gated on the Missing status filter — that's the only safe-to-mass-
+   delete state today. #}
+{% set show_bulk_delete = filters.status == 'missing' %}
+<form method="POST" action="{{ url_for('animals.delete_unmatched_data') }}"
+      onsubmit="return confirm('Delete the selected file records? This cannot be undone.');">
+    {{ csrf_only_form.csrf_token }}
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Files that did not link to a target</h2>
-        <span class="badge bg-secondary">{{ pagination.total }} total</span>
+        <div class="d-flex align-items-center gap-2">
+            {% if show_bulk_delete and files %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-trash"></i> Delete selected
+                </button>
+            {% endif %}
+            <span class="badge bg-secondary">{{ pagination.total }} total</span>
+        </div>
     </div>
     <div class="card-body p-0">
         {% if files %}
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
+                    {% if show_bulk_delete %}
+                    <th style="width: 1%;">
+                        <input type="checkbox" class="form-check-input"
+                               onclick="document.querySelectorAll('input[name=data_ids]').forEach(cb => cb.checked = this.checked);"
+                               aria-label="Select all">
+                    </th>
+                    {% endif %}
                     <th>{{ sort_header('DataType', 'datatype') }}</th>
                     <th>Target</th>
-                    <th>{{ sort_header('Filename', 'name') }}</th>
-                    <th>Location</th>
+                    <th>{{ sort_header('Location', 'name') }}</th>
                     <th>{{ sort_header('Date', 'date') }}</th>
                     <th>Candidates</th>
                     <th>{{ sort_header('Status', 'status') }}</th>
@@ -135,9 +158,14 @@ Unmatched Data Files
             <tbody>
                 {% for f in files %}
                 <tr>
+                    {% if show_bulk_delete %}
+                    <td>
+                        <input type="checkbox" class="form-check-input"
+                               name="data_ids" value="{{ f.id }}">
+                    </td>
+                    {% endif %}
                     <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
                     <td><span class="badge bg-info text-dark">{{ f.datatype.TARGET_LABEL }}</span></td>
-                    <td>{{ f.name }}</td>
                     <td><span class="small text-muted">{{ f.relative_path }}</span></td>
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
                     <td class="small">
@@ -199,4 +227,5 @@ Unmatched Data Files
     </div>
     {% endif %}
 </div>
+</form>
 {% endblock %}

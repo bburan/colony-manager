@@ -680,7 +680,11 @@ class Animal(VersionedModel):
     breeding_pair = relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
     weights = relationship('WeightLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
     feedings = relationship('FeedLog', backref='animal', lazy='dynamic', cascade="all, delete-orphan")
-    tags = relationship('AnimalTag', secondary=animal_tags, backref='animals')
+    # ``order_by`` here keeps tag rendering stable across pages — the
+    # template can iterate ``animal.tags`` directly without sorting on
+    # the Jinja side. Same pattern on AnimalEvent.tags and Ear.tags.
+    tags = relationship('AnimalTag', secondary=animal_tags, backref='animals',
+                        order_by='AnimalTag.name')
 
     @property
     def events_by_date(self):
@@ -1087,7 +1091,9 @@ class AnimalEvent(VersionedModel):
     scheduled_date = Column(Date, nullable=False)
     completion_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    tags = relationship('AnimalEventTag', secondary=animal_event_tags, backref='animal_procedure')
+    tags = relationship('AnimalEventTag', secondary=animal_event_tags,
+                        backref='animal_procedure',
+                        order_by='AnimalEventTag.name')
 
     @property
     def status(self):
@@ -1124,7 +1130,8 @@ class Ear(VersionedModel):
     panel_id = Column(Integer, ForeignKey('immunolabeling_panel.id', use_alter=True), nullable=True)
     notes = Column(Text, nullable=True)
     confocal_images = relationship('ConfocalImage', backref='ear', lazy=True)
-    tags = relationship('EarTag', secondary=ear_tags, backref='ears')
+    tags = relationship('EarTag', secondary=ear_tags, backref='ears',
+                        order_by='EarTag.name')
 
     @property
     def full_display(self):

@@ -1240,7 +1240,7 @@ class User(VersionedModel):
 class SyncJob(Base):
     """Background-job record for sync / rematch runs.
 
-    Created at request time, updated by the worker thread. Not versioned
+    Created at request time, updated by the RQ worker. Not versioned
     (this is operational state, not domain data).
     """
     __tablename__ = 'sync_job'
@@ -1259,6 +1259,11 @@ class SyncJob(Base):
     # Counts dict from sync_locations / rematch_datatype, JSON-encoded.
     summary = Column(Text, nullable=True)
     error = Column(Text, nullable=True)
+    # RQ's internal job id. Lets the worker-boot stale-job sweep tell
+    # "still queued in Redis" apart from "worker died". Nullable because
+    # tests / sync-execution paths don't always go through RQ, and
+    # historical rows predate this column.
+    rq_job_id = Column(String(64), nullable=True)
 
     datatype = relationship('DataType')
 

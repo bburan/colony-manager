@@ -39,6 +39,24 @@ def test_db_isolation_between_tests(db_session):
     assert rows == []
 
 
+def test_sync_job_rq_job_id_column_round_trip(db_session):
+    """The rq_job_id column added in migration b7c2a3f9e081 is writable
+    and survives a fresh query. Belt-and-suspenders for the migration.
+    """
+    from colony_manager.models import SyncJob
+
+    job = SyncJob(
+        kind='sync', status='pending', rq_job_id='deadbeef-cafe-1234',
+    )
+    db_session.add(job)
+    db_session.commit()
+    job_id = job.id
+    db_session.expire_all()
+
+    refreshed = db_session.get(SyncJob, job_id)
+    assert refreshed.rq_job_id == 'deadbeef-cafe-1234'
+
+
 def test_flask_app_boots(client):
     """Flask app factory builds against the per-test DB without erroring.
 

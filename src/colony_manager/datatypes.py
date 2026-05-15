@@ -376,7 +376,15 @@ def _load_registry():
             f'that defines DESCRIPTION_CLASSES (e.g. "mmm_db.registry").'
         )
 
-    module = importlib.import_module(module_path)
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as exc:
+        # Convert to RuntimeError so the dropdown-fallback in
+        # ``get_allowed_description_classes`` catches it and renders
+        # "no choices" instead of bubbling up to a 500.
+        raise RuntimeError(
+            f'{_REGISTRY_ENV_VAR}={module_path!r} could not be imported: {exc}'
+        ) from exc
     raw = getattr(module, _REGISTRY_ATTR, None)
     if raw is None:
         raise RuntimeError(

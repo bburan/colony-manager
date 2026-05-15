@@ -66,6 +66,48 @@ def test_missing_env_var_raises_runtime_error(monkeypatch):
     reset_registry_cache()
 
 
+def test_unimportable_module_raises_runtime_error(monkeypatch):
+    """Misconfigured env var → RuntimeError, not ImportError.
+
+    Regression: ``importlib.import_module`` originally let
+    ``ModuleNotFoundError`` propagate, which the dropdown-fallback in
+    ``get_allowed_description_classes`` didn't catch (it only handles
+    RuntimeError). Result: any form page that rendered the
+    description-class SelectField 500'd whenever the env var pointed
+    at a missing module (e.g. ``mmm_db`` not installed in the test
+    venv).
+    """
+    monkeypatch.setenv(
+        'COLONY_MANAGER_DESCRIPTION_REGISTRY', 'definitely_not_a_real_module',
+    )
+    from colony_manager.datatypes import (
+        load_description_class, reset_registry_cache,
+    )
+    reset_registry_cache()
+    try:
+        with pytest.raises(RuntimeError, match='could not be imported'):
+            load_description_class('STUB')
+    finally:
+        reset_registry_cache()
+
+
+def test_get_allowed_description_classes_degrades_on_bad_module(monkeypatch):
+    """The settings-page dropdown must show ``[]`` rather than 500
+    when the env var is misconfigured.
+    """
+    monkeypatch.setenv(
+        'COLONY_MANAGER_DESCRIPTION_REGISTRY', 'definitely_not_a_real_module',
+    )
+    from colony_manager.datatypes import (
+        get_allowed_description_classes, reset_registry_cache,
+    )
+    reset_registry_cache()
+    try:
+        assert get_allowed_description_classes() == []
+    finally:
+        reset_registry_cache()
+
+
 def test_non_subclass_value_rejected(monkeypatch):
     """The registry must refuse values that aren't DataTypeDescription."""
     import sys

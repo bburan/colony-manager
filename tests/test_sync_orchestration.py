@@ -395,6 +395,108 @@ def test_intra_location_move_does_not_re_flag_as_missing(
     assert row.file_hash == original_hash
 
 
+def test_sync_recovers_missing_row_when_file_reappears(
+    db_session, app, tmp_path,
+):
+    """Regression: a Data row stuck in ``status='missing'`` from a
+    previous sync should flip back to ``'unreviewed'`` when the file
+    is found on disk at the same ``relative_path`` again.
+
+    Before the fix, the walk's "relative_path in existing_by_path"
+    branch did ``counts['skipped'] += 1; continue`` without inspecting
+    the row's status. The missing-pass at the end of _sync_location
+    also skipped the row because the file exists now — its condition
+    is ``not os.path.exists(full) and status != 'missing'``. Result:
+    rows were never auto-recovered.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=procedure,
+    )
+    dtype.description_class = 'fake_animal_event'
+    db_session.commit()
+    location = make_data_location(
+        db_session, datatype=dtype, base_path=tmp_path,
+    )
+
+    # File exists on disk at the path the row claims.
+    _write_file(tmp_path, 'REC-1_2025-12-08.txt', content='whatever')
+
+    # Pre-seed a Data row in 'missing' state pointing at that file
+    # (this is the steady-state any pre-fix sync left behind for
+    # files that had been MOVE'd then re-flagged by the bad
+    # missing-pass).
+    from colony_manager.models import AnimalEventData
+    stuck = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path='REC-1_2025-12-08.txt',
+        name='REC-1_2025-12-08.txt',
+        status='missing',
+    )
+    db_session.add(stuck)
+    db_session.commit()
+    stuck_id = stuck.id
+
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+
+    assert totals['recovered'] == 1
+    assert totals['missing'] == 0
+
+    db_session.expire_all()
+    refreshed = db_session.get(AnimalEventData, stuck_id)
+    assert refreshed.status == 'unreviewed'
+
+
+def test_sync_does_not_recover_when_file_actually_missing(
+    db_session, app, tmp_path,
+):
+    """A row marked 'missing' whose file is NOT on disk stays missing."""
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=procedure,
+    )
+    dtype.description_class = 'fake_animal_event'
+    db_session.commit()
+    location = make_data_location(
+        db_session, datatype=dtype, base_path=tmp_path,
+    )
+
+    # Row claims a path that does NOT exist on disk.
+    from colony_manager.models import AnimalEventData
+    stuck = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path='GONE-1_2025-12-08.txt',
+        name='GONE-1_2025-12-08.txt',
+        status='missing',
+    )
+    db_session.add(stuck)
+    db_session.commit()
+    stuck_id = stuck.id
+
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+
+    # No recovery; row stays missing. Missing-pass also doesn't re-
+    # increment 'missing' because status is already 'missing'.
+    assert totals['recovered'] == 0
+    assert totals['missing'] == 0
+
+    db_session.expire_all()
+    refreshed = db_session.get(AnimalEventData, stuck_id)
+    assert refreshed.status == 'missing'
+
+
 def test_move_re_resolves_targets_when_animal_id_changes(
     db_session, app, tmp_path,
 ):

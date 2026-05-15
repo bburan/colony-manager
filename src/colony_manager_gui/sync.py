@@ -176,7 +176,7 @@ def _sync_location(location, dry_run=False, debug=False):
     N×ear) ≈ 4N queries for N files; now it's ≈ 4 queries regardless
     of N (plus whatever ``match_targets`` issues, which we leave alone).
     """
-    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0}
+    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0, 'recovered': 0}
 
     datatype = location.datatype
     base_path = location.base_path
@@ -221,6 +221,19 @@ def _sync_location(location, dry_run=False, debug=False):
             relative_path = os.path.relpath(full_path, base_path).replace("\\", "/")
 
             if relative_path in existing_by_path:
+                # File is on disk at a path the DB already tracks.
+                # Recover the row if it had been stamped 'missing' by
+                # a previous sync (the file is back — could be a
+                # restore-from-backup, a previously-unmounted share,
+                # or a row left behind by the now-fixed MOVE-vs-
+                # missing-pass interaction). We trust the path-based
+                # identity here; if the file's *contents* changed
+                # silently, the user can force-rematch or rehash to
+                # detect that separately.
+                existing_row = existing_by_path[relative_path]
+                if existing_row.status == 'missing':
+                    existing_row.status = 'unreviewed'
+                    counts['recovered'] += 1
                 counts['skipped'] += 1
                 continue
 
@@ -435,10 +448,12 @@ def _sync_location(location, dry_run=False, debug=False):
         db.session.commit()
 
     log.info(
-        '[%s] %s — added=%d moved=%d unmatched=%d auto_created=%d skipped=%d missing=%d',
+        '[%s] %s — added=%d moved=%d recovered=%d unmatched=%d '
+        'auto_created=%d skipped=%d missing=%d',
         datatype.name, 'dry-run' if dry_run else 'done',
-        counts['added'], counts['moved'], counts['unmatched'],
-        counts['auto_created'], counts['skipped'], counts['missing'],
+        counts['added'], counts['moved'], counts['recovered'],
+        counts['unmatched'], counts['auto_created'], counts['skipped'],
+        counts['missing'],
     )
     return counts
 
@@ -465,7 +480,7 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
         stmt = stmt.where(DataLocation.datatype_id == filter_datatype_id)
     locations = db.session.scalars(stmt).all()
 
-    totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0, 'rematched': 0}
+    totals = {'added': 0, 'moved': 0, 'recovered': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0, 'rematched': 0}
     if not locations:
         log.info('No DataLocations found%s.',
                  f' for datatype {filter_datatype_id}' if filter_datatype_id else '')

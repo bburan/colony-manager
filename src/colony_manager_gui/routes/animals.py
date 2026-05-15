@@ -2,7 +2,7 @@ import datetime
 import re
 from datetime import date
 
-from sqlalchemy import func, case, or_
+from sqlalchemy import func, case, or_, select
 from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.models import (
@@ -38,33 +38,39 @@ def _attach_event_aggregates(animals, today):
         return
     animal_ids = [a.id for a in animals]
 
-    event_rows = db.session.query(
-        AnimalEvent.animal_id,
-        func.count(AnimalEvent.id).label('total'),
-        func.coalesce(
-            func.bool_or(
-                (AnimalEvent.scheduled_date == today)
-                & AnimalEvent.completion_date.is_(None)
-            ),
-            False,
-        ).label('any_due'),
-        func.coalesce(
-            func.bool_or(
-                (AnimalEvent.scheduled_date < today)
-                & AnimalEvent.completion_date.is_(None)
-            ),
-            False,
-        ).label('any_overdue'),
-        func.max(AnimalEvent.completion_date).label('last_completion'),
-    ).filter(AnimalEvent.animal_id.in_(animal_ids)) \
-     .group_by(AnimalEvent.animal_id).all()
+    event_rows = db.session.execute(
+        select(
+            AnimalEvent.animal_id,
+            func.count(AnimalEvent.id).label('total'),
+            func.coalesce(
+                func.bool_or(
+                    (AnimalEvent.scheduled_date == today)
+                    & AnimalEvent.completion_date.is_(None)
+                ),
+                False,
+            ).label('any_due'),
+            func.coalesce(
+                func.bool_or(
+                    (AnimalEvent.scheduled_date < today)
+                    & AnimalEvent.completion_date.is_(None)
+                ),
+                False,
+            ).label('any_overdue'),
+            func.max(AnimalEvent.completion_date).label('last_completion'),
+        )
+        .where(AnimalEvent.animal_id.in_(animal_ids))
+        .group_by(AnimalEvent.animal_id)
+    ).all()
     events_by_id = {r.animal_id: r for r in event_rows}
 
-    study_rows = db.session.query(
-        study_animals.c.animal_id,
-        func.count(study_animals.c.study_id).label('total'),
-    ).filter(study_animals.c.animal_id.in_(animal_ids)) \
-     .group_by(study_animals.c.animal_id).all()
+    study_rows = db.session.execute(
+        select(
+            study_animals.c.animal_id,
+            func.count(study_animals.c.study_id).label('total'),
+        )
+        .where(study_animals.c.animal_id.in_(animal_ids))
+        .group_by(study_animals.c.animal_id)
+    ).all()
     studies_by_id = {r.animal_id: r.total for r in study_rows}
 
     for a in animals:
@@ -101,56 +107,56 @@ def list_animals():
 
     # ``species`` and ``cage`` are dereferenced once per row in the table
     # template; eager-load both so the row render isn't 1+2N queries.
-    query = Animal.query.options(
+    stmt = select(Animal).options(
         joinedload(Animal.species),
         joinedload(Animal.cage),
-    ).filter(Animal.custom_id.is_not(None))
+    ).where(Animal.custom_id.is_not(None))
 
     species_id = int(session.get('selected_species', -1))
     if species_id != -1:
-        query = query.filter(Animal.species_id == species_id)
+        stmt = stmt.where(Animal.species_id == species_id)
 
     if search_query:
-        query = query.filter(Animal.custom_id.ilike(f'%{search_query}%'))
+        stmt = stmt.where(Animal.custom_id.ilike(f'%{search_query}%'))
 
     if status_filter == 'active':
-        query = query.filter(Animal.termination_date.is_(None))
+        stmt = stmt.where(Animal.termination_date.is_(None))
     elif status_filter == 'terminated':
-        query = query.filter(Animal.termination_date.is_not(None))
+        stmt = stmt.where(Animal.termination_date.is_not(None))
 
     if sex_filter in ('male', 'female'):
-        query = query.filter(Animal.sex == sex_filter)
+        stmt = stmt.where(Animal.sex == sex_filter)
 
     if study_filter != 'all':
-        query = query.filter(Animal.studies.any(Study.id == int(study_filter)))
+        stmt = stmt.where(Animal.studies.any(Study.id == int(study_filter)))
 
     if procedure_filter != 'all':
         proc_ids = AnimalProcedure.descendant_ids(db.session, int(procedure_filter))
-        query = query.filter(
+        stmt = stmt.where(
             Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
         )
 
     if tag_filter != 'all':
         tag_ids = AnimalTag.descendant_ids(db.session, int(tag_filter))
-        query = query.filter(Animal.tags.any(AnimalTag.id.in_(tag_ids)))
+        stmt = stmt.where(Animal.tags.any(AnimalTag.id.in_(tag_ids)))
 
     if event_tag_filter != 'all':
         et_ids = AnimalEventTag.descendant_ids(db.session, int(event_tag_filter))
-        query = query.filter(Animal.events.any(
+        stmt = stmt.where(Animal.events.any(
             AnimalEvent.tags.any(AnimalEventTag.id.in_(et_ids))
         ))
 
     if event_filter == 'has_events':
-        query = query.filter(Animal.events.any())
+        stmt = stmt.where(Animal.events.any())
     elif event_filter == 'no_events':
-        query = query.filter(~Animal.events.any())
+        stmt = stmt.where(~Animal.events.any())
     elif event_filter == 'due_overdue':
-        query = query.filter(Animal.events.any(
+        stmt = stmt.where(Animal.events.any(
             (AnimalEvent.scheduled_date <= today)
             & AnimalEvent.completion_date.is_(None)
         ))
     elif event_filter == 'overdue':
-        query = query.filter(Animal.events.any(
+        stmt = stmt.where(Animal.events.any(
             (AnimalEvent.scheduled_date < today)
             & AnimalEvent.completion_date.is_(None)
         ))
@@ -159,12 +165,12 @@ def list_animals():
     # inverted (asc age = youngest = newest dob).
     if sort_by == 'event_date':
         last_event_subq = (
-            db.session.query(
+            select(
                 AnimalEvent.animal_id.label('animal_id'),
                 func.max(AnimalEvent.completion_date).label('last_event_date'),
             ).group_by(AnimalEvent.animal_id).subquery()
         )
-        query = query.outerjoin(
+        stmt = stmt.outerjoin(
             last_event_subq, last_event_subq.c.animal_id == Animal.id
         )
         col = last_event_subq.c.last_event_date
@@ -176,13 +182,15 @@ def list_animals():
         col = Animal.custom_id
         order = col.desc() if sort_dir == 'desc' else col.asc()
 
-    animals = query.order_by(order).all()
+    animals = db.session.scalars(stmt.order_by(order)).all()
     _attach_event_aggregates(animals, today)
 
     procedures = AnimalProcedure.get_ordered(db.session)
     animal_tags = AnimalTag.get_ordered(db.session)
     event_tags = AnimalEventTag.get_ordered(db.session)
-    studies = Study.query.order_by(Study.name).all()
+    studies = db.session.scalars(
+        select(Study).order_by(Study.name)
+    ).all()
 
     return render_template(
         'animals.html',
@@ -209,35 +217,39 @@ def list_animals():
 
 @animals_bp.route('/<int:animal_id>')
 def view_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
-    feed = Feed.query.order_by(Feed.weight).all()
+    animal = db.get_or_404(Animal, animal_id)
+    feed = db.session.scalars(
+        select(Feed).order_by(Feed.weight)
+    ).all()
 
     # Bulk-load events with their lazy relationships so the events accordion
     # and the events_by_date grouping don't fan out into N queries per event
     # (procedure / target / tags would each lazy-load otherwise).
-    events = (AnimalEvent.query
-        .filter(AnimalEvent.animal_id == animal_id)
+    events = db.session.scalars(
+        select(AnimalEvent)
+        .where(AnimalEvent.animal_id == animal_id)
         .options(
             joinedload(AnimalEvent.procedure),
             joinedload(AnimalEvent.procedure_target),
             selectinload(AnimalEvent.tags),
         )
-        .all())
+    ).all()
     animal._events_cached_list = events
 
     # Bulk-load event data_files in one query (dynamic relationship, so we
     # can't use selectinload directly) and attach a sorted cache per event.
     files_by_event = {e.id: [] for e in events}
     if events:
-        event_file_rows = (db.session.query(
+        event_file_rows = db.session.execute(
+            select(
                 animal_event_data_targets.c.animal_event_id,
                 AnimalEventData,
             )
             .join(AnimalEventData,
                   AnimalEventData.id == animal_event_data_targets.c.animal_event_data_id)
             .options(joinedload(AnimalEventData.datatype))
-            .filter(animal_event_data_targets.c.animal_event_id.in_(files_by_event.keys()))
-            .all())
+            .where(animal_event_data_targets.c.animal_event_id.in_(files_by_event.keys()))
+        ).all()
         for ev_id, f in event_file_rows:
             files_by_event[ev_id].append(f)
     for ev in events:
@@ -254,13 +266,14 @@ def view_animal(animal_id):
     # Unassigned candidate event files (events accordion). Pre-filter to the
     # animal_event subset and eager-load each file's events so the
     # per-file ``f.events`` check doesn't issue its own query.
-    candidate_event_files = (db.session.query(AnimalEventData)
+    candidate_event_files = db.session.scalars(
+        select(AnimalEventData)
         .join(data_candidate_animals,
               AnimalEventData.id == data_candidate_animals.c.data_id)
-        .filter(data_candidate_animals.c.animal_id == animal_id)
+        .where(data_candidate_animals.c.animal_id == animal_id)
         .options(selectinload(AnimalEventData.events),
                  joinedload(AnimalEventData.datatype))
-        .all())
+    ).all()
     unassigned_files = [
         f for f in candidate_event_files
         if not any(ev.animal_id == animal_id for ev in f.events)
@@ -290,7 +303,7 @@ def create_animal():
 
 @animals_bp.route('/<int:animal_id>/update', methods=['POST'])
 def update_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = AnimalForm(obj=animal)
     if form.validate_on_submit():
         form.populate_obj(animal)
@@ -305,7 +318,7 @@ def update_animal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/delete', methods=['POST'])
 def delete_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     if animal.breeding_pair_male or animal.breeding_pair_female:
         flash(f'Cannot delete animal {animal.display_id} because it is part of a breeding pair.', 'danger')
         return redirect(request.referrer or url_for('animals.list_animals'))
@@ -317,7 +330,7 @@ def delete_animal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/terminate', methods=['POST'])
 def terminate_animal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = TerminationForm()
     if form.validate_on_submit():
         ears = form.ears_extracted.data
@@ -368,7 +381,7 @@ def create_animal_event(animal_id):
 
 @animals_bp.route('/events/<int:event_id>/update', methods=['POST'])
 def update_animal_event(event_id):
-    event = AnimalEvent.query.get_or_404(event_id)
+    event = db.get_or_404(AnimalEvent, event_id)
     form = AnimalEventEditForm()
     if form.validate_on_submit():
         form.populate_obj(event)
@@ -383,7 +396,7 @@ def update_animal_event(event_id):
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
 def delete_animal_event(event_id):
-    event = AnimalEvent.query.get_or_404(event_id)
+    event = db.get_or_404(AnimalEvent, event_id)
     animal_id = event.animal_id  # Grab this to redirect back to the right page
     db.session.delete(event)
     db.session.commit()
@@ -393,10 +406,15 @@ def delete_animal_event(event_id):
 
 @animals_bp.route('/<int:animal_id>/weight-feed/create', methods=['POST'])
 def create_animal_daily_log(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = DailyLogForm()
     if form.validate_on_submit():
-        logs = WeightLog.query.filter_by(animal_id=animal.id, date=form.date.data).all()
+        logs = db.session.scalars(
+            select(WeightLog).where(
+                WeightLog.animal_id == animal.id,
+                WeightLog.date == form.date.data,
+            )
+        ).all()
         if len(logs) != 0:
             flash(f'Log for {animal.display_id} already exists for {form.date.data.strftime("%B %d, %Y")}.', 'danger')
             return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
@@ -427,11 +445,21 @@ def create_animal_daily_log(animal_id):
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete', methods=['POST'])
 def delete_animal_daily_log(animal_id, date):
-    animal = Animal.query.get_or_404(animal_id)
-    weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one_or_none()
+    animal = db.get_or_404(Animal, animal_id)
+    weight = db.session.scalars(
+        select(WeightLog).where(
+            WeightLog.animal_id == animal.id,
+            WeightLog.date == date,
+        )
+    ).one_or_none()
     if weight is not None:
         db.session.delete(weight)
-    for entry in FeedLog.query.filter_by(animal_id=animal.id, date=date):
+    for entry in db.session.scalars(
+        select(FeedLog).where(
+            FeedLog.animal_id == animal.id,
+            FeedLog.date == date,
+        )
+    ).all():
         db.session.delete(entry)
     db.session.commit()
     flash('Daily log deleted successfully.', 'success')
@@ -439,15 +467,26 @@ def delete_animal_daily_log(animal_id, date):
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update', methods=['POST'])
 def update_animal_daily_log(animal_id, date):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = DailyLogForm()
     if form.validate_on_submit():
-        weight = WeightLog.query.filter_by(animal_id=animal.id, date=date).one()
+        weight = db.session.scalars(
+            select(WeightLog).where(
+                WeightLog.animal_id == animal.id,
+                WeightLog.date == date,
+            )
+        ).one()
         weight.weight = form.weight.data
         weight.notes = form.notes.data
         weight.baseline = form.baseline.data
         for feed_form in form.feedings:
-            feeding = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=feed_form.feed_id.data).one_or_none()
+            feeding = db.session.scalars(
+                select(FeedLog).where(
+                    FeedLog.animal_id == animal.id,
+                    FeedLog.date == date,
+                    FeedLog.feed_id == feed_form.feed_id.data,
+                )
+            ).one_or_none()
             if feeding is None:
                 if feed_form.quantity.data > 0:
                     new_feeding = FeedLog(
@@ -472,7 +511,7 @@ def update_animal_daily_log(animal_id, date):
 # --- Modal Routes ---
 @animals_bp.route('/create_modal/<int:cage_id>')
 def create_animal_modal(cage_id):
-    cage = Cage.query.get_or_404(cage_id)
+    cage = db.get_or_404(Cage, cage_id)
     animal = cage.animals.first()
     form = AnimalForm(cage=cage, dob=animal.dob, sex=animal.sex)
     return render_modal(form, label='Create new animal',
@@ -481,7 +520,7 @@ def create_animal_modal(cage_id):
 
 @animals_bp.route('/<int:animal_id>/edit_modal')
 def edit_animal_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_modal(AnimalForm(obj=animal), item=animal,
                         label=f'Edit {animal.display_id}',
                         submit_url=url_for('animals.update_animal', animal_id=animal.id))
@@ -489,7 +528,7 @@ def edit_animal_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/assign_id_modal')
 def assign_animal_id_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     form = AnimalCustomIDForm(custom_id=f'{animal.cage.custom_id}-')
     return render_modal(form, item=animal,
                         label=f'Assign ID for {animal.display_id}',
@@ -498,7 +537,7 @@ def assign_animal_id_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/edit_note_modal')
 def edit_animal_note_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_modal(NoteForm(obj=animal), item=animal,
                         label=f'Edit note for {animal.display_id}',
                         submit_url=url_for('animals.update_animal', animal_id=animal.id))
@@ -506,7 +545,7 @@ def edit_animal_note_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/terminate_modal')
 def terminate_animal_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_modal(TerminationForm(obj=animal), item=animal,
                         label=f'Remove {animal.display_id}',
                         submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
@@ -514,7 +553,7 @@ def terminate_animal_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/quick_add_study_modal')
 def add_study_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_modal(QuickAddToStudyForm(), item=animal,
                         label=f'Add study for {animal.display_id}',
                         submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
@@ -523,13 +562,13 @@ def add_study_modal(animal_id):
 def _target_requires_side_map():
     return {
         str(t.id): bool(t.requires_side)
-        for t in models.AnimalProcedureTarget.query.all()
+        for t in db.session.scalars(select(models.AnimalProcedureTarget)).all()
     }
 
 
 @animals_bp.route('/<int:animal_id>/events/create_modal')
 def create_animal_event_modal(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_modal(
         AnimalEventForm(animal=animal), item=animal,
         label=f'Create event for {animal.display_id}',
@@ -542,7 +581,7 @@ def create_animal_event_modal(animal_id):
 
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
-    event = AnimalEvent.query.get_or_404(event_id)
+    event = db.get_or_404(AnimalEvent, event_id)
     return render_modal(
         AnimalEventEditForm(obj=event), item=event,
         label=f'Edit event for {event.animal.display_id}',
@@ -555,7 +594,7 @@ def edit_animal_event_modal(event_id):
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
-    event = AnimalEvent.query.get_or_404(event_id)
+    event = db.get_or_404(AnimalEvent, event_id)
     form = AnimalEventEditForm(obj=event)
     mark_disabled(form)
     return render_modal(form, item=event,
@@ -572,8 +611,10 @@ def create_animal_daily_log_modal(animal_id, date=None):
         date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
     else:
         date = datetime.date.today()
-    animal = Animal.query.get_or_404(animal_id)
-    feed = Feed.query.order_by(Feed.weight).all()
+    animal = db.get_or_404(Animal, animal_id)
+    feed = db.session.scalars(
+        select(Feed).order_by(Feed.weight)
+    ).all()
     feed_data = [{'feed_id': f.id, 'feed_name': f.name, 'feed_weight': f.weight, 'amount': 0} for f in feed]
     form = DailyLogForm(feedings=feed_data, date=date, current_baseline=animal.baseline_weight)
     if disable_date:
@@ -587,11 +628,19 @@ def create_animal_daily_log_modal(animal_id, date=None):
 
 def _generate_daily_log_form(animal_id, date):
     date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-    animal = Animal.query.get_or_404(animal_id)
-    feed = Feed.query.order_by(Feed.weight).all()
+    animal = db.get_or_404(Animal, animal_id)
+    feed = db.session.scalars(
+        select(Feed).order_by(Feed.weight)
+    ).all()
     feed_data = []
     for f in feed:
-        entry = FeedLog.query.filter_by(animal_id=animal.id, date=date, feed_id=f.id).one_or_none()
+        entry = db.session.scalars(
+            select(FeedLog).where(
+                FeedLog.animal_id == animal.id,
+                FeedLog.date == date,
+                FeedLog.feed_id == f.id,
+            )
+        ).one_or_none()
         feed_data.append({
             'feed_id': f.id,
             'feed_name': f.name,
@@ -599,7 +648,12 @@ def _generate_daily_log_form(animal_id, date):
             'quantity': entry.quantity if entry else 0,
         })
 
-    weight_log = WeightLog.query.filter_by(animal_id=animal.id, date=date).one_or_none()
+    weight_log = db.session.scalars(
+        select(WeightLog).where(
+            WeightLog.animal_id == animal.id,
+            WeightLog.date == date,
+        )
+    ).one_or_none()
     if weight_log is not None:
         if weight_log.weight is not None and animal.baseline_weight is not None:
             current_baseline_pct = int(round(weight_log.weight / animal.baseline_weight * 100))
@@ -648,7 +702,7 @@ def delete_animal_daily_log_modal(animal_id, date):
 # --- AJAX Popover Routes ---
 @animals_bp.route('/<int:animal_id>/events_popover')
 def view_animal_events_popover(animal_id):
-    animal = Animal.query.get_or_404(animal_id)
+    animal = db.get_or_404(Animal, animal_id)
     return render_template(
         'partials/event_popover.html',
         animal=animal,
@@ -657,7 +711,7 @@ def view_animal_events_popover(animal_id):
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/reassign', methods=['POST'])
 def reassign_data(animal_id, data_id):
     """Attach/detach an AnimalEventData row to a single event for this animal."""
-    data_file = AnimalEventData.query.get_or_404(data_id)
+    data_file = db.get_or_404(AnimalEventData, data_id)
     event_id = request.form.get('event_id')
 
     # Drop any existing link to events belonging to this animal so we don't
@@ -667,7 +721,7 @@ def reassign_data(animal_id, data_id):
             data_file.events.remove(ev)
 
     if event_id and event_id != '__None':
-        event = AnimalEvent.query.get_or_404(int(event_id))
+        event = db.get_or_404(AnimalEvent, int(event_id))
         data_file.events.append(event)
         flash(f"File {data_file.name} attached to event.", "success")
     else:
@@ -704,35 +758,35 @@ def list_unmatched_data():
     date_to = _parse_date(date_to_raw)
 
     if target_type_filter == 'animal_event':
-        query = AnimalEventData.query.filter(~AnimalEventData.events.any())
+        stmt = select(AnimalEventData).where(~AnimalEventData.events.any())
     elif target_type_filter == 'confocal_image':
-        query = ConfocalImageData.query.filter(~ConfocalImageData.confocal_images.any())
+        stmt = select(ConfocalImageData).where(~ConfocalImageData.confocal_images.any())
     elif target_type_filter == 'animal':
-        query = AnimalData.query.filter(~AnimalData.animals.any())
+        stmt = select(AnimalData).where(~AnimalData.animals.any())
     elif target_type_filter == 'ear':
-        query = EarData.query.filter(~EarData.ears.any())
+        stmt = select(EarData).where(~EarData.ears.any())
     else:
-        unmatched_ae_ids = db.session.query(AnimalEventData.id).filter(~AnimalEventData.events.any())
-        unmatched_ci_ids = db.session.query(ConfocalImageData.id).filter(~ConfocalImageData.confocal_images.any())
-        unmatched_a_ids = db.session.query(AnimalData.id).filter(~AnimalData.animals.any())
-        unmatched_e_ids = db.session.query(EarData.id).filter(~EarData.ears.any())
+        unmatched_ae_ids = select(AnimalEventData.id).where(~AnimalEventData.events.any())
+        unmatched_ci_ids = select(ConfocalImageData.id).where(~ConfocalImageData.confocal_images.any())
+        unmatched_a_ids = select(AnimalData.id).where(~AnimalData.animals.any())
+        unmatched_e_ids = select(EarData.id).where(~EarData.ears.any())
         combined = union_all(unmatched_ae_ids, unmatched_ci_ids, unmatched_a_ids, unmatched_e_ids).subquery()
-        query = Data.query.filter(Data.id.in_(combined))
+        stmt = select(Data).where(Data.id.in_(select(combined)))
 
     if datatype_id_filter:
-        query = query.filter(Data.datatype_id == datatype_id_filter)
+        stmt = stmt.where(Data.datatype_id == datatype_id_filter)
 
     if status_filter and status_filter != 'all':
-        query = query.filter(Data.status == status_filter)
+        stmt = stmt.where(Data.status == status_filter)
 
     if search_filter:
         like = f'%{search_filter}%'
-        query = query.filter(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
+        stmt = stmt.where(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
 
     if date_from is not None:
-        query = query.filter(Data.date >= date_from)
+        stmt = stmt.where(Data.date >= date_from)
     if date_to is not None:
-        query = query.filter(Data.date <= date_to)
+        stmt = stmt.where(Data.date <= date_to)
 
     sort_columns = {
         'date': Data.date,
@@ -742,15 +796,17 @@ def list_unmatched_data():
     }
     sort_col = sort_columns.get(sort, Data.date)
     if sort == 'datatype':
-        query = query.join(DataType, Data.datatype_id == DataType.id)
+        stmt = stmt.join(DataType, Data.datatype_id == DataType.id)
     if direction == 'asc':
-        query = query.order_by(sort_col.asc(), Data.name.asc())
+        stmt = stmt.order_by(sort_col.asc(), Data.name.asc())
     else:
-        query = query.order_by(sort_col.desc(), Data.name.asc())
+        stmt = stmt.order_by(sort_col.desc(), Data.name.asc())
 
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
 
-    datatypes = DataType.query.order_by(DataType.name).all()
+    datatypes = db.session.scalars(
+        select(DataType).order_by(DataType.name)
+    ).all()
     return render_template(
         'unmatched_data.html',
         files=pagination.items,
@@ -772,7 +828,7 @@ def list_unmatched_data():
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):
     """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""
-    data_file = Data.query.get_or_404(data_id)
+    data_file = db.get_or_404(Data, data_id)
     new_status = request.form.get('status', 'unreviewed')
     data_file.status = new_status
     db.session.commit()
@@ -785,7 +841,7 @@ def set_data_status(animal_id, data_id):
 @animals_bp.route('/data/<int:data_id>/notes', methods=['POST'])
 def update_data_notes(data_id):
     """Update the notes field on a Data file."""
-    data_file = Data.query.get_or_404(data_id)
+    data_file = db.get_or_404(Data, data_id)
     data_file.notes = request.form.get('notes', '').strip() or None
     db.session.commit()
     return '', 204
@@ -794,8 +850,8 @@ def update_data_notes(data_id):
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
 def auto_create_event(animal_id, data_id):
     """Auto-create an AnimalEvent for an unassigned AnimalEventData file, then link matching files."""
-    animal = Animal.query.get_or_404(animal_id)
-    data_file = AnimalEventData.query.get_or_404(data_id)
+    animal = db.get_or_404(Animal, animal_id)
+    data_file = db.get_or_404(AnimalEventData, data_id)
     result = auto_create_animal_event(animal, data_file)
     if result.error:
         flash(result.error, 'danger')
@@ -818,7 +874,7 @@ def _resolve_callback(data_id, callback_name):
     import os
     from colony_manager.datatypes import load_description_class
 
-    data_file = Data.query.get_or_404(data_id)
+    data_file = db.get_or_404(Data, data_id)
     dt = data_file.datatype
     if not dt.description_class:
         return None, ('No description class configured for this datatype.', 400)

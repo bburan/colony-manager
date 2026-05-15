@@ -316,6 +316,176 @@ def test_rematch_links_previously_unmatched_after_animal_created(
     assert event in rows[0].events
 
 
+def test_intra_location_move_does_not_re_flag_as_missing(
+    db_session, app, tmp_path,
+):
+    """Regression: a hash-matched rename within the same DataLocation
+    used to leave the row stamped 'missing' after the move-recovery
+    branch had already set it to 'unreviewed'. The missing-pass at
+    the end of ``_sync_location`` was iterating ``existing_by_path``,
+    whose keys are the *original* relative paths captured at the top
+    of the sync, so for every moved row it stat()'d the old path,
+    found nothing there, and re-flagged the row missing.
+
+    Fix: when applying a MOVE, drop the old path from
+    ``existing_by_path`` so the missing-pass doesn't see it.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=procedure,
+    )
+    dtype.description_class = 'fake_animal_event_hashed'
+    db_session.commit()
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='MV-1')
+    from datetime import date as _date
+    event = AnimalEvent(
+        animal_id=animal.id,
+        procedure_id=procedure.id,
+        procedure_target_id=target.id,
+        scheduled_date=_date(2025, 12, 1),
+        completion_date=_date(2025, 12, 1),
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    # First sync: pick up a file at its original path.
+    src = _write_file(tmp_path, 'MV-1_2025-12-01.txt', content='abr-data-payload')
+    with app.app_context():
+        first = sync_locations()
+        gui_db.session.commit()
+    assert first['added'] == 1
+    assert first['missing'] == 0
+
+    db_session.expire_all()
+    row = db_session.scalars(select(AnimalEventData)).one()
+    assert row.relative_path == 'MV-1_2025-12-01.txt'
+    assert row.status == 'unreviewed'
+    original_id = row.id
+    original_hash = row.file_hash
+    assert original_hash, 'file_hash should be populated by the hashing fake'
+
+    # Rename the file on disk to a new path (same content → same hash).
+    new_path = tmp_path / 'subdir' / 'MV-1_2025-12-01.txt'
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(new_path)
+
+    # Second sync: detect MOVE, update the existing row, do NOT flag
+    # missing.
+    with app.app_context():
+        second = sync_locations()
+        gui_db.session.commit()
+    assert second['moved'] == 1
+    assert second['missing'] == 0, (
+        f'expected 0 missing after intra-location move, got '
+        f'{second["missing"]}: {second}'
+    )
+
+    db_session.expire_all()
+    row = db_session.get(AnimalEventData, original_id)
+    assert row is not None
+    assert row.relative_path == 'subdir/MV-1_2025-12-01.txt'
+    assert row.status == 'unreviewed'  # not 'missing'!
+    assert row.file_hash == original_hash
+
+
+def test_move_re_resolves_targets_when_animal_id_changes(
+    db_session, app, tmp_path,
+):
+    """A hash-matched rename whose new filename parses to a different
+    animal must re-link the row to the new animal's event, refresh
+    parsed_metadata, and update the file-stat timestamps.
+
+    Real-world: an admin renames ``G011-1 abr_io`` to ``G011-4 abr_io``
+    because the original animal label was wrong. The Data row should
+    no longer be associated with G011-1's event.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=procedure,
+    )
+    dtype.description_class = 'fake_animal_event_hashed'
+    db_session.commit()
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    species = make_species(db_session)
+    old_animal = make_animal(db_session, species=species, custom_id='OLD-1')
+    new_animal = make_animal(db_session, species=species, custom_id='NEW-1')
+
+    from datetime import date as _date
+    on = _date(2025, 12, 5)
+    old_event = AnimalEvent(
+        animal_id=old_animal.id,
+        procedure_id=procedure.id,
+        procedure_target_id=target.id,
+        scheduled_date=on, completion_date=on,
+    )
+    new_event = AnimalEvent(
+        animal_id=new_animal.id,
+        procedure_id=procedure.id,
+        procedure_target_id=target.id,
+        scheduled_date=on, completion_date=on,
+    )
+    db_session.add_all([old_event, new_event])
+    db_session.commit()
+    old_event_id, new_event_id = old_event.id, new_event.id
+
+    # First sync: file named after OLD-1.
+    src = _write_file(tmp_path, 'OLD-1_2025-12-05.txt', content='abr-payload')
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    db_session.expire_all()
+    row = db_session.scalars(select(AnimalEventData)).one()
+    row_id = row.id
+    assert row.parsed_metadata['animal_id'] == 'OLD-1'
+    assert old_event_id in {e.id for e in row.events}
+    assert new_event_id not in {e.id for e in row.events}
+    initial_mtime = row.mtime
+
+    # Rename the file (same content → same hash) so the new filename
+    # parses to NEW-1.
+    new_path = tmp_path / 'NEW-1_2025-12-05.txt'
+    src.rename(new_path)
+
+    # Bump the file's mtime so we can assert the row's mtime updates.
+    import os
+    import time as _time
+    later = _time.time() + 60
+    os.utime(new_path, (later, later))
+
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+    assert totals['moved'] == 1
+    assert totals['missing'] == 0
+
+    db_session.expire_all()
+    row = db_session.get(AnimalEventData, row_id)
+    # Path + name reflect the rename.
+    assert row.relative_path == 'NEW-1_2025-12-05.txt'
+    assert row.name == 'NEW-1_2025-12-05.txt'
+    # parsed_metadata reflects the NEW animal id.
+    assert row.parsed_metadata['animal_id'] == 'NEW-1'
+    # Targets re-resolved: row is linked to NEW-1's event, not OLD-1's.
+    linked = {e.id for e in row.events}
+    assert new_event_id in linked
+    assert old_event_id not in linked
+    # mtime picked up the bump.
+    assert row.mtime != initial_mtime
+
+
 def test_rematch_force_relinks_all_rows(db_session, app, tmp_path):
     """``force=True`` re-resolves every row, including already-matched."""
     from colony_manager_gui.sync import sync_locations, rematch_datatype

@@ -301,11 +301,66 @@ def _sync_location(location, dry_run=False, debug=False):
                              hash_match.relative_path, relative_path,
                              file_hash[:12])
                     if not dry_run:
+                        # Drop the row's OLD path from existing_by_path so
+                        # the missing-pass below doesn't re-flag it. The
+                        # old path is only present in the map if the move
+                        # is intra-location (hash_match.location_id was
+                        # already this location); for cross-location moves
+                        # the pop is a harmless no-op.
+                        old_relative_path = hash_match.relative_path
+                        if hash_match.location_id == location.id:
+                            existing_by_path.pop(old_relative_path, None)
                         hash_match.location_id = location.id
                         hash_match.relative_path = relative_path
                         hash_match.name = item_name
                         if hash_match.status == 'missing':
                             hash_match.status = 'unreviewed'
+
+                        # Re-derive fields that depend on the new filename
+                        # / new on-disk file. A rename like
+                        # ``G011-1 abr_io`` → ``G011-4 abr_io`` carries
+                        # semantic meaning (the data now belongs to a
+                        # different animal); leaving parsed_metadata,
+                        # targets, and candidates pointing at the old
+                        # animal would leave the row internally
+                        # inconsistent.
+                        mtime, ctime = _stat_timestamps(full_path)
+                        hash_match.mtime = mtime
+                        hash_match.ctime = ctime
+                        hash_match.parsed_metadata = to_json_safe(parsed)
+                        hash_match.date = parsed.get('date')
+
+                        new_targets = datatype.match_targets(db.session, parsed)
+                        candidate_animals = _candidate_animals_for(
+                            db.session, parsed, animals_by_cid,
+                        )
+                        candidate_ears = _candidate_ears_for(
+                            db.session, parsed, candidate_animals,
+                            ears_by_animal_side,
+                        )
+                        if not new_targets:
+                            created = _maybe_auto_create_events(
+                                db.session, datatype, parsed,
+                                candidate_animals, dry_run=False,
+                            )
+                            if created:
+                                new_targets = created
+                                counts['auto_created'] += len(created)
+
+                        # Single-assign per target_type — clear-then-set
+                        # would make sqlalchemy_continuum log both a
+                        # delete and an insert for unchanged links,
+                        # blowing up on the secondary-table version PK.
+                        if datatype.target_type == 'animal_event':
+                            hash_match.events = list(new_targets)
+                        elif datatype.target_type == 'confocal_image':
+                            hash_match.confocal_images = list(new_targets)
+                        elif datatype.target_type == 'animal':
+                            hash_match.animals = list(new_targets)
+                        elif datatype.target_type == 'ear':
+                            hash_match.ears = list(new_targets)
+                        hash_match.candidate_animals = candidate_animals
+                        hash_match.candidate_ears = candidate_ears
                     counts['moved'] += 1
                     continue
                 else:

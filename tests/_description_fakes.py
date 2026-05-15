@@ -56,9 +56,22 @@ class _FilenameAnimalDescription(DataTypeDescription):
         return []
 
 
+class _HashingAnimalEventDescription(_FilenameAnimalEventDescription):
+    """Same parser, but participates in the hash-based move-detection path.
+
+    Returning the file itself from ``hash_files()`` causes
+    ``_sync_location`` to compute and store a content hash, which is
+    what the cross-rename matcher uses.
+    """
+
+    def hash_files(self):
+        return [self.path]
+
+
 # The registry shape the production loader expects: a module-level
 # ``DESCRIPTION_CLASSES`` dict mapping short keys to subclasses.
 DESCRIPTION_CLASSES = {
     'fake_animal_event': _FilenameAnimalEventDescription,
     'fake_animal': _FilenameAnimalDescription,
+    'fake_animal_event_hashed': _HashingAnimalEventDescription,
 }

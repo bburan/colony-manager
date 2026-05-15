@@ -20,9 +20,9 @@ from itertools import count
 from colony_manager.models import (
     Animal, AnimalDataType, AnimalEvent, AnimalEventDataType,
     AnimalProcedure, AnimalProcedureTarget, BreedingPair, Cage,
-    ConfocalImage, ConfocalImageDataType, ConfocalImageType, Ear,
-    EarDataType, Feed, FeedLog, Litter, Source, Species,
-    TerminationReason, User, WeightLog,
+    ConfocalImage, ConfocalImageDataType, ConfocalImageType,
+    DataLocation, Ear, EarDataType, Feed, FeedLog, Litter, Source,
+    Species, TerminationReason, User, WeightLog,
 )
 
 
@@ -274,6 +274,14 @@ def make_ear_data_type(session, name=None):
     obj = EarDataType(
         name=name or f'EDataType {next(_datatype_seq)}',
     )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_data_location(session, *, datatype, base_path):
+    """Build a DataLocation pointing the given DataType at ``base_path``."""
+    obj = DataLocation(datatype_id=datatype.id, base_path=str(base_path))
     session.add(obj)
     session.commit()
     return obj

@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime
 
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, select
 from sqlalchemy.orm import joinedload
 
 from colony_manager.datatypes import load_description_class
@@ -208,7 +208,9 @@ def _sync_location(location, dry_run=False, debug=False):
     # ------------------------------------------------------------------
     existing_by_path = {
         row.relative_path: row
-        for row in data_class.query.filter_by(location_id=location.id).all()
+        for row in db.session.scalars(
+            select(data_class).where(data_class.location_id == location.id)
+        ).all()
     }
 
     parsed_items = []  # list of (relative_path, item_name, full_path, parsed, desc, file_hash)
@@ -253,11 +255,13 @@ def _sync_location(location, dry_run=False, debug=False):
     if any(file_hash for _, _, _, _, _, file_hash in parsed_items):
         hash_index = {
             row.file_hash: row
-            for row in data_class.query.options(
-                joinedload(data_class.location)
-            ).filter(
-                data_class.datatype_id == datatype.id,
-                data_class.file_hash.isnot(None),
+            for row in db.session.scalars(
+                select(data_class)
+                .options(joinedload(data_class.location))
+                .where(
+                    data_class.datatype_id == datatype.id,
+                    data_class.file_hash.isnot(None),
+                )
             ).all()
         }
 
@@ -269,7 +273,9 @@ def _sync_location(location, dry_run=False, debug=False):
     if referenced_cids:
         animals_by_cid = {
             a.custom_id: a
-            for a in Animal.query.filter(Animal.custom_id.in_(referenced_cids)).all()
+            for a in db.session.scalars(
+                select(Animal).where(Animal.custom_id.in_(referenced_cids))
+            ).all()
         }
 
     ears_by_animal_side = {}
@@ -277,7 +283,9 @@ def _sync_location(location, dry_run=False, debug=False):
         animal_ids = [a.id for a in animals_by_cid.values()]
         ears_by_animal_side = {
             (e.animal_id, e.side): e
-            for e in Ear.query.filter(Ear.animal_id.in_(animal_ids)).all()
+            for e in db.session.scalars(
+                select(Ear).where(Ear.animal_id.in_(animal_ids))
+            ).all()
         }
 
     for relative_path, item_name, full_path, parsed, desc, file_hash in parsed_items:
@@ -397,10 +405,10 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
         Aggregated counts: ``added``, ``moved``, ``unmatched``,
         ``skipped``, ``missing``.
     """
-    query = DataLocation.query.options(joinedload(DataLocation.datatype))
+    stmt = select(DataLocation).options(joinedload(DataLocation.datatype))
     if filter_datatype_id is not None:
-        query = query.filter(DataLocation.datatype_id == filter_datatype_id)
-    locations = query.all()
+        stmt = stmt.where(DataLocation.datatype_id == filter_datatype_id)
+    locations = db.session.scalars(stmt).all()
 
     totals = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, 'missing': 0, 'auto_created': 0, 'rematched': 0}
     if not locations:
@@ -472,7 +480,7 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
 
     counts = {'walked': 0, 'matched': 0, 'unmatched': 0, 'skipped': 0, 'failed': 0, 'auto_created': 0}
 
-    dt = DataType.query.get(datatype_id)
+    dt = db.session.get(DataType, datatype_id)
     if dt is None:
         log.error('No DataType with id=%s.', datatype_id)
         return counts
@@ -492,8 +500,11 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         log.error('[%s] Unknown target_type %r.', dt.name, dt.target_type)
         return counts
 
-    rows = data_class.query.options(joinedload(data_class.location)) \
-                            .filter_by(datatype_id=dt.id).all()
+    rows = db.session.scalars(
+        select(data_class)
+        .options(joinedload(data_class.location))
+        .where(data_class.datatype_id == dt.id)
+    ).all()
     target_attr = _TARGET_M2M_ATTR.get(dt.target_type)
 
     # Pass 1: parse every walkable row and collect referenced custom_ids
@@ -530,14 +541,18 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
     if referenced_cids:
         animals_by_cid = {
             a.custom_id: a
-            for a in Animal.query.filter(Animal.custom_id.in_(referenced_cids)).all()
+            for a in db.session.scalars(
+                select(Animal).where(Animal.custom_id.in_(referenced_cids))
+            ).all()
         }
     ears_by_animal_side = {}
     if animals_by_cid:
         animal_ids = [a.id for a in animals_by_cid.values()]
         ears_by_animal_side = {
             (e.animal_id, e.side): e
-            for e in Ear.query.filter(Ear.animal_id.in_(animal_ids)).all()
+            for e in db.session.scalars(
+                select(Ear).where(Ear.animal_id.in_(animal_ids))
+            ).all()
         }
 
     for row, parsed in parsed_rows:
@@ -601,9 +616,11 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
 
 def rehash_legacy(dry_run=False):
     """Re-hash any Data row whose stored ``file_hash`` isn't xxh3_128."""
-    rows = Data.query.filter(
-        Data.file_hash.isnot(None),
-        sa_func.length(Data.file_hash) != XXH3_128_HEX_LEN,
+    rows = db.session.scalars(
+        select(Data).where(
+            Data.file_hash.isnot(None),
+            sa_func.length(Data.file_hash) != XXH3_128_HEX_LEN,
+        )
     ).all()
     if not rows:
         log.info('No legacy hashes found.')

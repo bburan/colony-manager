@@ -14,6 +14,8 @@ from colony_manager.models import (
     ImmunolabelingPanel, TerminationReason, Animal, ConfocalImageType, BreedingPair, AnimalTag
 )
 
+from . import db
+
 # --- Query Factories ---
 def order_by(model, attr='name'):
     return lambda: model.query.order_by(attr)
@@ -102,7 +104,7 @@ class DataTypeForm(FlaskForm):
 class AnimalEventDataTypeForm(DataTypeForm):
     default_procedure = QuerySelectField(
         'Default Procedure',
-        query_factory=AnimalProcedure.get_ordered,
+        query_factory=lambda: AnimalProcedure.get_ordered(db.session),
         get_label='display_name',
         allow_blank=True,
         blank_text='-- None --'
@@ -161,7 +163,7 @@ def create_nested_form(model_class, label='Parent'):
     class NestedAddForm(FlaskForm):
         parent = QuerySelectField(
             'Parent',
-            query_factory=model_class.get_ordered,
+            query_factory=lambda: model_class.get_ordered(db.session),
             get_label='display_name',
             allow_blank=True,
             blank_text='-- No Parent --',
@@ -172,9 +174,9 @@ def create_nested_form(model_class, label='Parent'):
             super().__init__(*args, obj=obj, **kwargs)
             obj_id = getattr(obj, 'id', None)
             if obj_id is not None:
-                excluded = model_class.descendant_ids(obj_id)
+                excluded = model_class.descendant_ids(db.session, obj_id)
                 self.parent.query_factory = lambda: [
-                    item for item in model_class.get_ordered()
+                    item for item in model_class.get_ordered(db.session)
                     if item.id not in excluded
                 ]
     return NestedAddForm
@@ -200,7 +202,7 @@ class HistologyForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=models.EarTag.get_ordered,
+        query_factory=lambda: models.EarTag.get_ordered(db.session),
         get_label='display_name',
     )
 
@@ -228,7 +230,7 @@ class AnimalForm(AnimalCustomIDForm):
     termination_reason = QuerySelectField('Termination reason', query_factory=termination_reason_factory, get_label='name', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=models.AnimalTag.get_ordered,
+        query_factory=lambda: models.AnimalTag.get_ordered(db.session),
         get_label='display_name',
     )
 
@@ -240,7 +242,7 @@ class AnimalEventForm(FlaskForm):
     """
     procedure = QuerySelectField(
         'Procedure',
-        query_factory=AnimalProcedure.get_ordered,
+        query_factory=lambda: AnimalProcedure.get_ordered(db.session),
         get_label='display_name',
         allow_blank=False
     )
@@ -256,7 +258,7 @@ class AnimalEventForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=models.AnimalEventTag.get_ordered,
+        query_factory=lambda: models.AnimalEventTag.get_ordered(db.session),
         get_label='display_name',
     )
 
@@ -265,7 +267,7 @@ class AnimalEventEditForm(FlaskForm):
     """Form for editing an existing animal event with full date control."""
     procedure = QuerySelectField(
         'Procedure',
-        query_factory=AnimalProcedure.get_ordered,
+        query_factory=lambda: AnimalProcedure.get_ordered(db.session),
         get_label='display_name',
         allow_blank=False
     )
@@ -281,7 +283,7 @@ class AnimalEventEditForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
-        query_factory=models.AnimalEventTag.get_ordered,
+        query_factory=lambda: models.AnimalEventTag.get_ordered(db.session),
         get_label='display_name',
     )
 class BreedingPairForm(FlaskForm):

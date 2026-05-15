@@ -75,24 +75,24 @@ def _apply_ear_filters(query, f):
         query = query.filter(Ear.side == f['side_filter'])
 
     if f['tag_id'] != 'all':
-        ids = EarTag.descendant_ids(int(f['tag_id']))
+        ids = EarTag.descendant_ids(db.session, int(f['tag_id']))
         query = query.filter(Ear.tags.any(EarTag.id.in_(ids)))
 
     if f['sex_filter'] in ('male', 'female'):
         query = query.filter(Animal.sex == f['sex_filter'])
 
     if f['procedure_id'] != 'all':
-        ids = AnimalProcedure.descendant_ids(int(f['procedure_id']))
+        ids = AnimalProcedure.descendant_ids(db.session, int(f['procedure_id']))
         query = query.filter(Animal.events.any(
             AnimalEvent.procedure_id.in_(ids)
         ))
 
     if f['animal_tag_id'] != 'all':
-        ids = AnimalTag.descendant_ids(int(f['animal_tag_id']))
+        ids = AnimalTag.descendant_ids(db.session, int(f['animal_tag_id']))
         query = query.filter(Animal.tags.any(AnimalTag.id.in_(ids)))
 
     if f['event_tag_id'] != 'all':
-        ids = AnimalEventTag.descendant_ids(int(f['event_tag_id']))
+        ids = AnimalEventTag.descendant_ids(db.session, int(f['event_tag_id']))
         query = query.filter(Animal.events.any(
             AnimalEvent.tags.any(AnimalEventTag.id.in_(ids))
         ))
@@ -127,10 +127,10 @@ def _apply_ear_sort(query, f):
 
 def _ear_filter_lookups():
     return {
-        'ear_tags': EarTag.get_ordered(),
-        'procedures': AnimalProcedure.get_ordered(),
-        'animal_tags': AnimalTag.get_ordered(),
-        'event_tags': AnimalEventTag.get_ordered(),
+        'ear_tags': EarTag.get_ordered(db.session),
+        'procedures': AnimalProcedure.get_ordered(db.session),
+        'animal_tags': AnimalTag.get_ordered(db.session),
+        'event_tags': AnimalEventTag.get_ordered(db.session),
         'studies': Study.query.order_by(Study.name).all(),
     }
 

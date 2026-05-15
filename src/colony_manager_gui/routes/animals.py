@@ -125,17 +125,17 @@ def list_animals():
         query = query.filter(Animal.studies.any(Study.id == int(study_filter)))
 
     if procedure_filter != 'all':
-        proc_ids = AnimalProcedure.descendant_ids(int(procedure_filter))
+        proc_ids = AnimalProcedure.descendant_ids(db.session, int(procedure_filter))
         query = query.filter(
             Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
         )
 
     if tag_filter != 'all':
-        tag_ids = AnimalTag.descendant_ids(int(tag_filter))
+        tag_ids = AnimalTag.descendant_ids(db.session, int(tag_filter))
         query = query.filter(Animal.tags.any(AnimalTag.id.in_(tag_ids)))
 
     if event_tag_filter != 'all':
-        et_ids = AnimalEventTag.descendant_ids(int(event_tag_filter))
+        et_ids = AnimalEventTag.descendant_ids(db.session, int(event_tag_filter))
         query = query.filter(Animal.events.any(
             AnimalEvent.tags.any(AnimalEventTag.id.in_(et_ids))
         ))
@@ -179,9 +179,9 @@ def list_animals():
     animals = query.order_by(order).all()
     _attach_event_aggregates(animals, today)
 
-    procedures = AnimalProcedure.get_ordered()
-    animal_tags = AnimalTag.get_ordered()
-    event_tags = AnimalEventTag.get_ordered()
+    procedures = AnimalProcedure.get_ordered(db.session)
+    animal_tags = AnimalTag.get_ordered(db.session)
+    event_tags = AnimalEventTag.get_ordered(db.session)
     studies = Study.query.order_by(Study.name).all()
 
     return render_template(

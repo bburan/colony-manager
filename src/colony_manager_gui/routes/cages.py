@@ -102,13 +102,13 @@ def list_cages():
         ))
 
     if tag_filter != 'all':
-        tag_ids = AnimalTag.descendant_ids(int(tag_filter))
+        tag_ids = AnimalTag.descendant_ids(db.session, int(tag_filter))
         query = query.filter(Cage.animals.any(
             Animal.tags.any(AnimalTag.id.in_(tag_ids))
         ))
 
     if procedure_filter != 'all':
-        proc_ids = AnimalProcedure.descendant_ids(int(procedure_filter))
+        proc_ids = AnimalProcedure.descendant_ids(db.session, int(procedure_filter))
         query = query.filter(Cage.animals.any(
             Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
         ))
@@ -168,8 +168,8 @@ def list_cages():
     _attach_cage_animals(cages)
 
     sources = Source.query.order_by(Source.name).all()
-    animal_tags = AnimalTag.get_ordered()
-    procedures = AnimalProcedure.get_ordered()
+    animal_tags = AnimalTag.get_ordered(db.session)
+    procedures = AnimalProcedure.get_ordered(db.session)
 
     filters = {
         'sort_by': sort_by,

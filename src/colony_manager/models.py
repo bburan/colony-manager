@@ -119,8 +119,15 @@ class NestedMixin:
         return self.name
 
     @classmethod
-    def get_ordered(cls):
-        items = cls.query.all()
+    def get_ordered(cls, session):
+        """Return all rows depth-first, with each parent's children sorted by name.
+
+        Takes an explicit ``session`` so this works from both Flask
+        routes (passing ``db.session``) and standalone scripts/tests
+        (passing a session built from ``colony_manager.db``).
+        """
+        from sqlalchemy import select
+        items = session.scalars(select(cls)).all()
         by_parent = {}
         for item in items:
             by_parent.setdefault(item.parent_id, []).append(item)
@@ -136,8 +143,14 @@ class NestedMixin:
         return ordered
 
     @classmethod
-    def descendant_ids(cls, root_id):
-        rows = cls.query.with_entities(cls.id, cls.parent_id).all()
+    def descendant_ids(cls, session, root_id):
+        """Return ``{root_id} | every descendant id under it`` (inclusive).
+
+        Walks the whole table once and traverses in-memory rather than
+        issuing N recursive queries.
+        """
+        from sqlalchemy import select
+        rows = session.execute(select(cls.id, cls.parent_id)).all()
         children_of = {}
         for child_id, parent_id in rows:
             children_of.setdefault(parent_id, []).append(child_id)

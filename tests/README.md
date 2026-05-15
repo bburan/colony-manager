@@ -219,6 +219,17 @@ Each xdist worker builds its **own** template database (`colony_test_template_gw
    - Disposes engines, drops the DB.
 3. **Session end:** template DB unmarked + dropped (unless `TEST_KEEP_DBS=1`).
 
+## Background jobs in tests
+
+`REDIS_URL` is **deliberately unset** under pytest. The app factory's
+`_configure_rq` falls back to a fakeredis-backed queue with
+`is_async=False`, so `queue.enqueue(...)` runs the work function
+inline in the test process. No real Redis, no worker subprocess.
+
+This means job-related tests just need the standard `app` /
+`logged_in_client` / `db_session` fixtures — see `docs/jobs.md` for
+example patterns.
+
 ## Writing integration tests
 
 ```python

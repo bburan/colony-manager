@@ -1010,9 +1010,16 @@ class BreedingPair(VersionedModel):
     start_date = Column(Date, nullable=False)
     notes = Column(Text, nullable=True)
     male_animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
-    male = relationship('Animal', foreign_keys=[male_animal_id])
+    # ``backref='breeding_pair_male'`` exposes ``animal.breeding_pair_male`` as
+    # the BreedingPair where this animal sits in the male slot (None if not
+    # used as a sire). Same for ``breeding_pair_female`` on the other side.
+    # ``routes/animals.delete_animal`` reads these to refuse deletion of
+    # animals that are part of a breeding pair.
+    male = relationship('Animal', foreign_keys=[male_animal_id],
+                        backref='breeding_pair_male')
     female_animal_id = Column(Integer, ForeignKey('animal.id', use_alter=True), nullable=False)
-    female = relationship('Animal', foreign_keys=[female_animal_id])
+    female = relationship('Animal', foreign_keys=[female_animal_id],
+                          backref='breeding_pair_female')
     is_active = Column(Boolean, default=True, nullable=False)
     litters = relationship('Litter', backref='breeding_pair', lazy='dynamic', cascade="all, delete-orphan")
     offspring = relationship('Animal', back_populates='breeding_pair', foreign_keys='Animal.breeding_pair_id')

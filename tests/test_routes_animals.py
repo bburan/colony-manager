@@ -18,8 +18,8 @@ from colony_manager.models import (
 )
 
 from .factories import (
-    make_animal, make_cage, make_event, make_feed, make_feed_log,
-    make_procedure, make_procedure_target, make_species,
+    make_animal, make_breeding_pair, make_cage, make_event, make_feed,
+    make_feed_log, make_procedure, make_procedure_target, make_species,
     make_termination_reason, make_weight_log,
 )
 
@@ -152,13 +152,29 @@ def test_update_animal_returns_404_for_unknown(logged_in_client):
     assert response.status_code == 404
 
 
-# NOTE: ``test_delete_animal`` removed. The delete_animal route in
-# routes/animals.py references ``animal.breeding_pair_male`` and
-# ``animal.breeding_pair_female`` which don't exist on the Animal
-# model — the route 500s for every animal id, not just animals in a
-# breeding pair. Tracked as a separate task to add the missing
-# backrefs on BreedingPair (or rewrite the check as an explicit
-# query). The test will return once the route works.
+def test_delete_animal(logged_in_client, db_session):
+    animal = make_animal(db_session, custom_id='DEL-1')
+    animal_id = animal.id
+    response = logged_in_client.post(
+        f'/animals/{animal_id}/delete', follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Animal, animal_id) is None
+
+
+def test_delete_animal_in_breeding_pair_refused(logged_in_client, db_session):
+    """The route reads animal.breeding_pair_male / breeding_pair_female
+    (backrefs added in BreedingPair) to refuse deletion of sires/dams.
+    """
+    pair = make_breeding_pair(db_session)
+    male_id = pair.male_animal_id
+    response = logged_in_client.post(
+        f'/animals/{male_id}/delete', follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Animal, male_id) is not None
 
 
 def test_terminate_animal_via_route(logged_in_client, db_session):

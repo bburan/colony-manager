@@ -1,7 +1,7 @@
 from urllib.parse import urlparse, urljoin
 
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import select, text
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 import flask_login
 
@@ -48,7 +48,9 @@ def login_user():
     if login_form.validate_on_submit():
         # Login and validate the user.
         # user should be an instance of your `User` class
-        user = User.query.filter_by(email=login_form.email.data).first()
+        user = db.session.scalars(
+            select(User).where(User.email == login_form.email.data)
+        ).first()
         if user and user.is_active:
             if user.check_password(login_form.password.data):
                 flask_login.login_user(user)
@@ -79,7 +81,9 @@ def add_user():
             db.session.execute(
                 text("SELECT pg_advisory_xact_lock(hashtext('colony_manager.first_user'))")
             )
-            is_bootstrap = User.query.count() == 0
+            is_bootstrap = db.session.scalar(
+                select(sqlalchemy.func.count()).select_from(User)
+            ) == 0
             user = User(
                 first_name=create_form.first_name.data,
                 last_name=create_form.last_name.data,
@@ -101,20 +105,15 @@ def add_user():
 
 @auth_bp.route('/')
 def list_users():
-    users = User.query.all()
+    users = db.session.scalars(select(User)).all()
     return render_template('list_users.html', users=users)
-
-@auth_bp.route('/<int:user_id>')
-def view_user(user_id):
-    user = User.query.get_or_404(user_id)
-    return render_template('view_user.html', user=user)
 
 @auth_bp.route('/<int:user_id>/update', methods=['POST'])
 def update_user_admin(user_id):
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     form = UserEditForm()
     if form.validate_on_submit():
         form.populate_obj(user)
@@ -129,6 +128,6 @@ def edit_user_modal(user_id):
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     return render_modal(UserEditForm(obj=user), item=user, label='Edit user',
                         submit_url=url_for('auth.update_user_admin', user_id=user.id))

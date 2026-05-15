@@ -24,16 +24,59 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 
 
+def _configure_rq(app):
+    """Build the RQ Queue and attach it to ``app.rq_queue``.
+
+    Reads ``REDIS_URL`` from the environment. If unset, drops to
+    fakeredis + synchronous execution so the Flask app can boot
+    on a dev machine (or in pytest) without a live Redis service.
+    """
+    import redis as redis_lib
+    from rq import Queue
+
+    redis_url = os.environ.get('REDIS_URL')
+    if redis_url:
+        connection = redis_lib.from_url(redis_url)
+        is_async = True
+    else:
+        try:
+            import fakeredis
+        except ImportError as exc:
+            raise RuntimeError(
+                'REDIS_URL is required when fakeredis is not installed. '
+                'Set REDIS_URL or `pip install fakeredis` (test extras).'
+            ) from exc
+        connection = fakeredis.FakeStrictRedis()
+        is_async = False
+        app.logger.info(
+            'REDIS_URL not set; using fakeredis + synchronous RQ '
+            '(jobs run inline in the request thread).'
+        )
+
+    app.rq_queue = Queue('sync', connection=connection, is_async=is_async)
+
+
 def create_app():
     app = Flask(__name__)
 
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # ``pool_pre_ping`` validates a connection before handing it out.
+    # Important for the RQ worker: after ``fork()`` the child inherits
+    # the parent's pool, and the parent's TCP connections are no longer
+    # safe in the child. pre_ping detects + recycles those silently.
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
     app.config['THUMBNAIL_CACHE_DIR'] = os.environ.get(
         'THUMBNAIL_CACHE_DIR',
     ) or str(cache_root('thumbnails'))
     app.config['THUMBNAIL_MAX_SIZE'] = int(os.environ.get('THUMBNAIL_MAX_SIZE', '300'))
+
+    # --- RQ queue wiring ---
+    # REDIS_URL points at a real Redis in prod (set by docker-compose);
+    # if unset, fall back to fakeredis with synchronous execution so
+    # local dev / unit tests don't require a running Redis or worker.
+    _configure_rq(app)
 
     # Register Blueprints
     from colony_manager_gui.routes.main import main_bp

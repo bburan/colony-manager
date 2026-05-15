@@ -107,13 +107,4 @@ def create_app():
             return
         return redirect(url_for('auth.login_user', next=request.url))
 
-    # Make ``Model.query`` / ``cls.session`` work across the
-    # ``colony_manager`` package. The library doesn't subclass
-    # ``flask_sqlalchemy.Model`` — it has its own declarative ``Base`` —
-    # so Flask-SQLAlchemy's auto-attached query property doesn't apply.
-    # ``bind_models`` is the public entry point; non-Flask callers
-    # (scripts, tests) call it themselves before issuing queries.
-    with app.app_context():
-        models.bind_models(db.session)
-
     return app

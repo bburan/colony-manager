@@ -19,6 +19,7 @@ import threading
 from datetime import datetime
 
 from flask import current_app
+from sqlalchemy import select
 
 from colony_manager.models import SyncJob
 
@@ -98,12 +99,11 @@ def enqueue_datatype_rematch(datatype_id, force=False):
 
 def recent_jobs(limit=10):
     """Return the most recent jobs (any status) for display in the UI."""
-    return (
-        SyncJob.query
+    return db.session.scalars(
+        select(SyncJob)
         .order_by(SyncJob.enqueued_at.desc())
         .limit(limit)
-        .all()
-    )
+    ).all()
 
 
 def parse_summary(job):

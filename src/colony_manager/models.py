@@ -1277,24 +1277,3 @@ class SyncJob(Base):
 
 
 orm.configure_mappers()
-
-
-def bind_models(session):
-    """Wire ``Model.query`` and ``Model.session`` to a SQLAlchemy session.
-
-    The GUI calls this from its app factory so models inherit a query
-    property and ``cls.session`` even though they don't subclass
-    ``flask_sqlalchemy.Model``. Non-Flask callers (CLI scripts, ad-hoc
-    notebooks, tests) need to call this themselves before using
-    ``Model.query.filter_by(...)`` or any of the polymorphic
-    ``DataType.match_targets`` paths::
-
-        from sqlalchemy.orm import scoped_session, sessionmaker
-        engine = create_engine(...)
-        Session = scoped_session(sessionmaker(bind=engine))
-        bind_models(Session)
-
-    Idempotent — safe to call multiple times.
-    """
-    Base.session = session
-    Base.query = session.query_property()

@@ -111,15 +111,27 @@ def _force_drop(conn, db_name):
     conn.execute(text(
         f'ALTER DATABASE "{db_name}" WITH is_template = false'
     ))
-    # Terminate every backend connected to ``db_name`` except this one.
-    # Without this, ``DROP DATABASE`` fails with "database is being
-    # accessed by other users" if a test crashed without disposing its
-    # engine pool.
+    # Terminate normal backends connected to ``db_name`` so DROP doesn't
+    # hit "database is being accessed by other users" from a leaked
+    # engine pool. Filter out ``autovacuum worker`` because Postgres 16+
+    # requires the ``pg_signal_autovacuum_worker`` role to terminate
+    # those — autovacuum will detach on its own once DROP proceeds, and
+    # ``WITH (FORCE)`` below mops up any remaining backends using the
+    # owner's privileges.
     conn.execute(text(
-        'SELECT pg_terminate_backend(pid) FROM pg_stat_activity '
-        'WHERE datname = :db AND pid <> pg_backend_pid()'
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        "WHERE datname = :db "
+        "AND pid <> pg_backend_pid() "
+        "AND backend_type != 'autovacuum worker'"
     ), {'db': db_name})
-    conn.execute(text(f'DROP DATABASE "{db_name}"'))
+    # ``WITH (FORCE)`` (Postgres 13+) lets the database owner force-
+    # disconnect any straggler backends as part of DROP without needing
+    # ``pg_signal_backend``. Falls back to plain DROP if the cluster
+    # rejects the option, which would only happen on Postgres <13.
+    try:
+        conn.execute(text(f'DROP DATABASE "{db_name}" WITH (FORCE)'))
+    except Exception:
+        conn.execute(text(f'DROP DATABASE "{db_name}"'))
 
 
 def _alembic_upgrade(url):

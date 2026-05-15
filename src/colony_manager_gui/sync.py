@@ -44,13 +44,15 @@ def _parsed_custom_ids(parsed):
         yield raw
 
 
-def _candidate_animals_for(parsed, animals_by_cid=None):
+def _candidate_animals_for(session, parsed, animals_by_cid=None):
     """Return Animals matching parsed['animal_id'] (single value or list).
 
     *animals_by_cid* is an optional ``{custom_id: Animal}`` cache to avoid
-    issuing a query per file. Falls back to a per-id query when not
-    provided so non-sync callers (rematch, tests) keep working.
+    issuing a query per file. Falls back to a per-id query against
+    ``session`` when not provided.
     """
+    from sqlalchemy import select
+
     raw = parsed.get('animal_id')
     if not raw:
         return []
@@ -60,13 +62,15 @@ def _candidate_animals_for(parsed, animals_by_cid=None):
         if animals_by_cid is not None:
             animal = animals_by_cid.get(aid)
         else:
-            animal = Animal.query.filter_by(custom_id=aid).first()
+            animal = session.scalars(
+                select(Animal).where(Animal.custom_id == aid)
+            ).first()
         if animal:
             animals.append(animal)
     return animals
 
 
-def _candidate_ears_for(parsed, candidate_animals, ears_by_animal_side=None):
+def _candidate_ears_for(session, parsed, candidate_animals, ears_by_animal_side=None):
     """Return Ears matching the parsed side for each candidate animal.
 
     Supports either a scalar ``side`` (one side for every animal_id) or
@@ -75,8 +79,10 @@ def _candidate_ears_for(parsed, candidate_animals, ears_by_animal_side=None):
     animal's specific ear.
 
     *ears_by_animal_side* is an optional ``{(animal_id, side): Ear}``
-    cache; falls back to per-(id, side) queries when not provided.
+    cache; falls back to per-(id, side) queries against ``session``.
     """
+    from sqlalchemy import select
+
     raw_ids = parsed.get('animal_id')
     if not raw_ids or not candidate_animals:
         return []
@@ -95,13 +101,15 @@ def _candidate_ears_for(parsed, candidate_animals, ears_by_animal_side=None):
         if ears_by_animal_side is not None:
             ear = ears_by_animal_side.get((animal.id, side))
         else:
-            ear = Ear.query.filter_by(animal_id=animal.id, side=side).first()
+            ear = session.scalars(
+                select(Ear).where(Ear.animal_id == animal.id, Ear.side == side)
+            ).first()
         if ear:
             ears.append(ear)
     return ears
 
 
-def _maybe_auto_create_events(datatype, parsed, candidate_animals, dry_run=False):
+def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_run=False):
     """Create one AnimalEvent per candidate animal when ``auto_create`` is on.
 
     Only fires for ``animal_event`` DataTypes that have ``auto_create=True``,
@@ -132,9 +140,9 @@ def _maybe_auto_create_events(datatype, parsed, candidate_animals, dry_run=False
             scheduled_date=target_date,
             completion_date=target_date,
         )
-        db.session.add(event)
+        session.add(event)
         events.append(event)
-    db.session.flush()
+    session.flush()
     return events
 
 
@@ -297,13 +305,13 @@ def _sync_location(location, dry_run=False, debug=False):
                              relative_path, hash_match.relative_path)
 
         targets = datatype.match_targets(db.session, parsed)
-        candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
+        candidate_animals = _candidate_animals_for(db.session, parsed, animals_by_cid)
         candidate_ears = _candidate_ears_for(
-            parsed, candidate_animals, ears_by_animal_side,
+            db.session, parsed, candidate_animals, ears_by_animal_side,
         )
         if not targets:
             created = _maybe_auto_create_events(
-                datatype, parsed, candidate_animals, dry_run=dry_run,
+                db.session, datatype, parsed, candidate_animals, dry_run=dry_run,
             )
             if created:
                 targets = created
@@ -534,14 +542,14 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
 
     for row, parsed in parsed_rows:
         targets = dt.match_targets(db.session, parsed)
-        candidate_animals = _candidate_animals_for(parsed, animals_by_cid)
+        candidate_animals = _candidate_animals_for(db.session, parsed, animals_by_cid)
         candidate_ears = _candidate_ears_for(
-            parsed, candidate_animals, ears_by_animal_side,
+            db.session, parsed, candidate_animals, ears_by_animal_side,
         )
 
         if not targets:
             created = _maybe_auto_create_events(
-                dt, parsed, candidate_animals, dry_run=dry_run,
+                db.session, dt, parsed, candidate_animals, dry_run=dry_run,
             )
             if created:
                 targets = created

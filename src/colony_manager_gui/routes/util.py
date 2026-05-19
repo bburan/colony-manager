@@ -112,13 +112,13 @@ def render_modal(form, *, label, submit_url, item=None,
 
 
 def htmx_or_redirect(*, partial=None, context=None, body=None,
-                     trigger=None, oob_clear_id=None,
+                     trigger=None, oob_id=None,
                      flash_message=None, flash_category='success',
                      redirect_to=None):
     """Success branch for an HTMX-aware mutation.
 
     HTMX → return the rendered partial (or pre-rendered ``body``), optionally
-    with an OOB swap that clears an error region (``oob_clear_id``) and/or an
+    with an OOB swap that clears the element with id ``oob_id`` and/or an
     ``HX-Trigger`` event header.
 
     Non-HTMX → flash ``flash_message`` (if given) and redirect to
@@ -127,8 +127,8 @@ def htmx_or_redirect(*, partial=None, context=None, body=None,
     if is_htmx():
         if body is None:
             body = render_template(partial, **(context or {})) if partial else ''
-        if oob_clear_id:
-            body = body + f'<div id="{oob_clear_id}" hx-swap-oob="true"></div>'
+        if oob_id:
+            body = body + render_template('partials/oob_clear.html', oob_id=oob_id)
         headers = {'HX-Trigger': trigger} if trigger else {}
         return body, 200, headers
     if flash_message:

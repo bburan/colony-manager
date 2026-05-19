@@ -350,11 +350,11 @@ def create_setting(item_type):
                           flash_title=f'Error adding {pretty}. It might already exist.',
                           redirect_to=list_url)
 
-    body, oob_clear_id = (None, None)
+    body, oob_id = (None, None)
     if is_htmx():
-        body, oob_clear_id = _setting_success_body(item_type, item, form)
+        body, oob_id = _setting_success_body(item_type, item, form)
     return htmx_or_redirect(
-        body=body, oob_clear_id=oob_clear_id,
+        body=body, oob_id=oob_id,
         flash_message=f'{pretty.title()} "{form.name.data}" added.',
         redirect_to=list_url,
     )
@@ -383,11 +383,11 @@ def update_setting(item_type, item_id):
                           flash_title='Update failed: It might already exist.',
                           redirect_to=list_url)
 
-    body, oob_clear_id = (None, None)
+    body, oob_id = (None, None)
     if is_htmx():
-        body, oob_clear_id = _setting_success_body(item_type, item, form)
+        body, oob_id = _setting_success_body(item_type, item, form)
     return htmx_or_redirect(
-        body=body, oob_clear_id=oob_clear_id,
+        body=body, oob_id=oob_id,
         flash_message='Updated successfully!',
         redirect_to=list_url,
     )

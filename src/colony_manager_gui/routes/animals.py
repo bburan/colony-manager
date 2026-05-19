@@ -784,6 +784,77 @@ def delete_unmatched_data():
     return redirect(request.referrer or url_for('animals.list_unmatched_data'))
 
 
+@animals_bp.route('/unmatched-data/auto-create', methods=['POST'])
+def auto_create_unmatched_data():
+    """Bulk-trigger ``auto_create_animal_event`` for selected files.
+
+    For each selected AnimalEventData row with at least one
+    ``candidate_animals`` entry, invoke the same auto-create flow the
+    single-file "wand" button uses. Files that aren't AnimalEventData
+    (e.g. confocal_image files), or that have no candidates, are
+    skipped with a counted reason — auto_create_animal_event itself
+    raises its own AutoCreateResult.error for further skip reasons
+    (no default procedure, no parsed date, side required + missing).
+    """
+    data_ids = request.form.getlist('data_ids', type=int)
+    if not data_ids:
+        flash('No files selected.', 'warning')
+        return redirect(request.referrer or url_for('animals.list_unmatched_data'))
+
+    rows = db.session.scalars(
+        select(Data).where(Data.id.in_(data_ids))
+    ).all()
+
+    totals = {
+        'considered': 0,
+        'events_created': 0,
+        'events_reused': 0,
+        'files_linked': 0,
+        'not_animal_event': 0,
+        'no_candidate': 0,
+        'errored': 0,
+    }
+    for row in rows:
+        totals['considered'] += 1
+        if not isinstance(row, AnimalEventData):
+            totals['not_animal_event'] += 1
+            continue
+        if not row.candidate_animals:
+            totals['no_candidate'] += 1
+            continue
+        result = auto_create_animal_event(row.candidate_animals[0], row)
+        if result.error:
+            totals['errored'] += 1
+            continue
+        totals['events_created'] += result.created
+        totals['events_reused'] += result.reused
+        totals['files_linked'] += result.linked
+
+    # Build a single readable summary message.
+    parts = []
+    if totals['events_created']:
+        parts.append(f"{totals['events_created']} event(s) created")
+    if totals['events_reused']:
+        parts.append(f"{totals['events_reused']} reused")
+    if totals['files_linked']:
+        parts.append(f"{totals['files_linked']} sibling file(s) linked")
+    skips = []
+    if totals['not_animal_event']:
+        skips.append(f"{totals['not_animal_event']} non-animal_event")
+    if totals['no_candidate']:
+        skips.append(f"{totals['no_candidate']} without candidates")
+    if totals['errored']:
+        skips.append(f"{totals['errored']} blocked by parser/datatype config")
+    if skips:
+        parts.append(f"skipped {', '.join(skips)}")
+
+    if parts:
+        flash(', '.join(parts).capitalize() + '.', 'success')
+    else:
+        flash('No files were processed.', 'warning')
+    return redirect(request.referrer or url_for('animals.list_unmatched_data'))
+
+
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):
     """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""

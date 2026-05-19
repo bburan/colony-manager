@@ -476,6 +476,105 @@ def test_bulk_delete_unmatched_data_empty_selection_no_op(
     assert response.status_code == 302
 
 
+def test_bulk_auto_create_unmatched_data_creates_events(
+    logged_in_client, db_session,
+):
+    """Selected AnimalEventData rows with a candidate animal get a
+    fresh AnimalEvent linked to them via the same auto-create flow
+    the single-file 'wand' button uses.
+    """
+    from datetime import date
+    from colony_manager.models import AnimalEventData, DataLocation
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='AC-1')
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = make_animal_event_data_type(
+        db_session,
+        default_procedure=procedure,
+        default_procedure_target=target,
+    )
+    location = make_data_location(
+        db_session, datatype=dtype, base_path='/tmp',
+    )
+
+    row = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path='AC-1_2025-12-10.txt',
+        name='AC-1_2025-12-10.txt',
+        status='unreviewed',
+        date=date(2025, 12, 10),
+        # Populated by sync in real use; auto_create_animal_event's
+        # siblings-linking step reads this to decide whether to
+        # attach the file to the freshly-created event.
+        parsed_metadata={'animal_id': 'AC-1', 'date': '2025-12-10'},
+    )
+    row.candidate_animals = [animal]
+    db_session.add(row)
+    db_session.commit()
+    row_id = row.id
+
+    response = logged_in_client.post(
+        '/animals/unmatched-data/auto-create',
+        data={'data_ids': [str(row_id)]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    db_session.expire_all()
+    persisted = db_session.get(AnimalEventData, row_id)
+    assert len(persisted.events) == 1
+    assert persisted.events[0].animal_id == animal.id
+    assert persisted.events[0].procedure_id == procedure.id
+
+
+def test_bulk_auto_create_empty_selection_no_op(logged_in_client):
+    """Submitting with no checkboxes ticked redirects with a warning."""
+    response = logged_in_client.post(
+        '/animals/unmatched-data/auto-create',
+        data={},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+
+def test_bulk_auto_create_skips_files_without_candidates(
+    logged_in_client, db_session,
+):
+    """A row with no candidate_animals is counted-skipped, not crashed."""
+    from datetime import date
+    from colony_manager.models import AnimalEventData
+
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=procedure,
+    )
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path='orphan.txt',
+        name='orphan.txt',
+        status='unreviewed',
+        date=date(2025, 12, 10),
+    )
+    db_session.add(row)
+    db_session.commit()
+    row_id = row.id
+
+    response = logged_in_client.post(
+        '/animals/unmatched-data/auto-create',
+        data={'data_ids': [str(row_id)]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    persisted = db_session.get(AnimalEventData, row_id)
+    assert persisted.events == []
+
+
 def test_bulk_delete_skips_unknown_ids(logged_in_client, db_session):
     """Mixing real + unknown ids deletes only the real ones; no crash."""
     row = _make_unmatched_data_row(db_session, name='real.txt')

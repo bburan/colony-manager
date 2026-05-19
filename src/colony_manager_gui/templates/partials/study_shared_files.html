@@ -1,0 +1,48 @@
+{# Shared-files panel for the study detail page.
+
+   Inputs:
+     shared_files — [(data_file, [animal, ...]), ...] for files whose
+                    ``events`` collection touches ≥2 animals in this
+                    study. Empty list → panel hides entirely. #}
+{% if shared_files %}
+<div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            <i class="fas fa-link me-2"></i>Data Files Shared Across Animals
+        </h2>
+        <span class="badge bg-light text-secondary border">
+            {{ shared_files|length }} files
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>File</th>
+                    <th>DataType</th>
+                    <th>Animals (in this study)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for data_file, animals in shared_files %}
+                <tr>
+                    <td class="small text-muted">{{ data_file.relative_path }}</td>
+                    <td><span class="badge bg-secondary">{{ data_file.datatype.name }}</span></td>
+                    <td>
+                        {% for animal in animals %}
+                            <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"
+                               class="badge bg-light text-dark text-decoration-none">{{ animal.display_id }}</a>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer small text-muted">
+        Each row is a single Data file whose ``events`` collection links to
+        two or more animals in this study. Usually a multi-animal recording;
+        check that the linkage is intentional.
+    </div>
+</div>
+{% endif %}

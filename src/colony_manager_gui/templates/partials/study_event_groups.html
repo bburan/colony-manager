@@ -1,0 +1,338 @@
+{# Per-(root procedure, target) event panels for the study detail page.
+
+   Inputs:
+     event_groups — list of group dicts from _build_event_groups. Each
+       carries a ``panel_json`` dict (cells/rows/tags/sides as JSON-
+       friendly primitives) and a ``panel_key`` stable per panel.
+     study — used to scope the localStorage persist key per study.
+
+   Each panel uses Alpine.js (with the @alpinejs/sort and @alpinejs/
+   persist plugins) to let the user toggle visibility of tag columns
+   and drag-reorder them. Preferences persist to localStorage keyed
+   by study+panel; new tags showing up in future renders get appended
+   to the end of the stored order. The layout is CSS grid so column
+   reordering actually moves the cells visually rather than just
+   hiding them. #}
+{% if event_groups %}
+<div class="card shadow-sm mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            <i class="fas fa-clipboard-check me-2"></i>Event Coverage by Procedure
+        </h2>
+        <span class="badge bg-light text-secondary border">
+            {{ event_groups|length }} procedure{{ '' if event_groups|length == 1 else 's' }}
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <div class="accordion accordion-flush" id="study-event-groups">
+            {% for group in event_groups %}
+                {% set gid = 'group-' ~ loop.index %}
+                {% set persist_key = 'study-' ~ study.id ~ '-' ~ group.panel_key %}
+                <div class="accordion-item"
+                     x-data='studyEventPanel("{{ persist_key }}", {{ group.panel_json | tojson }})'>
+                    <h3 class="accordion-header d-flex align-items-stretch" id="{{ gid }}-header">
+                        <button class="accordion-button collapsed py-2 flex-grow-1"
+                                type="button" data-bs-toggle="collapse"
+                                data-bs-target="#{{ gid }}-body"
+                                aria-expanded="false"
+                                aria-controls="{{ gid }}-body">
+                            <span class="me-3 fw-semibold">
+                                {{ group.root_procedure.display_name }}
+                                {% if group.target %}
+                                    <small class="text-muted">▸ {{ group.target.name }}</small>
+                                {% endif %}
+                            </span>
+                            <span class="badge bg-secondary-subtle text-secondary border me-2">
+                                {{ group.total_events }} event{{ '' if group.total_events == 1 else 's' }}
+                            </span>
+                            {% if group.animals_missing %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    {{ group.animals_missing }} animal{{ '' if group.animals_missing == 1 else 's' }} incomplete
+                                </span>
+                            {% endif %}
+                        </button>
+                    </h3>
+                    <div id="{{ gid }}-body"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="{{ gid }}-header"
+                         data-bs-parent="#study-event-groups">
+                        <div class="accordion-body p-2">
+
+                            {# Settings toolbar: shows when this panel is
+                               open; click the gear to drop down a list
+                               of tag columns with drag-to-reorder
+                               handles + visibility checkboxes. #}
+                            <div class="d-flex justify-content-end mb-2 position-relative">
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        @click="settingsOpen = !settingsOpen"
+                                        :aria-expanded="settingsOpen">
+                                    <i class="fas fa-sliders-h me-1"></i>Columns
+                                </button>
+                                <div x-show="settingsOpen" x-cloak
+                                     @click.outside="settingsOpen = false"
+                                     class="position-absolute end-0 bg-white border rounded shadow-sm p-2"
+                                     style="top: 100%; z-index: 20; min-width: 260px;">
+                                    <div class="small text-muted mb-2">
+                                        Drag to reorder. Uncheck to hide a tag from this panel.
+                                    </div>
+                                    <ul class="list-unstyled mb-0"
+                                        x-sort="reorderTag($item, $position)"
+                                        x-sort:config="{ handle: '.tag-drag-handle' }">
+                                        <template x-for="tagKey in tagOrder" :key="tagKey">
+                                            <li x-sort:item="tagKey"
+                                                class="d-flex align-items-center gap-2 py-1 px-1 rounded"
+                                                style="cursor: default;">
+                                                <i class="fas fa-grip-vertical text-muted small tag-drag-handle"
+                                                   style="cursor: grab;"></i>
+                                                <input type="checkbox" class="form-check-input m-0"
+                                                       :checked="!hiddenTags.includes(tagKey)"
+                                                       @change="toggleTag(tagKey)">
+                                                <span x-text="tagLabel(tagKey)" class="small"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                    <div class="d-flex justify-content-between mt-2 pt-2 border-top">
+                                        <button type="button" class="btn btn-link btn-sm p-0"
+                                                @click="resetPrefs()">Reset</button>
+                                        <button type="button" class="btn btn-secondary btn-sm"
+                                                @click="settingsOpen = false">Done</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {# CSS-grid panel. Columns: animal name (auto)
+                               + sides * visible tags. Each cell uses
+                               grid-row/grid-column to land in its slot
+                               so the order responds to ``tagOrder`` and
+                               ``hiddenTags`` reactively. #}
+                            <div class="study-event-grid"
+                                 :style="gridStyle()"
+                                 x-show="visibleTags.length > 0">
+                                <div class="seg-th seg-corner"
+                                     style="grid-column: 1; grid-row: 1 / span 2;">
+                                    Animal
+                                </div>
+
+                                <template x-for="(side, si) in sides" :key="side">
+                                    <div class="seg-th seg-side"
+                                         :style="`grid-column: ${sideStart(si)} / span ${visibleTags.length}; grid-row: 1;`"
+                                         x-text="side || '—'"></div>
+                                </template>
+
+                                <template x-for="(side, si) in sides" :key="'tags-row-' + side">
+                                    <template x-for="(tagKey, ti) in visibleTags" :key="side + '|' + tagKey">
+                                        <div class="seg-th seg-tag"
+                                             :style="`grid-column: ${sideStart(si) + ti}; grid-row: 2;`"
+                                             :class="{ 'seg-tag-untagged': isUntagged(tagKey) }">
+                                            <span x-text="tagLabel(tagKey)"></span>
+                                        </div>
+                                    </template>
+                                </template>
+
+                                <template x-for="(row, ri) in rows" :key="row.animal_id">
+                                    <div class="seg-animal"
+                                         :class="{ 'seg-row-empty': !row.has_any }"
+                                         :style="`grid-column: 1; grid-row: ${3 + ri};`">
+                                        <a :href="animalUrl(row.animal_id)"
+                                           class="text-decoration-none"
+                                           x-text="row.animal_display_id"></a>
+                                        <i x-show="!row.has_any"
+                                           class="fas fa-exclamation-triangle text-warning ms-1"
+                                           title="No events in this procedure"></i>
+                                    </div>
+                                </template>
+
+                                <template x-for="(row, ri) in rows" :key="'cells-' + row.animal_id">
+                                    <template x-for="(side, si) in sides" :key="'cells-' + row.animal_id + '-' + side">
+                                        <template x-for="(tagKey, ti) in visibleTags" :key="'cells-' + row.animal_id + '-' + side + '|' + tagKey">
+                                            <div class="seg-cell"
+                                                 :class="{
+                                                     'seg-cell-empty': !row.cells[cellKey(side, tagKey)],
+                                                     'seg-row-empty': !row.has_any,
+                                                 }"
+                                                 :style="`grid-column: ${sideStart(si) + ti}; grid-row: ${3 + ri};`">
+                                                <template x-if="row.cells[cellKey(side, tagKey)]">
+                                                    <div>
+                                                        <template x-for="(bucket, bi) in row.cells[cellKey(side, tagKey)]" :key="bi">
+                                                            <div :class="{ 'mt-1 pt-1 border-top': bi > 0 }">
+                                                                <div x-show="bucket.sub_label"
+                                                                     class="text-muted small fst-italic"
+                                                                     x-text="bucket.sub_label"></div>
+                                                                <span x-text="formatDateRange(bucket)"></span>
+                                                                <span x-show="bucket.count > 1"
+                                                                      class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1"
+                                                                      style="font-size: 0.7em;"
+                                                                      x-text="'×' + bucket.count"></span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                                <template x-if="!row.cells[cellKey(side, tagKey)]">
+                                                    <span>—</span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </template>
+                                </template>
+                            </div>
+
+                            <div x-show="visibleTags.length === 0"
+                                 class="text-muted small text-center py-3">
+                                All tag columns are hidden. Open the
+                                <strong>Columns</strong> menu to re-enable some.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card-footer small text-muted">
+        Each column under a side is a distinct tag (or the
+        <em>(untagged)</em> bucket). Cells show the date range and
+        sub-procedure (when the panel groups variants under a common
+        root) for that animal × side × tag combination. Use the
+        <strong>Columns</strong> menu on each panel to hide tags or
+        drag-reorder them; preferences are saved per study in your
+        browser.
+    </div>
+</div>
+
+<style>
+    .study-event-grid {
+        display: grid;
+        gap: 1px;
+        background-color: #dee2e6;
+        border: 1px solid #dee2e6;
+        font-size: 0.875rem;
+    }
+    .study-event-grid > * {
+        background-color: white;
+        padding: 0.35rem 0.5rem;
+    }
+    .study-event-grid .seg-th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        text-align: center;
+    }
+    .study-event-grid .seg-side {
+        border-bottom: 1px solid #dee2e6;
+    }
+    .study-event-grid .seg-tag-untagged span {
+        font-style: italic;
+        color: #6c757d;
+        font-weight: normal;
+    }
+    .study-event-grid .seg-animal {
+        white-space: nowrap;
+    }
+    .study-event-grid .seg-cell {
+        text-align: center;
+    }
+    .study-event-grid .seg-cell-empty {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+    }
+    .study-event-grid .seg-row-empty {
+        background-color: #fff3cd;
+    }
+    .study-event-grid .seg-cell-empty.seg-row-empty {
+        background-color: #fff3cd;
+    }
+    [x-cloak] { display: none !important; }
+</style>
+
+<script>
+    function studyEventPanel(persistKey, payload) {
+        return {
+            settingsOpen: false,
+            sides: payload.sides,
+            rows: payload.rows,
+            // {key: string, label: string}[]
+            _tags: payload.tags,
+            // User-controlled state, persisted to localStorage. Keep
+            // ALL known tag keys here in display order; ``hiddenTags``
+            // is a separate list so toggling visibility doesn't lose
+            // ordering.
+            tagOrder: Alpine.$persist([]).as(persistKey + ':order'),
+            hiddenTags: Alpine.$persist([]).as(persistKey + ':hidden'),
+
+            init() {
+                // Merge any tags present in the current payload that
+                // aren't yet in the persisted order (new tags added
+                // since the user last visited this panel).
+                const known = new Set(this.tagOrder);
+                for (const t of this._tags) {
+                    if (!known.has(t.key)) {
+                        this.tagOrder.push(t.key);
+                    }
+                }
+                // Drop persisted entries no longer present in the
+                // payload — keeps localStorage from growing forever
+                // and avoids ghost rows in the settings list.
+                const present = new Set(this._tags.map(t => t.key));
+                this.tagOrder = this.tagOrder.filter(k => present.has(k));
+                this.hiddenTags = this.hiddenTags.filter(k => present.has(k));
+            },
+
+            get visibleTags() {
+                const hidden = new Set(this.hiddenTags);
+                return this.tagOrder.filter(k => !hidden.has(k));
+            },
+
+            tagLabel(key) {
+                const t = this._tags.find(t => t.key === key);
+                return t ? t.label : key;
+            },
+
+            isUntagged(key) {
+                return this.tagLabel(key) === '(untagged)';
+            },
+
+            cellKey(side, tagKey) {
+                return (side || '') + '|' + tagKey;
+            },
+
+            animalUrl(id) {
+                return '/animals/' + id;
+            },
+
+            sideStart(sideIndex) {
+                // Column 1 is the animal name; tag columns start at
+                // column 2 and each side occupies ``visibleTags.length``
+                // columns in a row.
+                return 2 + sideIndex * this.visibleTags.length;
+            },
+
+            gridStyle() {
+                const cols = 1 + this.sides.length * this.visibleTags.length;
+                return `grid-template-columns: max-content repeat(${cols - 1}, minmax(90px, 1fr));`;
+            },
+
+            formatDateRange(bucket) {
+                if (bucket.min_date === bucket.max_date) return bucket.min_date;
+                return bucket.min_date + ' – ' + bucket.max_date;
+            },
+
+            toggleTag(key) {
+                const idx = this.hiddenTags.indexOf(key);
+                if (idx === -1) this.hiddenTags.push(key);
+                else this.hiddenTags.splice(idx, 1);
+            },
+
+            reorderTag(key, position) {
+                const oldIdx = this.tagOrder.indexOf(key);
+                if (oldIdx === -1) return;
+                this.tagOrder.splice(oldIdx, 1);
+                this.tagOrder.splice(position, 0, key);
+            },
+
+            resetPrefs() {
+                this.tagOrder = this._tags.map(t => t.key);
+                this.hiddenTags = [];
+            },
+        };
+    }
+</script>
+{% endif %}

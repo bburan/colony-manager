@@ -114,21 +114,34 @@ Unmatched Data Files
     </form>
 </div>
 
-{# The bulk-delete form wraps the whole results panel so the same row
-   checkboxes drive both the delete-selected button at the top and the
-   pagination footer at the bottom. Whether the bulk-delete UI shows is
-   gated on the Missing status filter — that's the only safe-to-mass-
-   delete state today. #}
+{# The bulk-action form wraps the whole results panel so the row
+   checkboxes drive both action buttons in the header. Two actions
+   are dispatched via per-button ``formaction``:
+   * Auto-create events — always offered (server filters non-applicable
+     files: non-animal_event, no candidates, etc.).
+   * Delete selected — gated on the Missing status filter, since
+     deleting Data rows in other states is rarely what the operator
+     wants. #}
 {% set show_bulk_delete = filters.status == 'missing' %}
-<form method="POST" action="{{ url_for('animals.delete_unmatched_data') }}"
-      onsubmit="return confirm('Delete the selected file records? This cannot be undone.');">
+<form method="POST"
+      action="{{ url_for('animals.auto_create_unmatched_data') }}">
     {{ csrf_only_form.csrf_token }}
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Files that did not link to a target</h2>
         <div class="d-flex align-items-center gap-2">
+            {% if files %}
+                <button type="submit"
+                        class="btn btn-sm btn-outline-primary"
+                        title="Create AnimalEvents for selected files using each file's first candidate animal.">
+                    <i class="fas fa-magic"></i> Auto-create events
+                </button>
+            {% endif %}
             {% if show_bulk_delete and files %}
-                <button type="submit" class="btn btn-sm btn-outline-danger">
+                <button type="submit"
+                        class="btn btn-sm btn-outline-danger"
+                        formaction="{{ url_for('animals.delete_unmatched_data') }}"
+                        onclick="return confirm('Delete the selected file records? This cannot be undone.');">
                     <i class="fas fa-trash"></i> Delete selected
                 </button>
             {% endif %}
@@ -140,13 +153,11 @@ Unmatched Data Files
         <table class="table table-hover mb-0">
             <thead>
                 <tr>
-                    {% if show_bulk_delete %}
                     <th style="width: 1%;">
                         <input type="checkbox" class="form-check-input"
                                onclick="document.querySelectorAll('input[name=data_ids]').forEach(cb => cb.checked = this.checked);"
                                aria-label="Select all">
                     </th>
-                    {% endif %}
                     <th>{{ sort_header('DataType', 'datatype') }}</th>
                     <th>Target</th>
                     <th>{{ sort_header('Location', 'name') }}</th>
@@ -158,12 +169,10 @@ Unmatched Data Files
             <tbody>
                 {% for f in files %}
                 <tr>
-                    {% if show_bulk_delete %}
                     <td>
                         <input type="checkbox" class="form-check-input"
                                name="data_ids" value="{{ f.id }}">
                     </td>
-                    {% endif %}
                     <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
                     <td><span class="badge bg-info text-dark">{{ f.datatype.TARGET_LABEL }}</span></td>
                     <td><span class="small text-muted">{{ f.relative_path }}</span></td>

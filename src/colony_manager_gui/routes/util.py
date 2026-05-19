@@ -1,8 +1,84 @@
-from flask import flash, render_template, request, redirect, url_for
+from flask import abort, flash, render_template, request, redirect, url_for
 from markupsafe import Markup, escape
+from sqlalchemy import func, select
 
-from werkzeug.exceptions import NotFound
-from sqlalchemy.orm import Query
+from colony_manager.db import get_session
+
+
+class Pagination:
+    """Flask-SQLAlchemy-compatible pagination over a SQLAlchemy 2.0 ``select()``.
+
+    Exposes the attributes the unmatched-files template reads
+    (``items``, ``page``, ``pages``, ``total``, ``has_prev``, ``has_next``,
+    ``prev_num``, ``next_num``, ``iter_pages``) so the swap from
+    ``db.paginate`` is template-transparent.
+    """
+
+    def __init__(self, items, page, per_page, total):
+        self.items = items
+        self.page = page
+        self.per_page = per_page
+        self.total = total
+
+    @property
+    def pages(self):
+        if self.per_page == 0 or self.total == 0:
+            return 0
+        return (self.total + self.per_page - 1) // self.per_page
+
+    @property
+    def has_prev(self):
+        return self.page > 1
+
+    @property
+    def has_next(self):
+        return self.page < self.pages
+
+    @property
+    def prev_num(self):
+        return self.page - 1 if self.has_prev else None
+
+    @property
+    def next_num(self):
+        return self.page + 1 if self.has_next else None
+
+    def iter_pages(self, left_edge=2, left_current=2, right_current=4, right_edge=2):
+        last = 0
+        for num in range(1, self.pages + 1):
+            if (num <= left_edge
+                    or (self.page - left_current - 1 < num < self.page + right_current)
+                    or num > self.pages - right_edge):
+                if last + 1 != num:
+                    yield None
+                yield num
+                last = num
+
+
+def paginate(stmt, page=1, per_page=20):
+    """Run ``stmt`` with LIMIT/OFFSET and wrap the result in a :class:`Pagination`.
+
+    Computes ``total`` via a separate ``COUNT(*)`` against the same
+    statement so callers get the full result-set size without loading
+    every row.
+    """
+    session = get_session()
+    page = max(1, page)
+    total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    items = session.scalars(stmt.limit(per_page).offset((page - 1) * per_page)).all()
+    return Pagination(items=items, page=page, per_page=per_page, total=total)
+
+
+def get_or_404(model, ident, description=None):
+    """Load ``model`` by primary key or abort with 404.
+
+    Standalone replacement for the Flask-SQLAlchemy ``db.get_or_404``
+    sugar. Loads through the unified ``colony_manager.db`` scoped
+    session, so routes share one session with workers and scripts.
+    """
+    obj = get_session().get(model, ident)
+    if obj is None:
+        abort(404, description=description or f'{model.__name__} {ident} not found')
+    return obj
 
 
 def is_htmx():
@@ -85,15 +161,6 @@ def htmx_error(message=None, *, form=None, retarget=None, oob_id=None,
         flash(message, 'danger')
     target = redirect_to or request.referrer
     return redirect(target or url_for('main.view_dashboard'))
-
-
-class AppQuery(Query):
-    def get_or_404(self, ident, description=None):
-        rv = self.get(ident)
-        if rv is None:
-            # Raising Werkzeug's native 404 exception
-            raise NotFound(description=description or f"Record {ident} not found")
-        return rv
 
 
 def flash_form_errors(form, title="Please correct the following errors:"):

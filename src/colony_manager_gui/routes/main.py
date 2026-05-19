@@ -16,7 +16,7 @@ from ..forms import (
     FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
     DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
 )
-from .util import flash_form_errors, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
+from .util import flash_form_errors, get_or_404, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
 from colony_manager.datatypes import load_description_class
 from ..jobs import (
     enqueue_datatype_sync, enqueue_datatype_rematch,
@@ -362,7 +362,7 @@ def create_setting(item_type):
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/update', methods=['POST'])
 def update_setting(item_type, item_id):
-    item = db.get_or_404(SETTINGS_MAP[item_type]['model'], item_id)
+    item = get_or_404(SETTINGS_MAP[item_type]['model'], item_id)
     form = SETTINGS_MAP[item_type]['form'](obj=item)
     list_url = url_for('main.list_settings')
     retarget = f'#error-{item_type}'
@@ -396,7 +396,7 @@ def update_setting(item_type, item_id):
 @main_bp.route('/settings/<item_type>/<int:item_id>/delete', methods=['POST'])
 def delete_setting(item_type, item_id):
     Model = SETTINGS_MAP[item_type]['model']
-    item = db.get_or_404(Model, item_id)
+    item = get_or_404(Model, item_id)
     item_name = item.name
     pretty = item_type.replace("_", " ")
     list_url = url_for('main.list_settings')
@@ -539,7 +539,7 @@ def create_datatype():
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
 def edit_datatype_modal(datatype_id):
-    dt = db.get_or_404(models.DataType, datatype_id)
+    dt = get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type, obj=dt)
     return render_template(
         'partials/form_datatype_modal.html',
@@ -550,7 +550,7 @@ def edit_datatype_modal(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id):
-    dt = db.get_or_404(models.DataType, datatype_id)
+    dt = get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type)
     list_url = url_for('main.list_settings')
     retarget = '#datatype-error'
@@ -581,7 +581,7 @@ def update_datatype(datatype_id):
 @main_bp.route('/settings/datatype/<int:datatype_id>/sync', methods=['POST'])
 def sync_datatype(datatype_id):
     """Queue a background sync_locations run for one DataType."""
-    dt = db.get_or_404(models.DataType, datatype_id)
+    dt = get_or_404(models.DataType, datatype_id)
     if not dt.description_class or not dt.locations:
         flash(
             f'Cannot sync "{dt.name}": needs a description class and at '
@@ -603,7 +603,7 @@ def rematch_datatype(datatype_id):
     it, only currently-unmatched rows are touched. Returns immediately —
     progress shows up in the recent-jobs panel on the settings page.
     """
-    dt = db.get_or_404(models.DataType, datatype_id)
+    dt = get_or_404(models.DataType, datatype_id)
     force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
     enqueue_datatype_rematch(dt.id, force=force)
     label = 'Force-rematch' if force else 'Rematch'
@@ -613,7 +613,7 @@ def rematch_datatype(datatype_id):
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
 def delete_datatype(datatype_id):
-    dt = db.get_or_404(models.DataType, datatype_id)
+    dt = get_or_404(models.DataType, datatype_id)
     list_url = url_for('main.list_settings')
     if dt.data_files:
         return htmx_error(

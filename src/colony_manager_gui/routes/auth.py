@@ -7,7 +7,7 @@ import flask_login
 
 from colony_manager_gui import db
 from colony_manager_gui.auth_decorators import public
-from colony_manager_gui.routes.util import flash_form_errors, render_modal
+from colony_manager_gui.routes.util import flash_form_errors, get_or_404, render_modal
 from colony_manager_gui.forms import UserLoginForm, UserCreateForm, UserEditForm
 from colony_manager.models import User
 
@@ -113,7 +113,7 @@ def update_user_admin(user_id):
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))
-    user = db.get_or_404(User, user_id)
+    user = get_or_404(User, user_id)
     form = UserEditForm()
     if form.validate_on_submit():
         form.populate_obj(user)
@@ -128,6 +128,6 @@ def edit_user_modal(user_id):
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))
-    user = db.get_or_404(User, user_id)
+    user = get_or_404(User, user_id)
     return render_modal(UserEditForm(obj=user), item=user, label='Edit user',
                         submit_url=url_for('auth.update_user_admin', user_id=user.id))

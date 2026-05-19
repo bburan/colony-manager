@@ -7,7 +7,7 @@ from colony_manager.models import (
 )
 from .. import db
 from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
-from .util import flash_form_errors, render_modal
+from .util import flash_form_errors, get_or_404, render_modal
 
 cages_bp = Blueprint('cages', __name__)
 
@@ -179,7 +179,7 @@ def list_cages():
 
 @cages_bp.route('/<int:cage_id>')
 def view_cage(cage_id):
-    cage = db.get_or_404(Cage, cage_id)
+    cage = get_or_404(Cage, cage_id)
     # Sort animals by custom_id with NULLs at the end. The previous
     # Jinja ``|sort(attribute='custom_id')`` filter raised TypeError on
     # any cage that held animals with no custom_id yet (e.g. before the
@@ -220,7 +220,7 @@ def create_cage():
 
 @cages_bp.route('/<int:cage_id>/update', methods=['POST'])
 def update_cage(cage_id):
-    cage = db.get_or_404(Cage, cage_id)
+    cage = get_or_404(Cage, cage_id)
     form = CageForm()
     if form.validate_on_submit():
         form.populate_obj(cage)
@@ -233,7 +233,7 @@ def update_cage(cage_id):
 
 @cages_bp.route('/<int:cage_id>/update_note', methods=['POST'])
 def update_cage_note(cage_id):
-    cage = db.get_or_404(Cage, cage_id)
+    cage = get_or_404(Cage, cage_id)
     form = NoteForm()
     if form.validate_on_submit():
         form.populate_obj(cage)
@@ -253,7 +253,7 @@ def create_cage_modal():
 
 @cages_bp.route('/<int:cage_id>/edit_note_modal')
 def update_cage_note_modal(cage_id):
-    cage = db.get_or_404(Cage, cage_id)
+    cage = get_or_404(Cage, cage_id)
     return render_modal(NoteForm(obj=cage), item=cage,
                         label=f'Edit note for {cage.custom_id}',
                         submit_url=url_for('cages.update_cage_note', cage_id=cage.id))

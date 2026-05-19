@@ -16,7 +16,7 @@ from .. import db
 from .. import forms
 from .. import models
 from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
-from .util import flash_form_errors, render_modal
+from .util import flash_form_errors, get_or_404, paginate, render_modal
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,
 )
@@ -231,7 +231,7 @@ def create_animal():
 
 @animals_bp.route('/<int:animal_id>/update', methods=['POST'])
 def update_animal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = AnimalForm(obj=animal)
     if form.validate_on_submit():
         form.populate_obj(animal)
@@ -246,7 +246,7 @@ def update_animal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/delete', methods=['POST'])
 def delete_animal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     if animal.breeding_pair_male or animal.breeding_pair_female:
         flash(f'Cannot delete animal {animal.display_id} because it is part of a breeding pair.', 'danger')
         return redirect(request.referrer or url_for('animals.list_animals'))
@@ -258,7 +258,7 @@ def delete_animal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/terminate', methods=['POST'])
 def terminate_animal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = TerminationForm()
     if form.validate_on_submit():
         ears = form.ears_extracted.data
@@ -309,7 +309,7 @@ def create_animal_event(animal_id):
 
 @animals_bp.route('/events/<int:event_id>/update', methods=['POST'])
 def update_animal_event(event_id):
-    event = db.get_or_404(AnimalEvent, event_id)
+    event = get_or_404(AnimalEvent, event_id)
     form = AnimalEventEditForm()
     if form.validate_on_submit():
         form.populate_obj(event)
@@ -324,7 +324,7 @@ def update_animal_event(event_id):
 
 @animals_bp.route('/events/<int:event_id>/delete', methods=['POST'])
 def delete_animal_event(event_id):
-    event = db.get_or_404(AnimalEvent, event_id)
+    event = get_or_404(AnimalEvent, event_id)
     animal_id = event.animal_id  # Grab this to redirect back to the right page
     db.session.delete(event)
     db.session.commit()
@@ -334,7 +334,7 @@ def delete_animal_event(event_id):
 
 @animals_bp.route('/<int:animal_id>/weight-feed/create', methods=['POST'])
 def create_animal_daily_log(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = DailyLogForm()
     if form.validate_on_submit():
         logs = db.session.scalars(
@@ -373,7 +373,7 @@ def create_animal_daily_log(animal_id):
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/delete', methods=['POST'])
 def delete_animal_daily_log(animal_id, date):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     weight = db.session.scalars(
         select(WeightLog).where(
             WeightLog.animal_id == animal.id,
@@ -395,7 +395,7 @@ def delete_animal_daily_log(animal_id, date):
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update', methods=['POST'])
 def update_animal_daily_log(animal_id, date):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = DailyLogForm()
     if form.validate_on_submit():
         weight = db.session.scalars(
@@ -439,7 +439,7 @@ def update_animal_daily_log(animal_id, date):
 # --- Modal Routes ---
 @animals_bp.route('/create_modal/<int:cage_id>')
 def create_animal_modal(cage_id):
-    cage = db.get_or_404(Cage, cage_id)
+    cage = get_or_404(Cage, cage_id)
     # Prefill dob/sex from any existing animal in the cage so the user
     # only has to type the new ID. If the cage is empty, fall back to
     # the form defaults (today / male).
@@ -455,7 +455,7 @@ def create_animal_modal(cage_id):
 
 @animals_bp.route('/<int:animal_id>/edit_modal')
 def edit_animal_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_modal(AnimalForm(obj=animal), item=animal,
                         label=f'Edit {animal.display_id}',
                         submit_url=url_for('animals.update_animal', animal_id=animal.id))
@@ -463,7 +463,7 @@ def edit_animal_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/assign_id_modal')
 def assign_animal_id_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = AnimalCustomIDForm(custom_id=f'{animal.cage.custom_id}-')
     return render_modal(form, item=animal,
                         label=f'Assign ID for {animal.display_id}',
@@ -472,7 +472,7 @@ def assign_animal_id_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/edit_note_modal')
 def edit_animal_note_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_modal(NoteForm(obj=animal), item=animal,
                         label=f'Edit note for {animal.display_id}',
                         submit_url=url_for('animals.update_animal', animal_id=animal.id))
@@ -480,7 +480,7 @@ def edit_animal_note_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/terminate_modal')
 def terminate_animal_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_modal(TerminationForm(obj=animal), item=animal,
                         label=f'Remove {animal.display_id}',
                         submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
@@ -488,7 +488,7 @@ def terminate_animal_modal(animal_id):
 
 @animals_bp.route('/<int:animal_id>/quick_add_study_modal')
 def add_study_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_modal(QuickAddToStudyForm(), item=animal,
                         label=f'Add study for {animal.display_id}',
                         submit_url=url_for('studies.add_study_animal', animal_id=animal.id))
@@ -503,7 +503,7 @@ def _target_requires_side_map():
 
 @animals_bp.route('/<int:animal_id>/events/create_modal')
 def create_animal_event_modal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_modal(
         AnimalEventForm(animal=animal), item=animal,
         label=f'Create event for {animal.display_id}',
@@ -516,7 +516,7 @@ def create_animal_event_modal(animal_id):
 
 @animals_bp.route('/events/<int:event_id>/edit_modal')
 def edit_animal_event_modal(event_id):
-    event = db.get_or_404(AnimalEvent, event_id)
+    event = get_or_404(AnimalEvent, event_id)
     return render_modal(
         AnimalEventEditForm(obj=event), item=event,
         label=f'Edit event for {event.animal.display_id}',
@@ -529,7 +529,7 @@ def edit_animal_event_modal(event_id):
 
 @animals_bp.route('/events/<int:event_id>/delete_modal')
 def delete_animal_event_modal(event_id):
-    event = db.get_or_404(AnimalEvent, event_id)
+    event = get_or_404(AnimalEvent, event_id)
     form = AnimalEventEditForm(obj=event)
     mark_disabled(form)
     return render_modal(form, item=event,
@@ -546,7 +546,7 @@ def create_animal_daily_log_modal(animal_id, date=None):
         date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
     else:
         date = datetime.date.today()
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     feed = db.session.scalars(
         select(Feed).order_by(Feed.weight)
     ).all()
@@ -563,7 +563,7 @@ def create_animal_daily_log_modal(animal_id, date=None):
 
 def _generate_daily_log_form(animal_id, date):
     date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     feed = db.session.scalars(
         select(Feed).order_by(Feed.weight)
     ).all()
@@ -637,7 +637,7 @@ def delete_animal_daily_log_modal(animal_id, date):
 # --- AJAX Popover Routes ---
 @animals_bp.route('/<int:animal_id>/events_popover')
 def view_animal_events_popover(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     return render_template(
         'partials/event_popover.html',
         animal=animal,
@@ -646,7 +646,7 @@ def view_animal_events_popover(animal_id):
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/reassign', methods=['POST'])
 def reassign_data(animal_id, data_id):
     """Attach/detach an AnimalEventData row to a single event for this animal."""
-    data_file = db.get_or_404(AnimalEventData, data_id)
+    data_file = get_or_404(AnimalEventData, data_id)
     event_id = request.form.get('event_id')
 
     # Drop any existing link to events belonging to this animal so we don't
@@ -656,7 +656,7 @@ def reassign_data(animal_id, data_id):
             data_file.events.remove(ev)
 
     if event_id and event_id != '__None':
-        event = db.get_or_404(AnimalEvent, int(event_id))
+        event = get_or_404(AnimalEvent, int(event_id))
         data_file.events.append(event)
         flash(f"File {data_file.name} attached to event.", "success")
     else:
@@ -737,7 +737,7 @@ def list_unmatched_data():
     else:
         stmt = stmt.order_by(sort_col.desc(), Data.name.asc())
 
-    pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
+    pagination = paginate(stmt, page=page, per_page=per_page)
 
     datatypes = db.session.scalars(
         select(DataType).order_by(DataType.name)
@@ -858,7 +858,7 @@ def auto_create_unmatched_data():
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/set_status', methods=['POST'])
 def set_data_status(animal_id, data_id):
     """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""
-    data_file = db.get_or_404(Data, data_id)
+    data_file = get_or_404(Data, data_id)
     new_status = request.form.get('status', 'unreviewed')
     data_file.status = new_status
     db.session.commit()
@@ -871,7 +871,7 @@ def set_data_status(animal_id, data_id):
 @animals_bp.route('/data/<int:data_id>/notes', methods=['POST'])
 def update_data_notes(data_id):
     """Update the notes field on a Data file."""
-    data_file = db.get_or_404(Data, data_id)
+    data_file = get_or_404(Data, data_id)
     data_file.notes = request.form.get('notes', '').strip() or None
     db.session.commit()
     return '', 204
@@ -880,8 +880,8 @@ def update_data_notes(data_id):
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])
 def auto_create_event(animal_id, data_id):
     """Auto-create an AnimalEvent for an unassigned AnimalEventData file, then link matching files."""
-    animal = db.get_or_404(Animal, animal_id)
-    data_file = db.get_or_404(AnimalEventData, data_id)
+    animal = get_or_404(Animal, animal_id)
+    data_file = get_or_404(AnimalEventData, data_id)
     result = auto_create_animal_event(animal, data_file)
     if result.error:
         flash(result.error, 'danger')
@@ -904,7 +904,7 @@ def _resolve_callback(data_id, callback_name):
     import os
     from colony_manager.datatypes import load_description_class
 
-    data_file = db.get_or_404(Data, data_id)
+    data_file = get_or_404(Data, data_id)
     dt = data_file.datatype
     if not dt.description_class:
         return None, ('No description class configured for this datatype.', 400)

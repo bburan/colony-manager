@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from colony_manager.models import Study, Animal, AnimalEvent
 from .. import db
 from ..forms import StudyForm, AddToStudyForm, QuickAddToStudyForm, NoteForm
-from .util import flash_form_errors, render_modal
+from .util import flash_form_errors, get_or_404, render_modal
 
 studies_bp = Blueprint('studies', __name__)
 
@@ -345,7 +345,7 @@ def list_studies():
 
 @studies_bp.route('/<int:study_id>')
 def view_study(study_id):
-    study = db.get_or_404(Study, study_id)
+    study = get_or_404(Study, study_id)
     edit_form = StudyForm(obj=study)
     add_form = AddToStudyForm()
     # WTForms-SQLAlchemy's QuerySelectField expects a Query object on
@@ -416,7 +416,7 @@ def create_study():
 
 @studies_bp.route('/<int:study_id>/update', methods=['POST'])
 def update_study(study_id):
-    study = db.get_or_404(Study, study_id)
+    study = get_or_404(Study, study_id)
     form = StudyForm(obj=study)
     if form.validate_on_submit():
         form.populate_obj(study)
@@ -429,7 +429,7 @@ def update_study(study_id):
 
 @studies_bp.route('/<int:study_id>/animals/add', methods=['POST'])
 def add_study_animals(study_id):
-    study = db.get_or_404(Study, study_id)
+    study = get_or_404(Study, study_id)
     form = AddToStudyForm()
     # See view_study for why this uses db.session.query(...) instead
     # of select(...).
@@ -446,8 +446,8 @@ def add_study_animals(study_id):
 
 @studies_bp.route('/<int:study_id>/animals/<int:animal_id>/delete', methods=['POST'])
 def remove_study_animal(study_id, animal_id):
-    study = db.get_or_404(Study, study_id)
-    animal = db.get_or_404(Animal, animal_id)
+    study = get_or_404(Study, study_id)
+    animal = get_or_404(Animal, animal_id)
     if animal in study.animals:
         study.animals.remove(animal)
         db.session.commit()
@@ -474,7 +474,7 @@ def bulk_assign_animals():
         flash('Pick a study and at least one animal.', 'warning')
         return redirect(request.referrer or url_for('animals.list_animals'))
 
-    study = db.get_or_404(Study, study_id)
+    study = get_or_404(Study, study_id)
     existing = {a.id for a in study.animals}
     animals = db.session.scalars(
         select(Animal).where(Animal.id.in_(animal_ids))
@@ -500,7 +500,7 @@ def bulk_assign_animals():
 
 @studies_bp.route('/add/<int:animal_id>', methods=['POST'])
 def add_study_animal(animal_id):
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     form = QuickAddToStudyForm()
     if form.validate_on_submit():
         study = form.study.data
@@ -523,7 +523,7 @@ def create_study_modal():
 
 @studies_bp.route('/<int:study_id>/edit_modal')
 def edit_study_modal(study_id):
-    study = db.get_or_404(Study, study_id)
+    study = get_or_404(Study, study_id)
     return render_modal(StudyForm(obj=study), item=study,
                         label=f'Edit Study {study.name}',
                         submit_url=url_for('studies.update_study', study_id=study.id))

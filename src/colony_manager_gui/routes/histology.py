@@ -9,7 +9,7 @@ from colony_manager.models import (
 )
 from .. import db
 from ..forms import HistologyForm, NoteForm, ConfocalImageForm
-from .util import flash_form_errors, render_error_alert, is_htmx, render_modal
+from .util import flash_form_errors, get_or_404, render_error_alert, is_htmx, render_modal
 from ..services.data_linking import resync_confocal_image
 
 histology_bp = Blueprint('histology', __name__)
@@ -299,7 +299,7 @@ def view_grid():
 
 @histology_bp.route('/ears/<int:ear_id>')
 def view_ear(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     return render_template('view_ear.html', ear=ear)
 
 
@@ -332,7 +332,7 @@ def _update_ear_response(ear, default_card_partial):
 
 def _update_ear(ear_id, form_cls, default_card_partial):
     """Shared body for both ear-update routes."""
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     form = form_cls(obj=ear)
     if not form.validate_on_submit():
         if is_htmx():
@@ -361,7 +361,7 @@ def update_ear_histology(ear_id):
 # --- Confocal Image Routes ---
 @histology_bp.route('/ears/<int:ear_id>/confocal_images/create', methods=['POST'])
 def create_confocal_image(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     form = ConfocalImageForm()
     form.image_type.choices = [
         (t.id, t.name) for t in db.session.scalars(select(ConfocalImageType)).all()
@@ -397,7 +397,7 @@ def create_confocal_image(ear_id):
 
 @histology_bp.route('/confocal_images/<int:image_id>/update', methods=['POST'])
 def update_confocal_image(image_id):
-    img = db.get_or_404(ConfocalImage, image_id)
+    img = get_or_404(ConfocalImage, image_id)
     img.status = request.form['status']
     img.notes = request.form['notes']
     db.session.commit()
@@ -410,7 +410,7 @@ def update_confocal_image(image_id):
 
 @histology_bp.route('/confocal_images/<int:image_id>/delete', methods=['POST'])
 def delete_confocal_image(image_id):
-    img = db.get_or_404(ConfocalImage, image_id)
+    img = get_or_404(ConfocalImage, image_id)
     try:
         db.session.delete(img)
         db.session.commit()
@@ -434,7 +434,7 @@ def create_ear(animal_id):
     refused — there's a unique (animal_id, side) pair implicitly via
     histology semantics, though no DB constraint enforces it today.
     """
-    animal = db.get_or_404(Animal, animal_id)
+    animal = get_or_404(Animal, animal_id)
     side = request.form.get('side', '').strip()
     side = _canonical_side(side)
     if side not in ('Left', 'Right'):
@@ -456,7 +456,7 @@ def create_ear(animal_id):
 
 @histology_bp.route('/ears/<int:ear_id>/delete', methods=['POST'])
 def delete_ear(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     if ear.confocal_images:
         msg = 'Cannot delete an ear that has acquired images.'
         if request.headers.get('HX-Request'):
@@ -480,7 +480,7 @@ def delete_ear(ear_id):
 # --- Modal Routes ---
 @histology_bp.route('/ears/<int:ear_id>/edit_note_modal')
 def edit_ear_note_modal(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     hx_target = request.args.get('hx_target', '#ear-notes-card')
     return render_modal(
         NoteForm(obj=ear), item=ear,
@@ -492,7 +492,7 @@ def edit_ear_note_modal(ear_id):
 
 @histology_bp.route('/ears/<int:ear_id>/edit_histology_modal')
 def edit_ear_histology_modal(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     hx_target = request.args.get('hx_target', '#ear-histology-card')
     return render_modal(
         HistologyForm(obj=ear), item=ear,
@@ -504,13 +504,13 @@ def edit_ear_histology_modal(ear_id):
 
 @histology_bp.route('/confocal_images/<int:image_id>/edit_modal')
 def edit_confocal_image_modal(image_id):
-    img = db.get_or_404(ConfocalImage, image_id)
+    img = get_or_404(ConfocalImage, image_id)
     return render_template('partials/edit_confocal_image_modal.html', img=img)
 
 
 @histology_bp.route('/ears/<int:ear_id>/confocal_images/create_modal')
 def create_confocal_images_modal(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     return render_modal(
         ConfocalImageForm(), item=ear,
         label=f'Add images for {ear.animal.custom_id} {ear.side}',
@@ -521,7 +521,7 @@ def create_confocal_images_modal(ear_id):
 # --- AJAX Popover Routes ---
 @histology_bp.route('/ears/<int:ear_id>/images_popover')
 def view_ear_images_popover(ear_id):
-    ear = db.get_or_404(Ear, ear_id)
+    ear = get_or_404(Ear, ear_id)
     return render_template(
         'partials/ear_images_popover.html',
         ear=ear,

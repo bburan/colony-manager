@@ -237,7 +237,7 @@ def test_db(template_db, monkeypatch):
 
 @pytest.fixture
 def db_session(test_db):
-    """A ``colony_manager.db`` session bound to the per-test DB.
+    """A standalone SQLAlchemy ``Session`` bound to the per-test DB.
 
     Use this for model-level tests that don't need a Flask app::
 
@@ -246,14 +246,26 @@ def db_session(test_db):
             db_session.add(cage)
             db_session.commit()
             ...
+
+    Bound **directly to the engine** (not via the scoped registry the
+    routes share) so Flask's ``teardown_appcontext`` — which calls
+    ``Session.remove()`` on the scoped registry at the end of each
+    request — doesn't detach objects this fixture has loaded. The two
+    sessions are isolated at the application level, but data is shared
+    at the DB level (Postgres READ COMMITTED), so a ``db_session.commit()``
+    before a route call is visible to the route, and vice-versa.
     """
+    from sqlalchemy.orm import Session
     import colony_manager.db as cm_db
-    session = cm_db.get_session()
+    session = Session(bind=cm_db.get_engine())
     try:
         yield session
     finally:
         session.rollback()
         session.close()
+        # Drop any session(s) the route layer opened against the
+        # shared scoped registry during the test, so the next test
+        # starts with a clean registry.
         cm_db.get_session().remove()
 
 

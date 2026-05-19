@@ -44,7 +44,11 @@ def _ensure_bound():
     global _engine, _Session
     if _engine is not None:
         return
-    _engine = create_engine(os.environ['DATABASE_URL'])
+    # ``pool_pre_ping`` validates a connection before handing it out.
+    # Important for the RQ worker: after ``fork()`` the child inherits
+    # the parent's pool, and the parent's TCP connections are no longer
+    # safe in the child. pre_ping detects + recycles those silently.
+    _engine = create_engine(os.environ['DATABASE_URL'], pool_pre_ping=True)
     _Session = scoped_session(sessionmaker(bind=_engine))
 
 

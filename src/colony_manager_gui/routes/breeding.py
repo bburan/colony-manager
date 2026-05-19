@@ -4,7 +4,7 @@ from sqlalchemy import select
 from colony_manager.models import BreedingPair, Litter, Animal, Cage
 from .. import db
 from ..forms import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
-from .util import flash_form_errors, render_modal
+from .util import flash_form_errors, get_or_404, render_modal
 
 breeding_bp = Blueprint('breeding', __name__)
 
@@ -19,7 +19,7 @@ def list_breeding_pairs():
 
 @breeding_bp.route('/<int:breeding_pair_id>')
 def view_breeding_pair(breeding_pair_id):
-    breeding_pair = db.get_or_404(BreedingPair, breeding_pair_id)
+    breeding_pair = get_or_404(BreedingPair, breeding_pair_id)
     return render_template('view_breeding_pair.html', pair=breeding_pair)
 
 @breeding_bp.route('/create', methods=['POST'])
@@ -80,7 +80,7 @@ def create_breeding_pair():
 
 @breeding_bp.route('/<int:breeding_pair_id>/deactivate', methods=['POST'])
 def deactivate_breeding_pair(breeding_pair_id):
-    breeding_pair = db.get_or_404(BreedingPair, breeding_pair_id)
+    breeding_pair = get_or_404(BreedingPair, breeding_pair_id)
     breeding_pair.is_active = False
     db.session.commit()
     flash(f'Breeding pair {breeding_pair.custom_id} deactivated.', 'info')
@@ -88,7 +88,7 @@ def deactivate_breeding_pair(breeding_pair_id):
 
 @breeding_bp.route('/<int:breeding_pair_id>/reactivate', methods=['POST'])
 def reactivate_breeding_pair(breeding_pair_id):
-    pair = db.get_or_404(BreedingPair, breeding_pair_id)
+    pair = get_or_404(BreedingPair, breeding_pair_id)
     pair.is_active = True
     db.session.commit()
     flash(f'Breeding pair {pair.custom_id} reactivated.', 'success')
@@ -98,7 +98,7 @@ def reactivate_breeding_pair(breeding_pair_id):
 # Nested Litter Routes
 @breeding_bp.route('/<int:breeding_pair_id>/litters/create', methods=['POST'])
 def create_litter(breeding_pair_id):
-    pair = db.get_or_404(BreedingPair, breeding_pair_id)
+    pair = get_or_404(BreedingPair, breeding_pair_id)
     form = LitterForm()
     if form.validate_on_submit():
         litter = Litter(breeding_pair=pair)
@@ -112,7 +112,7 @@ def create_litter(breeding_pair_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/update', methods=['POST'])
 def update_litter(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     form = LitterForm()
     if form.validate_on_submit():
         form.populate_obj(litter)
@@ -125,7 +125,7 @@ def update_litter(litter_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/delete', methods=['POST'])
 def delete_litter(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     pair_id = litter.breeding_pair_id
     db.session.delete(litter)
     db.session.commit()
@@ -135,7 +135,7 @@ def delete_litter(litter_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/wean', methods=['GET', 'POST'])
 def wean_litter(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     form = WeaningForm()
     if form.validate_on_submit():
         for cage_data in form.cages:
@@ -171,7 +171,7 @@ def create_breeding_pair_modal():
 
 @breeding_bp.route('/<int:breeding_pair_id>/litters/create_modal')
 def create_litter_modal(breeding_pair_id):
-    pair = db.get_or_404(BreedingPair, breeding_pair_id)
+    pair = get_or_404(BreedingPair, breeding_pair_id)
     return render_modal(LitterForm(), item=pair,
                         label=f'Add litter for {pair.custom_id}',
                         submit_url=url_for('breeding.create_litter', breeding_pair_id=pair.id))
@@ -179,7 +179,7 @@ def create_litter_modal(breeding_pair_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/edit_modal')
 def edit_litter_modal(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     return render_modal(LitterForm(obj=litter), item=litter,
                         label=f'Edit litter for {litter.breeding_pair.custom_id}',
                         submit_url=url_for('breeding.update_litter', litter_id=litter.id))
@@ -187,7 +187,7 @@ def edit_litter_modal(litter_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/delete_modal')
 def delete_litter_modal(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     return render_modal(LitterDeleteForm(obj=litter), item=litter,
                         label=f'Delete litter from {litter.breeding_pair.custom_id}',
                         submit_url=url_for('breeding.delete_litter', litter_id=litter.id))
@@ -195,7 +195,7 @@ def delete_litter_modal(litter_id):
 
 @breeding_bp.route('/litters/<int:litter_id>/wean_modal')
 def wean_litter_modal(litter_id):
-    litter = db.get_or_404(Litter, litter_id)
+    litter = get_or_404(Litter, litter_id)
     return render_modal(WeaningForm(), item=litter,
                         label=f'Wean litter from {litter.breeding_pair.custom_id}',
                         submit_url=url_for('breeding.wean_litter', litter_id=litter.id),

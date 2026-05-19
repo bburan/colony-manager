@@ -3,22 +3,39 @@ import datetime
 from flask import Flask, session
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy import MetaData
 
-# Setup versioning
+# Setup versioning. FlaskPlugin reads ``flask_login.current_user`` and
+# ``request.remote_addr`` to stamp the ``transaction`` table with who
+# made each versioned write (no-op outside a request context, e.g. RQ
+# workers and scripts).
 from sqlalchemy_continuum import make_versioned
 from sqlalchemy_continuum.plugins import FlaskPlugin
 make_versioned(user_cls='User', plugins=[FlaskPlugin()])
 
-# Import extensions
-from flask_sqlalchemy import SQLAlchemy
-
 # Must come last
-from colony_manager import models
+from colony_manager import models  # noqa: F401  (imported for side effects)
+from colony_manager import db as _cm_db
 from colony_manager.datatypes import cache_root
 
-# Hack to emulate Flask session and query properties.
-db = SQLAlchemy(metadata=models.Base.metadata)
+
+class _DBProxy:
+    """Thin shim exposing the unified scoped session as ``db.session``.
+
+    Routes, forms, sync, and worker code historically reached into a
+    Flask-SQLAlchemy ``db.session``. We've moved the single source of
+    truth to :mod:`colony_manager.db`, but keep this proxy so the
+    ``db.session.xxx`` call shape works unchanged. ``.session`` is a
+    property (not a cached attribute) so each access goes through the
+    scoped registry — that's what makes it safe in both request
+    threads and forked RQ workers.
+    """
+
+    @property
+    def session(self):
+        return _cm_db.get_session()
+
+
+db = _DBProxy()
 
 login_manager = LoginManager()
 csrf = CSRFProtect()
@@ -60,13 +77,9 @@ def create_app():
     app = Flask(__name__)
 
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    # ``pool_pre_ping`` validates a connection before handing it out.
-    # Important for the RQ worker: after ``fork()`` the child inherits
-    # the parent's pool, and the parent's TCP connections are no longer
-    # safe in the child. pre_ping detects + recycles those silently.
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
+    # ``DATABASE_URL`` is read inside :mod:`colony_manager.db` — both the
+    # engine binding and ``pool_pre_ping`` live there now, so the web,
+    # workers, and standalone scripts all share one configuration path.
     app.config['THUMBNAIL_CACHE_DIR'] = os.environ.get(
         'THUMBNAIL_CACHE_DIR',
     ) or str(cache_root('thumbnails'))
@@ -87,7 +100,7 @@ def create_app():
     from colony_manager_gui.routes.histology import histology_bp
     from colony_manager_gui.routes.studies import studies_bp
     from colony_manager_gui.routes.data_files import data_files_bp
-    from colony_manager_gui.routes.util import AppQuery
+    from colony_manager_gui.routes.util import get_or_404
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -98,9 +111,15 @@ def create_app():
     app.register_blueprint(studies_bp, url_prefix='/studies')
     app.register_blueprint(data_files_bp)
 
-    db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+
+    # Return the scoped session to the registry at the end of each
+    # request. Mirrors what Flask-SQLAlchemy used to do for us, but
+    # against the unified ``colony_manager.db`` session.
+    @app.teardown_appcontext
+    def _remove_session(exception=None):
+        _cm_db.get_session().remove()
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -113,7 +132,7 @@ def create_app():
         from colony_manager_gui.forms import CSRFOnlyForm
         species_id = int(session.get('selected_species', -1))
         if species_id != -1:
-            selected_species = db.get_or_404(Species, species_id).name
+            selected_species = get_or_404(Species, species_id).name
         else:
             selected_species = 'All'
         return {

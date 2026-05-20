@@ -11,19 +11,28 @@ Flask app. Use it like::
     session = Session()
     animals = session.scalars(select(Animal)).all()
 
-Also runs ``sqlalchemy_continuum.make_versioned`` so model versioning
-is wired up before ``models`` is imported.
+Note: ``sqlalchemy_continuum.make_versioned`` is **not** called here.
+It must be called exactly once per process — calling it twice
+registers continuum's ``after_flush`` listener twice and produces
+duplicate ``_version`` shadow-row inserts (e.g. a ``UniqueViolation``
+on ``pk_animal_event_tags_version`` when an M2M is set). The two
+entry points that own that call are:
+
+* ``colony_manager_gui/__init__.py`` for the Flask app (with
+  ``FlaskPlugin`` so versioned writes get stamped with the current
+  user + remote address).
+* ``migrations/env.py`` for Alembic.
+
+Standalone scripts that need versioning should import
+``colony_manager_gui`` (which sets it up) before importing this
+module; analysis-only scripts that don't write don't need it.
 
 The engine and session are built lazily on first access so tests can
 rebind ``DATABASE_URL`` (via ``monkeypatch.setenv``) before the
-bindings freeze. Production behavior is unchanged: scripts that have
-``DATABASE_URL`` set at import time get an eager bind, identical to
-the pre-refactor module.
+bindings freeze.
 """
 import os
 
-from sqlalchemy_continuum import make_versioned
-make_versioned(user_cls='User')
 from colony_manager import models  # noqa: F401  (imported for side effects)
 
 from sqlalchemy import create_engine

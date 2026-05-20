@@ -182,3 +182,75 @@ def test_completed_events_excludes_pending_and_sorts_ascending(db_session):
 
     completed = animal.completed_events
     assert completed == [earlier, later]
+
+
+# ---------------------------------------------------------------------------
+# AnimalEvent.tags — sqlalchemy_continuum M2M versioning regression
+# ---------------------------------------------------------------------------
+
+def test_event_with_initial_tags_commits_cleanly(db_session):
+    """Creating an event with one or more tags must not raise.
+
+    Regression: ``sqlalchemy_continuum.make_versioned`` was being
+    called twice on process startup — once in ``colony_manager.db``
+    and once in ``colony_manager_gui/__init__.py`` — which registered
+    continuum's ``after_flush`` listener twice. Every M2M assignment
+    then generated two identical INSERTs into
+    ``animal_event_tags_version`` with the same
+    ``(animal_event_id, tag_id, transaction_id)``, hitting
+    ``pk_animal_event_tags_version``.
+    """
+    from colony_manager.models import AnimalEventTag
+
+    animal = make_animal(db_session)
+    procedure = make_procedure(db_session)
+    tag_a = AnimalEventTag(name='alpha')
+    tag_b = AnimalEventTag(name='beta')
+    db_session.add_all([tag_a, tag_b])
+    db_session.commit()
+
+    event = make_event(
+        db_session, animal=animal, procedure=procedure,
+        scheduled_date=date.today(),
+    )
+    event.tags = [tag_a, tag_b]
+    db_session.commit()  # must not raise IntegrityError
+
+    db_session.expire_all()
+    refreshed = db_session.get(type(event), event.id)
+    assert {t.name for t in refreshed.tags} == {'alpha', 'beta'}
+
+
+def test_event_tag_reassignment_commits_cleanly(db_session):
+    """Replacing an event's tag list (the ``populate_obj`` flow used by
+    ``update_animal_event``) must not raise.
+
+    Same regression as above (double ``make_versioned``); this case
+    exercises the reassignment path that a real edit form takes:
+    load → ``event.tags = new_list`` → commit.
+    """
+    from colony_manager.models import AnimalEventTag
+
+    animal = make_animal(db_session)
+    procedure = make_procedure(db_session)
+    tag_a = AnimalEventTag(name='alpha')
+    tag_b = AnimalEventTag(name='beta')
+    tag_c = AnimalEventTag(name='gamma')
+    db_session.add_all([tag_a, tag_b, tag_c])
+    db_session.commit()
+
+    event = make_event(
+        db_session, animal=animal, procedure=procedure,
+        scheduled_date=date.today(),
+    )
+    event.tags = [tag_a, tag_b]
+    db_session.commit()
+
+    # The actual regression trigger: reassign to an overlapping but
+    # different set, mimicking what ``form.populate_obj(event)`` does.
+    event.tags = [tag_b, tag_c]
+    db_session.commit()  # must not raise IntegrityError
+
+    db_session.expire_all()
+    refreshed = db_session.get(type(event), event.id)
+    assert {t.name for t in refreshed.tags} == {'beta', 'gamma'}

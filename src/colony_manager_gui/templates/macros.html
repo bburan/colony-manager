@@ -159,6 +159,11 @@
                             <span class="fw-semibold">{{ event.procedure.display_name }}</span>
                             <span class="text-muted">·</span>
                             <span class="text-muted">{{ event.procedure_target.name }}</span>
+                            {% if event.completion_time %}
+                            <span class="text-muted font-monospace" style="font-size: 0.85em;">
+                                {{ event.completion_time.strftime('%H:%M') }}
+                            </span>
+                            {% endif %}
                             {% if event.side %}
                             <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"
                                   style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
@@ -168,7 +173,7 @@
                             {% endfor %}
                         </div>
                         {% if event.notes %}
-                            <div class="text-muted fst-italic" style="font-size: 0.85em;">{{ event.notes }}</div>
+                            <div class="text-muted fst-italic" style="font-size: 0.85em; white-space: pre-line;">{{ event.notes }}</div>
                         {% endif %}
                         {% set event_files = event.sorted_data_files %}
                         {% if event_files %}

@@ -1,0 +1,41 @@
+{% if error %}
+<div class="alert alert-warning small py-2 mb-0">{{ error }}</div>
+{% elif protocol %}
+<table class="table table-sm small mb-0">
+    <thead>
+        <tr>
+            <th>Drug</th>
+            <th class="text-end">Dose (mg/kg)</th>
+            <th class="text-end">Stock (mg/mL)</th>
+            <th class="text-end">Dose (mg)</th>
+            <th class="text-end">Volume (mL)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="fw-bold">{{ row.drug.name }}</td>
+            <td class="text-end font-monospace">{{ '%.3f'|format(row.drug.dose_mg_per_kg) }}</td>
+            <td class="text-end font-monospace">{{ '%.3f'|format(row.drug.concentration_mg_per_ml) }}</td>
+            <td class="text-end font-monospace">{{ '%.3f'|format(row.dose_mg) }}</td>
+            <td class="text-end font-monospace fw-bold">
+                {% if row.volume_ml is none %}—{% else %}{{ '%.3f'|format(row.volume_ml) }}{% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted">This protocol has no drugs configured.</td></tr>
+        {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+        <tr>
+            <th colspan="4" class="text-end">Total volume</th>
+            <th class="text-end font-monospace">{{ '%.3f'|format(total_ml) }} mL</th>
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+<p class="small text-muted mt-2 mb-0">Computed for {{ '%.2f'|format(weight_g) }} g.</p>
+{% else %}
+<p class="text-muted small mb-0">Pick a protocol and enter a weight to see calculated volumes.</p>
+{% endif %}

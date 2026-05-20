@@ -15,7 +15,7 @@ from colony_manager.models import (
 from .. import db
 from .. import forms
 from .. import models
-from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, mark_disabled, mark_readonly
+from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, DosageCalculateForm, mark_disabled, mark_readonly
 from .util import flash_form_errors, get_or_404, paginate, render_modal
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,
@@ -535,6 +535,121 @@ def delete_animal_event_modal(event_id):
     return render_modal(form, item=event,
                         label=f'Remove event for {event.animal.display_id}',
                         submit_url=url_for('animals.delete_animal_event', event_id=event.id))
+
+
+# --- Dosage Calculator ---
+def _compute_dosage(protocol, weight_g):
+    """Compute per-drug injection volumes for ``weight_g`` grams.
+
+    Returns ``(rows, total_volume_ml)`` where each row is a dict the
+    template renders directly. ``volume_ml`` is None for any drug whose
+    concentration is non-positive (defensive — DB column is nullable=False
+    but float arithmetic could still hit a zero).
+    """
+    weight_kg = weight_g / 1000.0
+    rows = []
+    total = 0.0
+    for drug in protocol.drugs:
+        dose_mg = drug.dose_mg_per_kg * weight_kg
+        if drug.concentration_mg_per_ml and drug.concentration_mg_per_ml > 0:
+            volume_ml = dose_mg / drug.concentration_mg_per_ml
+            total += volume_ml
+        else:
+            volume_ml = None
+        rows.append({
+            'drug': drug,
+            'dose_mg': dose_mg,
+            'volume_ml': volume_ml,
+        })
+    return rows, total
+
+
+def _format_dose_notes(protocol, weight_g, rows):
+    """Render the dose log as a multi-line note.
+
+    One line per drug captures dose, volume, AND the stock concentration
+    used at log time — protocols sometimes get revised later, so freezing
+    the concentration here keeps the historical record accurate without
+    needing to crawl the versioned tables.
+    """
+    lines = [f"Dosage protocol: {protocol.name} @ {weight_g:.2f} g"]
+    for r in rows:
+        drug = r['drug']
+        if r['volume_ml'] is None:
+            lines.append(
+                f"  • {drug.name}: {drug.dose_mg_per_kg} mg/kg "
+                f"(no concentration on file)"
+            )
+        else:
+            lines.append(
+                f"  • {drug.name}: {drug.dose_mg_per_kg} mg/kg @ "
+                f"{drug.concentration_mg_per_ml} mg/mL "
+                f"→ {r['volume_ml']:.3f} mL ({r['dose_mg']:.3f} mg)"
+            )
+    return "\n".join(lines)
+
+
+@animals_bp.route('/<int:animal_id>/dosage/modal')
+def dosage_calculator_modal(animal_id):
+    animal = get_or_404(Animal, animal_id)
+    form = DosageCalculateForm()
+    return render_template(
+        'partials/dosage_calculator_modal.html',
+        form=form, animal=animal,
+    )
+
+
+@animals_bp.route('/<int:animal_id>/dosage/calculate', methods=['POST'])
+def calculate_dosage(animal_id):
+    """HTMX endpoint: re-render the calculation table on input change."""
+    animal = get_or_404(Animal, animal_id)
+    form = DosageCalculateForm()
+    if not form.validate_on_submit():
+        return render_template(
+            'partials/dosage_calculation_table.html',
+            animal=animal, protocol=None, rows=[], total_ml=0,
+            weight_g=None, error='Pick a protocol and enter a weight.',
+        )
+    protocol = form.protocol.data
+    weight_g = form.weight_g.data
+    rows, total = _compute_dosage(protocol, weight_g)
+    return render_template(
+        'partials/dosage_calculation_table.html',
+        animal=animal, protocol=protocol, rows=rows, total_ml=total,
+        weight_g=weight_g, error=None,
+    )
+
+
+@animals_bp.route('/<int:animal_id>/dosage/log', methods=['POST'])
+def log_dosage(animal_id):
+    animal = get_or_404(Animal, animal_id)
+    form = DosageCalculateForm()
+    if not form.validate_on_submit():
+        flash_form_errors(form, title='Could not log dose')
+        return redirect(url_for('animals.view_animal', animal_id=animal_id))
+
+    protocol = form.protocol.data
+    weight_g = form.weight_g.data
+    rows, _ = _compute_dosage(protocol, weight_g)
+
+    # Dose logging captures the wall-clock injection time alongside the
+    # date — anesthesia / time-sensitive protocols need to know exactly
+    # when the cocktail went in, not just "today". The form pre-fills
+    # the time field with ``now`` at modal-render but the user can
+    # override (e.g. back-filling an injection that happened earlier).
+    event = AnimalEvent(
+        animal_id=animal.id,
+        procedure_id=protocol.procedure_id,
+        procedure_target_id=protocol.procedure_target_id,
+        scheduled_date=form.date.data,
+        completion_date=form.date.data,
+        completion_time=form.time.data,
+        notes=_format_dose_notes(protocol, weight_g, rows),
+    )
+    db.session.add(event)
+    db.session.commit()
+    flash(f'Dose logged for {animal.display_id}.', 'success')
+    return redirect(url_for('animals.view_animal', animal_id=animal.id))
 
 
 # --- Animal Weight/Feed Modals ---

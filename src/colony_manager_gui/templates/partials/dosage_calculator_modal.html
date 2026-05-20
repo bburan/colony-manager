@@ -1,0 +1,49 @@
+<div class="modal-header">
+    <h5 class="modal-title">Dosage Calculator — {{ animal.display_id }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+    <form id="dosage-calc-form"
+          hx-post="{{ url_for('animals.calculate_dosage', animal_id=animal.id) }}"
+          hx-target="#dosage-calc-result"
+          hx-trigger="change, keyup delay:300ms from:input[name=weight_g]">
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+            <label class="form-label fw-bold small text-muted">Protocol</label>
+            {{ form.protocol(class="form-select form-select-sm") }}
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">Weight (g)</label>
+                {{ form.weight_g(class="form-control form-control-sm", step="any", min="0") }}
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">Date</label>
+                {{ form.date(class="form-control form-control-sm") }}
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">Time</label>
+                {{ form.time(class="form-control form-control-sm") }}
+            </div>
+        </div>
+    </form>
+
+    <div id="dosage-calc-result">
+        <p class="text-muted small mb-0">Pick a protocol and enter a weight to see calculated volumes.</p>
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+    <button type="button" class="btn btn-primary btn-sm"
+            onclick="if (confirm('Log this dose to the animal record as an event?')) {
+                       const f = document.getElementById('dosage-calc-form');
+                       f.setAttribute('action', '{{ url_for('animals.log_dosage', animal_id=animal.id) }}');
+                       f.removeAttribute('hx-post');
+                       f.removeAttribute('hx-trigger');
+                       f.method = 'POST';
+                       f.submit();
+                     }">
+        <i class="fas fa-syringe"></i> Log Dose
+    </button>
+</div>

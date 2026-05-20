@@ -4,7 +4,7 @@ from statistics import mean
 
 from sqlalchemy import (
     func, orm, UniqueConstraint, Index, MetaData, Table, Column, Integer, String,
-    ForeignKey, Text, Boolean, Date, DateTime, Float, JSON, and_, or_
+    ForeignKey, Text, Boolean, Date, DateTime, Time, Float, JSON, and_, or_
 )
 from sqlalchemy.orm import (declared_attr, declarative_base, relationship,
                             backref, joinedload)
@@ -1074,6 +1074,10 @@ class AnimalEvent(VersionedModel):
     side = Column(String(10), nullable=True)
     scheduled_date = Column(Date, nullable=False)
     completion_date = Column(Date, nullable=True)
+    # Optional time-of-day for completion. Set automatically when a dose
+    # is logged via the dosage calculator so anesthesia records carry the
+    # injection clock time; older event paths leave this NULL.
+    completion_time = Column(Time, nullable=True)
     notes = Column(Text, nullable=True)
     tags = relationship('AnimalEventTag', secondary=animal_event_tags,
                         backref='animal_procedure',
@@ -1093,6 +1097,38 @@ class AnimalEvent(VersionedModel):
     @property
     def sorted_data_files(self):
         return sorted(self.data_files, key=lambda f: f.name)
+
+class DosageProtocol(VersionedModel):
+    """A reusable drug dosage protocol attached to a procedure.
+
+    The set of drugs lives in :class:`DosageProtocolDrug`; each drug carries
+    its target dose (mg/kg) and stock concentration (mg/mL) so the animal
+    page calculator can derive an injection volume from the animal's weight.
+    """
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), unique=True, nullable=False)
+    procedure_id = Column(Integer, ForeignKey('animal_procedure.id', use_alter=True), nullable=False)
+    procedure_target_id = Column(Integer, ForeignKey('animal_procedure_target.id', use_alter=True), nullable=False)
+    notes = Column(Text, nullable=True)
+
+    procedure = relationship('AnimalProcedure', lazy=True)
+    procedure_target = relationship('AnimalProcedureTarget', lazy=True)
+    drugs = relationship(
+        'DosageProtocolDrug',
+        backref='protocol',
+        cascade='all, delete-orphan',
+        order_by='DosageProtocolDrug.position',
+    )
+
+
+class DosageProtocolDrug(VersionedModel):
+    id = Column(Integer, primary_key=True)
+    protocol_id = Column(Integer, ForeignKey('dosage_protocol.id'), nullable=False)
+    name = Column(String(100), nullable=False)
+    dose_mg_per_kg = Column(Float, nullable=False)
+    concentration_mg_per_ml = Column(Float, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+
 
 class ImmunolabelingPanel(VersionedModel):
     id = Column(Integer, primary_key=True)

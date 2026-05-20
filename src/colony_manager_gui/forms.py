@@ -1,8 +1,8 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import select
 from flask_wtf import FlaskForm
-from wtforms import HiddenField, BooleanField, StringField, IntegerField, DateField, FloatField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
+from wtforms import HiddenField, BooleanField, StringField, IntegerField, DateField, TimeField, FloatField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length, Email, EqualTo
 from wtforms.widgets import ListWidget, CheckboxInput
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
@@ -302,6 +302,7 @@ class AnimalEventEditForm(FlaskForm):
     )
     scheduled_date = DateField('Scheduled Date', default=date.today, validators=[DataRequired()])
     completion_date = DateField('Completed Date', default=None, validators=[Optional()])
+    completion_time = TimeField('Completed Time', default=None, validators=[Optional()])
     notes = TextAreaField('Notes', validators=[Optional()])
     tags = QuerySelectMultipleField(
         'Tags',
@@ -389,6 +390,61 @@ class ConfocalImageForm(FlaskForm):
     )
     image_type = QuerySelectField('Image Type', query_factory=confocal_image_type_factory, get_label='name', validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
+
+class DosageProtocolForm(FlaskForm):
+    """Top-level fields for a DosageProtocol.
+
+    Drug rows are submitted as parallel ``drug_name`` / ``drug_dose`` /
+    ``drug_concentration`` / ``drug_id`` arrays and parsed directly out of
+    ``request.form`` by the route (same approach as DataType/DataLocation).
+    """
+    name = StringField('Name', validators=[DataRequired()])
+    procedure = QuerySelectField(
+        'Procedure',
+        query_factory=lambda: AnimalProcedure.get_ordered(db.session),
+        get_label='display_name',
+        allow_blank=False,
+        validators=[DataRequired()],
+    )
+    procedure_target = QuerySelectField(
+        'Procedure Target',
+        query_factory=animal_procedure_target_factory,
+        get_label='name',
+        allow_blank=False,
+        validators=[DataRequired()],
+    )
+    notes = TextAreaField('Notes', validators=[Optional()])
+
+
+def _now_minute():
+    """Default for the dosage TimeField — current wall clock, second-trimmed.
+
+    HTML ``<input type="time">`` only renders HH:MM by default; trimming
+    seconds keeps the rendered field and the persisted value aligned.
+    """
+    return datetime.now().time().replace(second=0, microsecond=0)
+
+
+class DosageCalculateForm(FlaskForm):
+    """Pick a protocol + weight on the animal page. Result is computed
+    server-side and rendered inline."""
+    protocol = QuerySelectField(
+        'Protocol',
+        query_factory=lambda: db.session.query(models.DosageProtocol).order_by(models.DosageProtocol.name),
+        get_label='name',
+        allow_blank=False,
+        validators=[DataRequired()],
+    )
+    weight_g = FloatField(
+        'Weight (g)',
+        validators=[DataRequired(), NumberRange(min=0.01)],
+    )
+    date = DateField('Date', default=date.today, validators=[DataRequired()])
+    # Pre-filled with the current wall time at form-build time; the user
+    # can edit it before clicking Log Dose if they're back-filling an
+    # injection that happened a few minutes ago.
+    time = TimeField('Time', default=_now_minute, validators=[DataRequired()])
+
 
 class CSRFOnlyForm(FlaskForm):
     """No fields — used only to validate the CSRF token on simple actions."""

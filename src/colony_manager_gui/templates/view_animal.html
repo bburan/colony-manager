@@ -115,7 +115,14 @@
                 <div id="collapseEvents" class="accordion-collapse collapse show"
                      aria-labelledby="headingEvents">
                     <div class="accordion-body">
-                        <div class="d-flex justify-content-end mb-2">
+                        <div class="d-flex justify-content-end mb-2 gap-2">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="top"
+                                    title="Calculate drug dosage"
+                                    hx-get="{{ url_for('animals.dosage_calculator_modal', animal_id=animal.id) }}" hx-target="#modalBody">
+                                <i class="fas fa-syringe"></i> Calculate Dose
+                            </button>
                             <button class="btn btn-sm btn-outline-primary"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="top"

@@ -21,8 +21,9 @@ from colony_manager.models import (
     Animal, AnimalDataType, AnimalEvent, AnimalEventDataType,
     AnimalProcedure, AnimalProcedureTarget, BreedingPair, Cage,
     ConfocalImage, ConfocalImageDataType, ConfocalImageType,
-    DataLocation, Ear, EarDataType, Feed, FeedLog, Litter, Source,
-    Species, TerminationReason, User, WeightLog,
+    DataLocation, DosageProtocol, DosageProtocolDrug, Ear, EarDataType,
+    Feed, FeedLog, Litter, Source, Species, TerminationReason, User,
+    WeightLog,
 )
 
 
@@ -39,6 +40,7 @@ _feed_seq = count(1)
 _ear_seq = count(1)
 _confocal_type_seq = count(1)
 _datatype_seq = count(1)
+_dosage_protocol_seq = count(1)
 
 
 def make_species(session, name=None):
@@ -283,6 +285,40 @@ def make_data_location(session, *, datatype, base_path):
     """Build a DataLocation pointing the given DataType at ``base_path``."""
     obj = DataLocation(datatype_id=datatype.id, base_path=str(base_path))
     session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_dosage_protocol(
+    session, *, name=None, procedure=None, procedure_target=None,
+    drugs=(),
+):
+    """Build a DosageProtocol. Auto-creates procedure/target if not supplied.
+
+    ``drugs`` is an iterable of ``(name, dose_mg_per_kg, conc_mg_per_ml)``
+    tuples — defaults to one ketamine-like row so the protocol has at
+    least one drug to render. Pass ``drugs=[]`` to skip.
+    """
+    procedure = procedure or make_procedure(session)
+    procedure_target = procedure_target or make_procedure_target(session)
+    obj = DosageProtocol(
+        name=name or f'Protocol {next(_dosage_protocol_seq)}',
+        procedure_id=procedure.id,
+        procedure_target_id=procedure_target.id,
+    )
+    session.add(obj)
+    session.flush()
+
+    if drugs == ():
+        drugs = (('Ketamine', 100.0, 100.0),)
+    for position, (dname, dose, conc) in enumerate(drugs):
+        session.add(DosageProtocolDrug(
+            protocol_id=obj.id,
+            name=dname,
+            dose_mg_per_kg=dose,
+            concentration_mg_per_ml=conc,
+            position=position,
+        ))
     session.commit()
     return obj
 

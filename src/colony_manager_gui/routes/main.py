@@ -15,6 +15,7 @@ from .. import forms
 from ..forms import (
     FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
     DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
+    DosageProtocolForm,
 )
 from .util import flash_form_errors, get_or_404, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
 from colony_manager.datatypes import load_description_class
@@ -267,6 +268,9 @@ def list_settings():
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
         datatypes=db.session.scalars(select(models.DataType)).all(),
+        dosage_protocols=db.session.scalars(
+            select(models.DosageProtocol).order_by(models.DosageProtocol.name)
+        ).all(),
         recent_jobs=jobs,
         parse_summary=parse_summary,
     )
@@ -630,6 +634,158 @@ def delete_datatype(datatype_id):
         body='',
         flash_message=f'DataType "{name}" deleted.',
         redirect_to=list_url,
+    )
+
+
+# --- Dosage Protocol Routes ---
+def _save_protocol_drugs(protocol):
+    """Persist DosageProtocolDrug rows from request.form parallel arrays.
+
+    Rows with an existing ``drug_ids`` value are updated in place so an
+    edit doesn't churn primary keys (and the versioned history stays
+    coherent). Anything not re-submitted is removed.
+    """
+    names = request.form.getlist('drug_name')
+    doses = request.form.getlist('drug_dose')
+    concs = request.form.getlist('drug_concentration')
+    ids = request.form.getlist('drug_id')
+
+    existing = {d.id: d for d in protocol.drugs}
+    seen_ids = set()
+    position = 0
+
+    for drug_id_str, name, dose, conc in zip(ids, names, doses, concs):
+        name = (name or '').strip()
+        if not name:
+            continue
+        try:
+            dose_val = float(dose)
+            conc_val = float(conc)
+        except (TypeError, ValueError):
+            continue
+        try:
+            drug_id = int(drug_id_str)
+        except (TypeError, ValueError):
+            drug_id = None
+        if drug_id and drug_id in existing:
+            d = existing[drug_id]
+            d.name = name
+            d.dose_mg_per_kg = dose_val
+            d.concentration_mg_per_ml = conc_val
+            d.position = position
+            seen_ids.add(drug_id)
+        else:
+            db.session.add(models.DosageProtocolDrug(
+                protocol_id=protocol.id,
+                name=name,
+                dose_mg_per_kg=dose_val,
+                concentration_mg_per_ml=conc_val,
+                position=position,
+            ))
+        position += 1
+
+    for drug_id, d in existing.items():
+        if drug_id not in seen_ids:
+            db.session.delete(d)
+
+
+@main_bp.route('/settings/dosage_protocol/create_modal')
+def create_dosage_protocol_modal():
+    form = DosageProtocolForm()
+    return render_template(
+        'partials/form_dosage_protocol_modal.html',
+        form=form, protocol=None,
+    )
+
+
+@main_bp.route('/settings/dosage_protocol/<int:protocol_id>/edit_modal')
+def edit_dosage_protocol_modal(protocol_id):
+    protocol = get_or_404(models.DosageProtocol, protocol_id)
+    form = DosageProtocolForm(obj=protocol)
+    return render_template(
+        'partials/form_dosage_protocol_modal.html',
+        form=form, protocol=protocol,
+    )
+
+
+@main_bp.route('/settings/dosage_protocol/create', methods=['POST'])
+def create_dosage_protocol():
+    form = DosageProtocolForm()
+    list_url = url_for('main.list_settings')
+    retarget = '#error-dosage_protocol'
+
+    if not form.validate_on_submit():
+        return htmx_error(message='Validation failed', form=form, retarget=retarget,
+                          flash_title='Could not create dosage protocol',
+                          redirect_to=list_url)
+
+    if db.session.scalars(
+        select(models.DosageProtocol).where(models.DosageProtocol.name == form.name.data)
+    ).first():
+        return htmx_error(message='A protocol with that name already exists.',
+                          retarget=retarget, redirect_to=list_url)
+
+    protocol = models.DosageProtocol()
+    form.populate_obj(protocol)
+    try:
+        db.session.add(protocol)
+        db.session.flush()
+        _save_protocol_drugs(protocol)
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Already exists or invalid data.', retarget=retarget,
+                          redirect_to=list_url)
+
+    return htmx_or_redirect(
+        partial='partials/dosage_protocol_list_item.html',
+        context={'protocol': protocol},
+        trigger='dosage-protocol-created',
+        flash_message=f'Dosage protocol "{protocol.name}" added.',
+        redirect_to=list_url,
+    )
+
+
+@main_bp.route('/settings/dosage_protocol/<int:protocol_id>/update', methods=['POST'])
+def update_dosage_protocol(protocol_id):
+    protocol = get_or_404(models.DosageProtocol, protocol_id)
+    form = DosageProtocolForm()
+    list_url = url_for('main.list_settings')
+    retarget = '#error-dosage_protocol'
+
+    if not form.validate_on_submit():
+        return htmx_error(message='Validation failed', form=form, retarget=retarget,
+                          flash_title='Could not update dosage protocol',
+                          redirect_to=list_url)
+
+    form.populate_obj(protocol)
+    _save_protocol_drugs(protocol)
+    try:
+        db.session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return htmx_error(message='Update failed: name may already exist.',
+                          retarget=retarget, redirect_to=list_url)
+
+    return htmx_or_redirect(
+        partial='partials/dosage_protocol_list_item.html',
+        context={'protocol': protocol},
+        trigger='dosage-protocol-updated',
+        flash_message='Dosage protocol updated.',
+        redirect_to=list_url,
+    )
+
+
+@main_bp.route('/settings/dosage_protocol/<int:protocol_id>/delete', methods=['POST'])
+def delete_dosage_protocol(protocol_id):
+    protocol = get_or_404(models.DosageProtocol, protocol_id)
+    name = protocol.name
+    db.session.delete(protocol)
+    db.session.commit()
+    return htmx_or_redirect(
+        body='',
+        flash_message=f'Dosage protocol "{name}" deleted.',
+        redirect_to=url_for('main.list_settings'),
     )
 
 

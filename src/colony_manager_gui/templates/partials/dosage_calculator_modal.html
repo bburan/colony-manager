@@ -28,6 +28,28 @@
             </div>
         </div>
     </form>
+    <script>
+    // Override server-rendered defaults for date/time with the
+    // browser's local clock. The server has no idea what timezone the
+    // user is in (it's often UTC in deploys), so trusting
+    // ``datetime.now()`` on the server would log doses in the wrong
+    // time. Run synchronously inside the partial so the values are
+    // correct before the user sees the modal.
+    (function () {
+        const form = document.getElementById('dosage-calc-form');
+        if (!form) return;
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const dateInput = form.querySelector('input[name="date"]');
+        const timeInput = form.querySelector('input[name="time"]');
+        if (dateInput) {
+            dateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        }
+        if (timeInput) {
+            timeInput.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        }
+    })();
+    </script>
 
     <div id="dosage-calc-result">
         <p class="text-muted small mb-0">Pick a protocol and enter a weight to see calculated volumes.</p>

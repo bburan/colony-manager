@@ -312,6 +312,29 @@ def test_log_dosage_creates_animal_event(logged_in_client, db_session):
     assert '0.025' in notes  # ketamine volume in mL
 
 
+def test_edit_event_modal_prefills_existing_time(logged_in_client, db_session):
+    """Round-trip: the time stored on an event should appear in the
+    edit modal's ``completion_time`` input value. No timezone math on
+    the way in or out — what got stored is what shows up."""
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species)
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    event = make_event(
+        db_session, animal=animal, procedure=procedure,
+        procedure_target=target, completion_date=date.today(),
+    )
+    event.completion_time = time(9, 7)
+    db_session.commit()
+
+    response = logged_in_client.get(f'/animals/events/{event.id}/edit_modal')
+    assert response.status_code == 200
+    # WTForms TimeField default format is HH:MM:SS; the HTML <input
+    # type="time"> accepts that and renders HH:MM. Either is fine —
+    # just check the hour:minute prefix made it into the value.
+    assert b'value="09:07' in response.data
+
+
 def test_update_event_can_change_completion_time(logged_in_client, db_session):
     """The animal-event edit form exposes ``completion_time`` so a user
     can correct or back-fill the clock time on any event, not just ones

@@ -4,15 +4,6 @@ from flask import Flask, session
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 
-# Setup versioning. FlaskPlugin reads ``flask_login.current_user`` and
-# ``request.remote_addr`` to stamp the ``transaction`` table with who
-# made each versioned write (no-op outside a request context, e.g. RQ
-# workers and scripts).
-from sqlalchemy_continuum import make_versioned
-from sqlalchemy_continuum.plugins import FlaskPlugin
-make_versioned(user_cls='User', plugins=[FlaskPlugin()])
-
-# Must come last
 from colony_manager import models  # noqa: F401  (imported for side effects)
 from colony_manager import db as _cm_db
 from colony_manager.datatypes import cache_root

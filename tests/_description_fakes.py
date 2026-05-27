@@ -68,10 +68,21 @@ class _HashingAnimalEventDescription(_FilenameAnimalEventDescription):
         return [self.path]
 
 
+class _HashingAnimalDescription(_FilenameAnimalDescription):
+    """Same as _FilenameAnimalDescription, but with hashing for move detection.
+
+    Used to test AnimalDataType (e.g. surgery photos) with the MOVE path.
+    """
+
+    def hash_files(self):
+        return [self.path]
+
+
 # The registry shape the production loader expects: a module-level
 # ``DESCRIPTION_CLASSES`` dict mapping short keys to subclasses.
 DESCRIPTION_CLASSES = {
     'fake_animal_event': _FilenameAnimalEventDescription,
     'fake_animal': _FilenameAnimalDescription,
     'fake_animal_event_hashed': _HashingAnimalEventDescription,
+    'fake_animal_hashed': _HashingAnimalDescription,
 }

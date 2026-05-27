@@ -360,10 +360,9 @@ def _sync_location(location, dry_run=False, debug=False):
                                 new_targets = created
                                 counts['auto_created'] += len(created)
 
-                        # Single-assign per target_type — clear-then-set
-                        # would make sqlalchemy_continuum log both a
-                        # delete and an insert for unchanged links,
-                        # blowing up on the secondary-table version PK.
+                        # Single-assign per target_type so SQLAlchemy's
+                        # bulk_replace only fires append/remove events for
+                        # items that actually changed.
                         if datatype.target_type == 'animal_event':
                             hash_match.events = list(new_targets)
                         elif datatype.target_type == 'confocal_image':
@@ -649,10 +648,7 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
             )
         else:
             # Single-assign the desired collections so SQLAlchemy diffs
-            # against the current state. A clear-then-set sequence in the
-            # same transaction would make sqlalchemy_continuum log both a
-            # delete and an insert for unchanged items, blowing up on the
-            # (data_id, target_id, transaction_id) version PK.
+            # against the current state rather than clearing and resetting.
             if target_attr is not None:
                 if force or targets:
                     setattr(row, target_attr, list(targets))

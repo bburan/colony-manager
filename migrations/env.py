@@ -15,8 +15,6 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from sqlalchemy_continuum import make_versioned
-make_versioned(user_cls='User')
 from colony_manager import models
 
 target_metadata = models.Base.metadata

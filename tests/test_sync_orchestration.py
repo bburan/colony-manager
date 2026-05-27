@@ -19,11 +19,11 @@ import pytest
 from sqlalchemy import select
 
 from colony_manager.datatypes import reset_registry_cache
-from colony_manager.models import AnimalEvent, AnimalEventData, Data
+from colony_manager.models import AnimalEvent, AnimalEventData, AnimalData, Data
 
 from .factories import (
-    make_animal, make_animal_event_data_type, make_data_location,
-    make_procedure, make_procedure_target, make_species,
+    make_animal, make_animal_data_type, make_animal_event_data_type,
+    make_data_location, make_procedure, make_procedure_target, make_species,
 )
 
 
@@ -626,3 +626,183 @@ def test_rematch_force_relinks_all_rows(db_session, app, tmp_path):
     # ones because force=True bypasses the unmatched-only filter).
     assert rm['walked'] == 1
     assert rm['matched'] == 1
+
+
+def test_animal_datatype_move_same_animal_no_integrity_error(
+    db_session, app, tmp_path,
+):
+    """Regression: moving a surgery-photo file (AnimalDataType, hashed) where
+    the new filename parses to the SAME animal must not raise a
+    UniqueViolation on ``animal_data_targets_version``.
+
+    Real-world: a file is renamed (e.g. directory reorganization) but
+    still belongs to the same animal. The MOVE branch in ``_sync_location``
+    calls ``match_targets`` (which triggers an autoflush), then assigns
+    ``hash_match.animals = list(new_targets)``.  When the animals list is
+    unchanged (old == new), ``bulk_replace`` should detect no diff and emit
+    no version events — avoiding a duplicate-key insert into
+    ``animal_data_targets_version``.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='SRG-1')
+    db_session.commit()
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal_hashed'
+    db_session.commit()
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    # First sync: file named for animal SRG-1.
+    src = _write_file(tmp_path, 'SRG-1.jpg', content='surgery-photo-content')
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    db_session.expire_all()
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.relative_path == 'SRG-1.jpg'
+    assert animal in row.animals
+    row_id = row.id
+    original_hash = row.file_hash
+    assert original_hash
+
+    # Rename the file to a new path/name — same content (same hash), same
+    # animal id embedded in the filename.
+    new_src = tmp_path / 'subdir' / 'SRG-1.jpg'
+    new_src.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(new_src)
+
+    # Second sync must not raise IntegrityError.
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+
+    assert totals['moved'] == 1
+
+    db_session.expire_all()
+    row = db_session.get(AnimalData, row_id)
+    assert row.relative_path == 'subdir/SRG-1.jpg'
+    assert animal in row.animals
+
+
+def test_animal_datatype_move_different_animal_no_integrity_error(
+    db_session, app, tmp_path,
+):
+    """Regression: moving a surgery-photo file where the new filename parses
+    to a DIFFERENT animal must re-link the AnimalData row and not raise a
+    UniqueViolation on ``animal_data_targets_version``.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    old_animal = make_animal(db_session, species=species, custom_id='SRG-OLD')
+    new_animal = make_animal(db_session, species=species, custom_id='SRG-NEW')
+    db_session.commit()
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal_hashed'
+    db_session.commit()
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    # First sync: file for SRG-OLD.
+    src = _write_file(tmp_path, 'SRG-OLD.jpg', content='surgery-photo-payload')
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    db_session.expire_all()
+    row = db_session.scalars(select(AnimalData)).one()
+    assert old_animal in row.animals
+    row_id = row.id
+
+    # Rename to SRG-NEW (same content/hash, different animal in filename).
+    new_src = tmp_path / 'SRG-NEW.jpg'
+    src.rename(new_src)
+
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+
+    assert totals['moved'] == 1
+
+    db_session.expire_all()
+    row = db_session.get(AnimalData, row_id)
+    assert new_animal in row.animals
+    assert old_animal not in row.animals
+
+
+def test_animal_datatype_move_with_other_new_files_no_integrity_error(
+    db_session, app, tmp_path,
+):
+    """Regression: when a MOVE is processed and other new files follow in the
+    same scan, the autoflush triggered by the next file's ``match_targets``
+    call must not fail with UniqueViolation on ``animal_data_targets_version``.
+
+    Setup:
+    - Animal SRG-2 has a previously synced photo (AnimalData row exists).
+    - The photo file is moved to a subdirectory.
+    - A second unrelated photo (SRG-3) is NEW (never synced).
+    - Second sync must process the MOVE for SRG-2 and then add SRG-3 without
+      hitting a PK violation when SRG-3's ``match_targets`` triggers the
+      deferred autoflush that writes the MOVE's version records.
+    """
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    animal2 = make_animal(db_session, species=species, custom_id='SRG-2')
+    animal3 = make_animal(db_session, species=species, custom_id='SRG-3')
+    db_session.commit()
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal_hashed'
+    db_session.commit()
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    # First sync: SRG-2 photo only.
+    src2 = _write_file(tmp_path, 'SRG-2.jpg', content='srg2-unique-payload')
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    db_session.expire_all()
+    row2 = db_session.scalars(select(AnimalData)).one()
+    assert animal2 in row2.animals
+    row2_id = row2.id
+
+    # Move SRG-2 photo into a subdirectory (same content → same hash).
+    moved_src2 = tmp_path / 'archive' / 'SRG-2.jpg'
+    moved_src2.parent.mkdir(parents=True, exist_ok=True)
+    src2.rename(moved_src2)
+
+    # Add a new SRG-3 photo that will appear AFTER the MOVE in the scan order.
+    # The naming ensures SRG-3 sorts after archive/SRG-2 alphabetically
+    # in os.walk results; if it doesn't, the test is still valid (just
+    # exercises the reverse order — both orders should work).
+    _write_file(tmp_path, 'SRG-3.jpg', content='srg3-unique-payload')
+
+    # Second sync: MOVE of SRG-2 + new file SRG-3.  Must not raise.
+    with app.app_context():
+        totals = sync_locations()
+        gui_db.session.commit()
+
+    assert totals['moved'] == 1
+    assert totals['added'] == 1
+
+    db_session.expire_all()
+    row2 = db_session.get(AnimalData, row2_id)
+    assert row2.relative_path == 'archive/SRG-2.jpg'
+    assert animal2 in row2.animals
+
+    rows3 = db_session.scalars(
+        select(AnimalData).where(AnimalData.id != row2_id)
+    ).all()
+    assert len(rows3) == 1
+    assert animal3 in rows3[0].animals

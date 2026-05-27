@@ -189,17 +189,7 @@ def test_completed_events_excludes_pending_and_sorts_ascending(db_session):
 # ---------------------------------------------------------------------------
 
 def test_event_with_initial_tags_commits_cleanly(db_session):
-    """Creating an event with one or more tags must not raise.
-
-    Regression: ``sqlalchemy_continuum.make_versioned`` was being
-    called twice on process startup — once in ``colony_manager.db``
-    and once in ``colony_manager_gui/__init__.py`` — which registered
-    continuum's ``after_flush`` listener twice. Every M2M assignment
-    then generated two identical INSERTs into
-    ``animal_event_tags_version`` with the same
-    ``(animal_event_id, tag_id, transaction_id)``, hitting
-    ``pk_animal_event_tags_version``.
-    """
+    """Creating an event with one or more tags must not raise."""
     from colony_manager.models import AnimalEventTag
 
     animal = make_animal(db_session)
@@ -224,10 +214,6 @@ def test_event_with_initial_tags_commits_cleanly(db_session):
 def test_event_tag_reassignment_commits_cleanly(db_session):
     """Replacing an event's tag list (the ``populate_obj`` flow used by
     ``update_animal_event``) must not raise.
-
-    Same regression as above (double ``make_versioned``); this case
-    exercises the reassignment path that a real edit form takes:
-    load → ``event.tags = new_list`` → commit.
     """
     from colony_manager.models import AnimalEventTag
 

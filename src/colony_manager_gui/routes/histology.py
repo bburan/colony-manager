@@ -1,10 +1,11 @@
 from sqlalchemy import exists, select
+from sqlalchemy.orm import contains_eager, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response
 
 from colony_manager.models import (
     Ear, EarTag, Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Study, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
-    ConfocalImageData, data_candidate_ears, confocal_image_data_targets,
+    ConfocalImageData, data_candidate_ears,
     _canonical_side,
 )
 from .. import db
@@ -140,7 +141,13 @@ def _ear_filter_lookups():
 @histology_bp.route('/')
 def list_histology():
     f = _parse_ear_filters(request.args)
-    stmt = _apply_ear_filters(select(Ear).join(Animal), f)
+    stmt = _apply_ear_filters(
+        select(Ear).join(Animal).options(
+            contains_eager(Ear.animal),
+            selectinload(Ear.tags),
+        ),
+        f,
+    )
     ears = db.session.scalars(_apply_ear_sort(stmt, f)).all()
     return render_template(
         'histology.html',
@@ -179,7 +186,17 @@ def view_grid():
     if selected_image_type is None:
         selected_image_type = image_types[0]
 
-    ear_stmt = _apply_ear_filters(select(Ear).join(Animal), f)
+    # Eager-load the two relationships the template accesses on every row:
+    # - contains_eager: Animal is already JOIN-ed for filtering/sorting, so
+    #   we piggyback on that JOIN to populate ear.animal at no extra cost.
+    # - selectinload: EarTag is M2M; one SELECT IN replaces N lazy loads.
+    ear_stmt = _apply_ear_filters(
+        select(Ear).join(Animal).options(
+            contains_eager(Ear.animal),
+            selectinload(Ear.tags),
+        ),
+        f,
+    )
     ears = db.session.scalars(_apply_ear_sort(ear_stmt, f)).all()
 
     # Column set: distinct frequencies across all in-scope ConfocalImage rows
@@ -197,13 +214,16 @@ def view_grid():
     frequencies = sorted(freq_set)
 
     # Build grid: {ear_id: {frequency: ConfocalImage}}
+    # selectinload on data_files: one SELECT IN for all images replaces the
+    # per-cell lazy load that grid_status_square.html triggers via
+    # ``img.data_files|length``.
     grid = {e.id: {} for e in ears}
     if ear_ids:
         imgs = db.session.scalars(
             select(ConfocalImage).where(
                 ConfocalImage.ear_id.in_(ear_ids),
                 ConfocalImage.image_type_id == selected_image_type.id,
-            )
+            ).options(selectinload(ConfocalImage.data_files))
         ).all()
         for img in imgs:
             grid[img.ear_id][img.frequency] = img
@@ -255,28 +275,15 @@ def view_grid():
                 has_other_column = True
 
     if conflicts_only:
-        # Bulk-load the set of ConfocalImage ids that have at least one
-        # linked data file. Avoids ``len(img.data_files)`` triggering a
-        # per-image lazy-load when the grid spans many cells.
-        all_img_ids = [img.id for cells in grid.values() for img in cells.values()]
-        linked_image_ids = set()
-        if all_img_ids:
-            link_rows = db.session.execute(
-                select(
-                    confocal_image_data_targets.c.confocal_image_id
-                ).where(
-                    confocal_image_data_targets.c.confocal_image_id.in_(all_img_ids)
-                ).distinct()
-            ).all()
-            linked_image_ids = {r[0] for r in link_rows}
-
+        # data_files is already selectinloaded above, so img.data_files is an
+        # in-memory list — no further queries issued here.
         conflict_statuses = {'imaged', 'analyzed', 'need_review', 'region_bad'}
 
         def ear_has_conflict(ear):
             if ear.id in orphans_by_ear:
                 return True
             for img in grid[ear.id].values():
-                if img.status in conflict_statuses and img.id not in linked_image_ids:
+                if img.status in conflict_statuses and not img.data_files:
                     return True
             return False
 

@@ -24,6 +24,12 @@ Histology Grid
 
 {% block content %}
 
+{# Sentinel target for htmx:targetError-free grid edits.
+   _update_ear_response returns HX-Refresh:true + 204 for this target so
+   no content is ever swapped in; the element just has to exist so HTMX
+   doesn't abort the request before it even reaches the server. #}
+<div id="histology-grid-reload" hidden></div>
+
 {# Image-type tabs. Preserve every active filter as we switch tabs by
    merging the current filters dict with the new image_type. #}
 <ul class="nav nav-tabs mb-3">

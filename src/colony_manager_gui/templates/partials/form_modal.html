@@ -1,6 +1,5 @@
 {% import "macros.html" as macros %}
-<form action="{{ submit_url }}" method="POST"
-      {% if hx_target %}hx-post="{{ submit_url }}" hx-target="{{ hx_target }}" hx-swap="{{ hx_swap or 'outerHTML' }}"{% endif %}>
+<form action="{{ submit_url }}" method="POST">
     <header class="modal-header">
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">{{ label }}</h3>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -15,6 +14,20 @@
     </main>
     <footer class="modal-footer border-top-0 pb-4 px-4">
         <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        {% if hx_target %}
+        {# Move HTMX attrs to the button (not the form) so the click event
+           drives the request. Forms loaded via innerHTML swap into a Bootstrap
+           modal can fail to get HTMX's submit-listener registered in time;
+           a button click is a simpler, more reliable trigger path.
+           hx-include serialises the whole form (incl. the hidden csrf_token). #}
+        <button type="button"
+                hx-post="{{ submit_url }}"
+                hx-target="{{ hx_target }}"
+                hx-swap="{{ hx_swap or 'outerHTML' }}"
+                hx-include="closest form"
+                class="btn btn-primary btn-sm px-3">Confirm</button>
+        {% else %}
         <button type="submit" class="btn btn-primary btn-sm px-3">Confirm</button>
+        {% endif %}
     </footer>
 </form>

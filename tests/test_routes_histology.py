@@ -272,3 +272,111 @@ def test_edit_confocal_image_modal_returns_404_for_unknown_id(logged_in_client):
         '/histology/confocal_images/99999/edit_modal'
     )
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Regression: _update_ear_response dispatch + histology-grid-reload sentinel
+#
+# These tests cover the htmx:targetError bug where the grid edit-modal
+# POST was silently aborted by HTMX because #histology-grid-reload did
+# not exist in the DOM.  Two layers are tested:
+#
+#   1. Server: the three _update_ear_response dispatch paths return the
+#      correct status / headers / body depending on hx_target.
+#   2. Template: the grid page HTML always contains the sentinel element;
+#      the modal HTML puts hx-post on the button (not the <form>) when
+#      hx_target is supplied.
+# ---------------------------------------------------------------------------
+
+def test_update_ear_histology_grid_target_returns_204_refresh(
+    logged_in_client, db_session
+):
+    """hx_target=#histology-grid-reload → 204 + HX-Refresh: true.
+
+    Regression: ensures the server-side response is correct when HTMX
+    reaches the route with the grid's sentinel as its target.  Prior to
+    the fix the request never reached the server because HTMX aborted on
+    htmx:targetError (the sentinel element was missing from the DOM).
+    """
+    animal = make_animal(db_session, custom_id='GRD-1')
+    ear = make_ear(db_session, animal=animal, side='Left')
+
+    response = logged_in_client.post(
+        f'/histology/ears/{ear.id}/histology/update',
+        query_string={'hx_target': '#histology-grid-reload'},
+        headers={'HX-Request': 'true'},
+        data={},
+    )
+    assert response.status_code == 204
+    assert response.headers.get('HX-Refresh') == 'true'
+    assert response.headers.get('HX-Trigger') == 'closeModal'
+
+
+def test_update_ear_histology_row_target_returns_row_html(
+    logged_in_client, db_session
+):
+    """hx_target=#ear-row-N → 200 with the ear-row partial HTML."""
+    animal = make_animal(db_session, custom_id='GRD-2')
+    ear = make_ear(db_session, animal=animal, side='Right')
+
+    response = logged_in_client.post(
+        f'/histology/ears/{ear.id}/histology/update',
+        query_string={'hx_target': f'#ear-row-{ear.id}'},
+        headers={'HX-Request': 'true'},
+        data={},
+    )
+    assert response.status_code == 200
+    assert response.headers.get('HX-Trigger') == 'closeModal'
+    assert b'GRD-2' in response.data
+
+
+def test_update_ear_histology_default_target_returns_card_html(
+    logged_in_client, db_session
+):
+    """No hx_target → 200 with the histology-card partial HTML."""
+    animal = make_animal(db_session, custom_id='GRD-3')
+    ear = make_ear(db_session, animal=animal, side='Left')
+
+    response = logged_in_client.post(
+        f'/histology/ears/{ear.id}/histology/update',
+        headers={'HX-Request': 'true'},
+        data={},
+    )
+    assert response.status_code == 200
+    assert response.headers.get('HX-Trigger') == 'closeModal'
+    # The default response renders the ear-histology-card partial.
+    assert b'id="ear-histology-card"' in response.data
+
+
+def test_edit_ear_histology_modal_grid_target_renders_htmx_button(
+    logged_in_client, db_session
+):
+    """Modal GET with hx_target → Confirm button carries hx-post, not type=submit.
+
+    Regression: form_modal.html must put HTMX attrs on the <button> (not
+    the <form>) so forms loaded via innerHTML into a Bootstrap modal still
+    fire.  A plain type=submit button inside an innerHTML-swapped form can
+    miss HTMX's submit listener.
+    """
+    animal = make_animal(db_session, custom_id='GRD-4')
+    ear = make_ear(db_session, animal=animal, side='Left')
+
+    response = logged_in_client.get(
+        f'/histology/ears/{ear.id}/edit_histology_modal',
+        query_string={'hx_target': '#histology-grid-reload'},
+    )
+    assert response.status_code == 200
+    assert b'hx-post=' in response.data
+    assert b'type="submit"' not in response.data
+
+
+def test_grid_page_contains_reload_sentinel(logged_in_client, db_session):
+    """The grid page HTML must always contain #histology-grid-reload.
+
+    Regression: this hidden sentinel element was absent, causing
+    htmx:targetError to abort the POST from the grid's edit-ear modal
+    before it ever reached the server.
+    """
+    response = logged_in_client.get('/histology/grid')
+    assert response.status_code == 200
+    assert b'id="histology-grid-reload"' in response.data

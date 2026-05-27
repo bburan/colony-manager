@@ -85,9 +85,8 @@ ear_data_targets = Table('ear_data_targets', Base.metadata,
 
 
 class VersionedModel(Base):
-    """Base model that automatically adds created and updated timestamps."""
+    """Abstract base for all domain models."""
     __abstract__ = True
-    __versioned__ = {}
 
     @declared_attr
     def __tablename__(cls):
@@ -664,6 +663,12 @@ class Animal(VersionedModel):
     notes = Column(Text, nullable=True)
     termination_date = Column(Date, nullable=True)
     termination_reason_id = Column(Integer, ForeignKey('termination_reason.id', use_alter=True), nullable=True)
+    # Explicit terminated flag so an animal can be marked terminated even when
+    # the exact date is unknown (e.g. when loading historical data).  The date
+    # remains optional; ``is_active`` is now derived from this flag, not the
+    # date.  The migration that adds this column back-fills it to True for every
+    # row that already has a non-NULL termination_date.
+    terminated = Column(Boolean, nullable=False, default=False, server_default='false')
     events = relationship('AnimalEvent', backref='animal', cascade="all, delete-orphan")
     ears = relationship('Ear', backref='animal', cascade="all, delete-orphan")
     breeding_pair = relationship('BreedingPair', back_populates='offspring', foreign_keys=[breeding_pair_id])
@@ -729,7 +734,7 @@ class Animal(VersionedModel):
 
     @property
     def is_active(self):
-        return self.termination_date is None
+        return not self.terminated
 
     @property
     def sex_symbol(self):
@@ -758,14 +763,16 @@ class Animal(VersionedModel):
         completed = [e for e in self.events if e.completion_date is not None]
         return sorted(completed, key=lambda x: x.completion_date)
 
-    def terminate(self, termination_date, termination_reason=None,
+    def terminate(self, termination_date=None, termination_reason=None,
                   ears_extracted=None):
         """Mark this animal as terminated and optionally extract ears for histology.
 
         Parameters
         ----------
-        termination_date : date
-            The date the animal was terminated.
+        termination_date : date or None, optional
+            The date the animal was terminated.  Pass ``None`` when the exact
+            date is unknown (e.g. when loading historical data); the animal is
+            still marked as terminated via the ``terminated`` flag.
         termination_reason : TerminationReason or None, optional
             The reason for termination.
         ears_extracted : str or None, optional
@@ -783,10 +790,10 @@ class Animal(VersionedModel):
             If the animal is already terminated or *ears_extracted* is not a
             recognised value.
         """
-        if self.termination_date is not None:
+        if self.terminated:
+            date_part = f' (on {self.termination_date})' if self.termination_date else ''
             raise ValueError(
-                f'{self.display_id} is already terminated '
-                f'(on {self.termination_date}).'
+                f'{self.display_id} is already terminated{date_part}.'
             )
 
         valid_ear_choices = (None, 'Left', 'Right', 'Both')
@@ -796,6 +803,7 @@ class Animal(VersionedModel):
                 f'got {ears_extracted!r}.'
             )
 
+        self.terminated = True
         self.termination_date = termination_date
         self.termination_reason = termination_reason
 

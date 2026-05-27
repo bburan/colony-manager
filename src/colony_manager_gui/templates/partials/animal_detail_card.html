@@ -19,7 +19,7 @@
         <dt class="col-4">Termination Reason</dt>
         <dd class="col-8">{{ animal.termination_reason.name }}</dd>
         <dt class="col-4">Termination Date</dt>
-        <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') }}</dd>
+        <dd class="col-8">{{ animal.termination_date.strftime('%B %d, %Y') if animal.termination_date else '—' }}</dd>
     {% endif %}
     <dt class="col-4">Tags</dt>
     <dd class="col-8">

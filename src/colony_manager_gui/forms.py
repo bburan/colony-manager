@@ -39,17 +39,17 @@ confocal_image_type_factory = order_by(ConfocalImageType)
 
 def male_animal_factory():
     return (db.session.query(Animal)
-            .filter(Animal.termination_date == None,  # noqa: E711
+            .filter(Animal.terminated == False,  # noqa: E712
                     Animal.sex == 'male')
             .order_by(Animal.id))
 def female_animal_factory():
     return (db.session.query(Animal)
-            .filter(Animal.termination_date == None,  # noqa: E711
+            .filter(Animal.terminated == False,  # noqa: E712
                     Animal.sex == 'female')
             .order_by(Animal.id))
 def active_animal_factory():
     return db.session.query(Animal).filter(
-        Animal.termination_date == None  # noqa: E711
+        Animal.terminated == False  # noqa: E712
     )
 
 # --- Widgets ---
@@ -355,7 +355,7 @@ class WeaningForm(FlaskForm):
     cages = FieldList(FormField(WeanedCageForm), min_entries=1)
 
 class TerminationForm(FlaskForm):
-    termination_date = DateField('Date of Termination', default=date.today, validators=[DataRequired()])
+    termination_date = DateField('Date of Termination', default=date.today, validators=[Optional()])
     termination_reason = QuerySelectField('Reason', query_factory=termination_reason_factory, get_label='name', allow_blank=True)
     ears_extracted = SelectField('Ears Extracted', choices=[('None', 'None'), ('Left', 'Left'), ('Right', 'Right'), ('Both', 'Both')], validators=[DataRequired()])
 

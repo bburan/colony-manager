@@ -82,6 +82,33 @@ def test_terminate_invalid_ears_value_raises(db_session):
         )
     # The bad call must not have mutated state.
     assert animal.termination_date is None
+    assert animal.terminated is False
+
+
+def test_terminate_without_date_marks_terminated(db_session):
+    """terminate() with no date sets terminated=True, leaves date as None.
+
+    Supports loading historical data where the exact termination date was
+    not recorded.
+    """
+    animal = make_animal(db_session)
+    animal.terminate()
+    db_session.commit()
+    db_session.refresh(animal)
+
+    assert animal.terminated is True
+    assert animal.termination_date is None
+    assert animal.is_active is False
+
+
+def test_terminate_without_date_already_terminated_raises(db_session):
+    """A second terminate() call raises even when the first had no date."""
+    animal = make_animal(db_session)
+    animal.terminate()
+    db_session.commit()
+
+    with pytest.raises(ValueError, match='already terminated'):
+        animal.terminate()
 
 
 # ---------------------------------------------------------------------------

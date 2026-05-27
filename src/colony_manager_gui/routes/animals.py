@@ -67,9 +67,9 @@ def list_animals():
         stmt = stmt.where(Animal.custom_id.ilike(f'%{search_query}%'))
 
     if status_filter == 'active':
-        stmt = stmt.where(Animal.termination_date.is_(None))
+        stmt = stmt.where(Animal.terminated == False)  # noqa: E712
     elif status_filter == 'terminated':
-        stmt = stmt.where(Animal.termination_date.is_not(None))
+        stmt = stmt.where(Animal.terminated == True)  # noqa: E712
 
     if sex_filter in ('male', 'female'):
         stmt = stmt.where(Animal.sex == sex_filter)

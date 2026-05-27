@@ -166,7 +166,7 @@ def view_dashboard():
     unassigned_animals = db.session.scalars(
         select(models.Animal)
         .where(
-            models.Animal.termination_date == None,  # noqa: E711
+            models.Animal.terminated == False,  # noqa: E712
             ~models.Animal.studies.any(),
             models.Animal.custom_id != None,  # noqa: E711
             ~models.Animal.id.in_(active_parent_ids),

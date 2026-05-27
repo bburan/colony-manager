@@ -221,7 +221,29 @@ def test_terminate_animal_via_route(logged_in_client, db_session):
     assert response.status_code == 302
     db_session.expire_all()
     refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is True
     assert refreshed.termination_date == date.today()
+
+
+def test_terminate_animal_without_date_via_route(logged_in_client, db_session):
+    """Submitting the termination form with no date still marks the animal
+    as terminated — supports historical data with unknown termination dates.
+    """
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TR-2')
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/terminate',
+        data={
+            'termination_date': '',   # deliberately empty
+            'ears_extracted': 'None',
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is True
+    assert refreshed.termination_date is None
 
 
 # ---------------------------------------------------------------------------

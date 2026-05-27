@@ -32,7 +32,7 @@ def count_active_cages(session):
         .outerjoin(Animal, Animal.cage_id == Cage.id)
         .where(
             or_(
-                Animal.termination_date.is_(None),
+                Animal.terminated == False,  # noqa: E712
                 Animal.id.is_(None),
             )
         )
@@ -50,7 +50,7 @@ def count_active_animals(session):
         .outerjoin(Species.animals)
         .where(
             and_(
-                Animal.termination_date.is_(None),
+                Animal.terminated == False,  # noqa: E712
                 Animal.custom_id.isnot(None),
             )
         )

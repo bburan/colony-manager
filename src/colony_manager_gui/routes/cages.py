@@ -54,9 +54,9 @@ def list_cages():
     # include both terminated-only and empty cages, matching the prior
     # ``is_active`` semantics.
     if status_filter == 'active':
-        stmt = stmt.where(Cage.animals.any(Animal.termination_date.is_(None)))
+        stmt = stmt.where(Cage.animals.any(Animal.terminated == False))  # noqa: E712
     elif status_filter == 'inactive':
-        stmt = stmt.where(~Cage.animals.any(Animal.termination_date.is_(None)))
+        stmt = stmt.where(~Cage.animals.any(Animal.terminated == False))  # noqa: E712
 
     if sex_filter in ('male', 'female'):
         # Cage matches if it has any animal of this sex AND no animal of
@@ -105,7 +105,7 @@ def list_cages():
             Animal.cage_id.label('cage_id'),
             func.count(Animal.id).label('active_count'),
         )
-        .where(Animal.termination_date.is_(None))
+        .where(Animal.terminated == False)  # noqa: E712
         .group_by(Animal.cage_id)
         .subquery()
     )

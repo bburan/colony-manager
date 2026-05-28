@@ -1093,6 +1093,8 @@ def view_data_dict(data_id, callback_name):
             title=callback_name,
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return f"Error rendering callback: {str(e)}", 500
 
 

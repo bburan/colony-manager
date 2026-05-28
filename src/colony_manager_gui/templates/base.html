@@ -636,6 +636,18 @@
       </div>
     </div>
 
+    <div class="modal fade" id="videoModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content shadow-sm">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title h6 fw-bold text-uppercase text-secondary" id="videoModalTitle">Video</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-3" id="videoModalBody"></div>
+        </div>
+      </div>
+    </div>
+
     <script>
     async function openDictModal(url, title) {
         const modalElement = document.getElementById('dictModal');
@@ -672,6 +684,20 @@
             bodyEl.innerHTML = '<div class="alert alert-danger m-3">Failed to load image.</div>';
         };
         img.src = url;
+    }
+
+    function openVideoModal(url, title) {
+        const modalElement = document.getElementById('videoModal');
+        const titleEl = document.getElementById('videoModalTitle');
+        const bodyEl = document.getElementById('videoModalBody');
+        titleEl.textContent = title || 'Video';
+        bodyEl.innerHTML = '<video class="w-100" controls><source src="' + url + '"></video>';
+        const inst = bootstrap.Modal.getOrCreateInstance(modalElement);
+        inst.show();
+        modalElement.addEventListener('hidden.bs.modal', function cleanup() {
+            bodyEl.innerHTML = '';
+            modalElement.removeEventListener('hidden.bs.modal', cleanup);
+        });
     }
     </script>
 

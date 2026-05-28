@@ -78,28 +78,40 @@
 {% macro render_callback_buttons(data_file, size='sm') %}
     {% if data_file.datatype.description_class %}
     {% set callbacks = data_file.datatype.get_description_callbacks() %}
+    <div class="btn-group">
     {% for cb_name, cb_info in callbacks.items() %}
         {% if cb_info.type == 'plot' %}
+        {% set icon = cb_info.icon or 'fa-chart-line' %}
         <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
             title="{{ cb_name }}" onclick="openPlotModal('{{ url_for('animals.plot_data', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
-            <i class="fas fa-chart-line"></i>
+            <i class="fas {{ icon }}"></i>
         </button>
         {% elif cb_info.type == 'pdf' %}
+        {% set icon = cb_info.icon or 'fa-file-pdf' %}
         <a href="{{ url_for('animals.view_data_pdf', data_id=data_file.id, callback_name=cb_name) }}" target="_blank" class="btn btn-{{ size }}" data-bs-toggle="tooltip" title="{{ cb_name }}">
-            <i class="fas fa-file-pdf"></i>
+            <i class="fas {{ icon }}"></i>
         </a>
         {% elif cb_info.type == 'image' %}
+        {% set icon = cb_info.icon or 'fa-image' %}
         <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
             title="{{ cb_name }}" onclick="openImageModal('{{ url_for('animals.view_data_image', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
-            <i class="fas fa-image"></i>
+            <i class="fas {{ icon }}"></i>
         </button>
         {% elif cb_info.type == 'dict' %}
+        {% set icon = cb_info.icon or 'fa-list' %}
         <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
             title="{{ cb_name }}" onclick="openDictModal('{{ url_for('animals.view_data_dict', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
-            <i class="fas fa-list"></i>
+            <i class="fas {{ icon }}"></i>
+        </button>
+        {% elif cb_info.type == 'video' %}
+        {% set icon = cb_info.icon or 'fa-video' %}
+        <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
+            title="{{ cb_name }}" onclick="openVideoModal('{{ url_for('animals.view_data_video', data_id=data_file.id, callback_name=cb_name) }}', '{{ data_file.name }}: {{ cb_name }}')">
+            <i class="fas {{ icon }}"></i>
         </button>
         {% endif %}
     {% endfor %}
+    </div>
     {% endif %}
 {% endmacro %}
 

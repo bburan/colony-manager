@@ -86,37 +86,45 @@ def cache_root(namespace):
 # Callback decorators
 # ---------------------------------------------------------------------------
 
-def plot_callback(name):
+def plot_callback(name, icon=None):
     """Mark a method as a Plotly-figure callback.
 
     Parameters
     ----------
     name : str
         Friendly name shown in the UI (e.g. ``'Waveforms'``).
+    icon : str, optional
+        Font Awesome icon name override (e.g. ``'fa-brain'``). Falls back to
+        ``fa-chart-line`` when not provided.
     """
     def decorator(method):
         method._callback_type = 'plot'
         method._callback_name = name
+        method._callback_icon = icon
         return method
     return decorator
 
 
-def pdf_callback(name):
+def pdf_callback(name, icon=None):
     """Mark a method as a PDF-path callback.
 
     Parameters
     ----------
     name : str
         Friendly name shown in the UI (e.g. ``'Waveforms PDF'``).
+    icon : str, optional
+        Font Awesome icon name override (e.g. ``'fa-file-waveform'``). Falls
+        back to ``fa-file-pdf`` when not provided.
     """
     def decorator(method):
         method._callback_type = 'pdf'
         method._callback_name = name
+        method._callback_icon = icon
         return method
     return decorator
 
 
-def dict_callback(name):
+def dict_callback(name, icon=None):
     """Mark a method as a dict-returning callback (e.g. experiment settings).
 
     The method should return a flat ``{label: value}`` mapping that will
@@ -126,25 +134,56 @@ def dict_callback(name):
     ----------
     name : str
         Friendly name shown in the UI (e.g. ``'Settings'``).
+    icon : str, optional
+        Font Awesome icon name override (e.g. ``'fa-sliders'``). Falls back to
+        ``fa-list`` when not provided.
     """
     def decorator(method):
         method._callback_type = 'dict'
         method._callback_name = name
+        method._callback_icon = icon
         return method
     return decorator
 
 
-def image_callback(name):
+def image_callback(name, icon=None):
     """Mark a method as an image callback (returns path or BytesIO).
 
     Parameters
     ----------
     name : str
         Friendly name shown in the UI (e.g. ``'Thumbnail'``).
+    icon : str, optional
+        Font Awesome icon name override (e.g. ``'fa-microscope'``). Falls back
+        to ``fa-image`` when not provided.
     """
     def decorator(method):
         method._callback_type = 'image'
         method._callback_name = name
+        method._callback_icon = icon
+        return method
+    return decorator
+
+
+def video_callback(name, icon=None):
+    """Mark a method as a video callback (returns a file path or BytesIO).
+
+    The method should return either an absolute path to a video file or a
+    ``BytesIO`` object containing video data.  The result is streamed to the
+    browser and displayed in an embedded ``<video>`` player inside a modal.
+
+    Parameters
+    ----------
+    name : str
+        Friendly name shown in the UI (e.g. ``'Behaviour'``).
+    icon : str, optional
+        Font Awesome icon name override (e.g. ``'fa-film'``). Falls back to
+        ``fa-video`` when not provided.
+    """
+    def decorator(method):
+        method._callback_type = 'video'
+        method._callback_name = name
+        method._callback_icon = icon
         return method
     return decorator
 
@@ -178,6 +217,7 @@ class DataTypeDescription(ABC):
                 callbacks[method._callback_name] = {
                     'type': method._callback_type,
                     'method_name': attr_name,
+                    'icon': method._callback_icon,
                 }
         cls._callbacks = callbacks
 

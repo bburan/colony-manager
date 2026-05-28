@@ -1116,3 +1116,25 @@ def view_data_image(data_id, callback_name):
         return send_file(result, mimetype='image/jpeg')
     except Exception as e:
         return f"Error loading image: {str(e)}", 500
+
+
+@animals_bp.route('/data/<int:data_id>/video/<path:callback_name>')
+def view_data_video(data_id, callback_name):
+    """Invoke a video callback and stream the resulting video file."""
+    import os
+    import mimetypes
+    pair, err = _resolve_callback(data_id, callback_name)
+    if err:
+        msg, status = err
+        return msg, status
+    desc, cb_info = pair
+    try:
+        result = desc.invoke_callback(callback_name)
+        if hasattr(result, 'read'):
+            return send_file(result, mimetype='video/mp4')
+        if not result or not os.path.exists(result):
+            return f"Video not found: {result}", 404
+        mimetype, _ = mimetypes.guess_type(result)
+        return send_file(result, mimetype=mimetype or 'video/mp4')
+    except Exception as e:
+        return f"Error loading video: {str(e)}", 500

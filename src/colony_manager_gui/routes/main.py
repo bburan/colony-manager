@@ -60,20 +60,6 @@ def view_dashboard():
     ears_for_processing_count = queries.count_unprocessed_ears(db.session)
     active_breeding_pairs_count = queries.count_active_breeding_pairs(db.session)
 
-    # 2. Upcoming Events Table (Next 7 days + Overdue)
-    upcoming_events = db.session.scalars(
-        select(models.AnimalEvent)
-        .options(
-            joinedload(models.AnimalEvent.animal),
-            joinedload(models.AnimalEvent.procedure),
-        )
-        .where(
-            models.AnimalEvent.completion_date == None,  # noqa: E711
-            models.AnimalEvent.scheduled_date <= today + timedelta(days=7),
-        )
-        .order_by(models.AnimalEvent.scheduled_date.asc())
-    ).all()
-
     # Recently completed events (last 7 days), most recent first. The
     # template walks each event's animal/procedure/target. ``data_files``
     # is now a lazy='select' collection; per-row iteration in the
@@ -213,7 +199,6 @@ def view_dashboard():
         ears_to_process=ears_for_processing_count,
 
         # Schedule & Alerts
-        upcoming_events=upcoming_events,
         recent_events=recent_events,
         recent_confocal_groups=recent_confocal_groups,
         unmatched_recent_confocal=unmatched_recent_confocal,
@@ -228,7 +213,7 @@ def view_dashboard():
         today=today,
 
         # Table of weights for past week
-        weights=models.Animal.get_daily_logs(db.session, before=5, after=2, species=species),
+        weights=models.Animal.get_daily_logs(db.session, before=14, after=2, species=species),
     )
 
 

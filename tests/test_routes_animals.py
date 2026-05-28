@@ -246,6 +246,40 @@ def test_terminate_animal_without_date_via_route(logged_in_client, db_session):
     assert refreshed.termination_date is None
 
 
+def test_unterminate_animal_via_edit_form(logged_in_client, db_session):
+    """Unchecking 'Terminated' in the edit-animal form re-activates the animal.
+
+    Regression: before the terminated flag was added, clearing
+    termination_date was enough to un-terminate.  Now that is_active is
+    derived from the boolean flag, the flag must be cleared too.
+    """
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    animal = make_animal(db_session, species=species, custom_id='UT-1')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    assert animal.is_active is False
+
+    # POST the edit form without the 'terminated' checkbox — an unchecked
+    # BooleanField is not included in the POST body, so WTForms sets it False.
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'cage': str(cage.id),
+            'species': str(species.id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            # 'terminated' omitted — checkbox unchecked
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is False
+    assert refreshed.is_active is True
+
+
 # ---------------------------------------------------------------------------
 # Animal events nested routes
 # ---------------------------------------------------------------------------

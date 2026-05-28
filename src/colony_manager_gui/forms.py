@@ -248,6 +248,7 @@ class AnimalForm(AnimalCustomIDForm):
     dob = DateField('Date of Birth', default=date.today, validators=[DataRequired()])
     source = QuerySelectField('Source', query_factory=source_factory, get_label='name', allow_blank=True)
     notes = TextAreaField('Notes', validators=[Optional()])
+    terminated = BooleanField('Terminated')
     termination_date = DateField('Termination date', validators=[Optional()])
     termination_reason = QuerySelectField('Termination reason', query_factory=termination_reason_factory, get_label='name', validators=[Optional()])
     tags = QuerySelectMultipleField(

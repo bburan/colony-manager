@@ -19,7 +19,8 @@
                          target_type=target_type, target_id=target.id) }}"
       method="POST" enctype="multipart/form-data"
       x-data='colonyUploadModal({{ target.id }}, {{ initial_label|tojson }})'
-      @submit="onSubmit($event)">
+      @submit="onSubmit($event)"
+      @paste="onPaste($event)">
     <header class="modal-header">
         <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
             <i class="fas fa-upload me-1"></i> Upload Files
@@ -114,7 +115,7 @@
                  @drop.prevent="onDrop($event)">
                 <div class="small text-muted mb-2">
                     <i class="fas fa-cloud-upload-alt me-1"></i>
-                    Drag files here, or browse:
+                    Drag files here, paste an image, or browse:
                 </div>
                 {{ form.files(
                     class="form-control form-control-sm",

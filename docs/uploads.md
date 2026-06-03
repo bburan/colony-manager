@@ -170,14 +170,23 @@ subclass takes three small edits:
 
 No routes, form, or `handle_upload` change is needed.
 
-## Drag-and-drop and additive staging
+## Drag-and-drop, paste, and additive staging
 
 The file input is wrapped in a drop zone with hover feedback
-(`base.html`'s `colonyUploadModal` Alpine helper). Both the browse
-button and drag-drop **append** to a JS-owned staging array — picking
-files repeatedly accumulates them rather than replacing the prior
-selection. Each staged row carries its own filename label, X button,
-and per-file notes input.
+(`base.html`'s `colonyUploadModal` Alpine helper). Browse, drag-drop,
+and clipboard-paste all **append** to a JS-owned staging array —
+picking files repeatedly accumulates them rather than replacing the
+prior selection. Each staged row carries its own filename label, X
+button, and per-file notes input.
+
+Clipboard paste fires on the form-level `@paste` handler and picks up
+any `kind === 'file'` items whose type starts with `image/`.
+Screenshot tools (Snipping Tool, Shift+PrintScreen, browser "Copy
+image") produce synthetic files named `image.png`; OS-level file copy
+preserves the original filename. Non-image clipboard content (plain
+text into a notes input, for example) is left alone — the paste
+handler only calls `preventDefault` when it actually captured at
+least one image.
 
 The underlying `<input type="file">` is **not** the source of truth.
 Browse calls clear the input immediately (so the user can re-pick the

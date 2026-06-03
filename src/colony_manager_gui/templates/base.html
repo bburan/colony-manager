@@ -375,6 +375,29 @@
                     if (!dropped || dropped.length === 0) return;
                     this._appendFiles(dropped);
                 },
+                onPaste(event) {
+                    // Pull image items out of the clipboard payload.
+                    // Screenshot tools and "Copy image" produce a
+                    // synthetic File named ``image.png``; copying a
+                    // real file from the OS file manager preserves
+                    // its filename. Non-image clipboard data (plain
+                    // text into the notes input, for example) is
+                    // left alone so the default paste behaviour
+                    // still works.
+                    if (!event.clipboardData) return;
+                    const items = event.clipboardData.items;
+                    if (!items) return;
+                    const pasted = [];
+                    for (const item of items) {
+                        if (item.kind === 'file' && item.type.startsWith('image/')) {
+                            const f = item.getAsFile();
+                            if (f) pasted.push(f);
+                        }
+                    }
+                    if (pasted.length === 0) return;
+                    event.preventDefault();
+                    this._appendFiles(pasted);
+                },
                 onSubmit(event) {
                     // Rebuild the input's FileList from the staged
                     // array right before multipart serialization. If

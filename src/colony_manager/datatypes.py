@@ -265,6 +265,36 @@ class DataTypeDescription(ABC):
         """
         ...
 
+    # -- Upload contract -----------------------------------------------------
+    #
+    # Subclasses opt in to the upload-from-UI flow by defining a
+    # ``upload_filename`` classmethod. The base class deliberately does NOT
+    # define one — its absence is the opt-out signal that
+    # :func:`is_upload_capable` checks for. See ``docs/uploads.md``.
+    #
+    # Expected signature::
+    #
+    #   @classmethod
+    #   def upload_filename(cls, targets, original_filename, *, date, notes):
+    #       '''Return the relative path to use when ``targets`` upload
+    #       ``original_filename``.
+    #
+    #       ``targets`` is a non-empty list of target instances (Animal,
+    #       Ear, ...), all of the same target_type. Single-target
+    #       descriptions can use ``targets[0]``; multi-target descriptions
+    #       can join e.g. ``' '.join(t.custom_id for t in targets)`` to
+    #       mirror the sync parser's multi-animal filename convention.
+    #
+    #       Return either a plain basename
+    #       (``A001_2026-06-03.jpg``) or a forward-slash-separated
+    #       relative path with subdirectories
+    #       (``A001/2026-06-03.jpg``). Subdirectories are auto-created
+    #       under the chosen ``DataLocation``; ``..`` segments are
+    #       rejected by the service. Preserve the original file
+    #       extension so the UI's image bucket-sort can render
+    #       thumbnails.
+    #       '''
+
     # -- Callback introspection & invocation ---------------------------------
 
     @classmethod
@@ -501,3 +531,20 @@ def load_description_class(key):
             f'{key!r} is not registered in {_REGISTRY_ENV_VAR}. '
             f'Known keys: {sorted(registry)}.'
         )
+
+
+def is_upload_capable(description_cls):
+    """True if *description_cls* opts in to the upload-from-UI flow.
+
+    The opt-in is presence of an ``upload_filename`` method anywhere in
+    the MRO except the abstract base. Walking the MRO lets a subclass
+    inherit upload capability from a parent without redeclaring the
+    method, while keeping :class:`DataTypeDescription` itself out (it
+    intentionally does not define one).
+    """
+    for cls in description_cls.__mro__:
+        if cls in (DataTypeDescription, object):
+            continue
+        if 'upload_filename' in cls.__dict__:
+            return True
+    return False

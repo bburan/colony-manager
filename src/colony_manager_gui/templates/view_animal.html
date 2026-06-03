@@ -94,6 +94,17 @@
                 <div id="collapseFiles" class="accordion-collapse collapse"
                      aria-labelledby="headingFiles">
                     <div class="accordion-body">
+                        <div class="d-flex justify-content-end mb-2">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    title="Upload files to this animal"
+                                    hx-get="{{ url_for('data_files.upload_modal',
+                                                       target_type='animal',
+                                                       target_id=animal.id) }}"
+                                    hx-target="#modalBody">
+                                <i class="fas fa-upload me-1"></i> Upload
+                            </button>
+                        </div>
                         {% with files=animal_data_files, animal=animal %}
                             {% include 'partials/entity_data_files.html' %}
                         {% endwith %}

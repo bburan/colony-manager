@@ -49,6 +49,15 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase mb-0">Files</h2>
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        title="Upload files to this ear"
+                        hx-get="{{ url_for('data_files.upload_modal',
+                                           target_type='ear',
+                                           target_id=ear.id) }}"
+                        hx-target="#modalBody">
+                    <i class="fas fa-upload me-1"></i> Upload
+                </button>
             </div>
             <div class="card-body">
                 {% with files=ear.data_files|sort(attribute='name'), animal=ear.animal %}

@@ -75,6 +75,13 @@ def create_app():
         'THUMBNAIL_CACHE_DIR',
     ) or str(cache_root('thumbnails'))
     app.config['THUMBNAIL_MAX_SIZE'] = int(os.environ.get('THUMBNAIL_MAX_SIZE', '300'))
+    # Cap multipart upload bodies. Flask short-circuits with 413 when a
+    # request exceeds this; the upload route catches that and flashes a
+    # friendly message. Default 100 MiB; override via env for sites that
+    # need to accept larger videos.
+    app.config['MAX_CONTENT_LENGTH'] = (
+        int(os.environ.get('COLONY_MANAGER_MAX_UPLOAD_MB', '100')) * 1024 * 1024
+    )
 
     # --- RQ queue wiring ---
     # REDIS_URL points at a real Redis in prod (set by docker-compose);

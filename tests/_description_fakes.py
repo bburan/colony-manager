@@ -12,6 +12,7 @@ Data rows) rather than file-content semantics.
 """
 import re
 from datetime import date
+from pathlib import Path
 
 from colony_manager.datatypes import DataTypeDescription
 
@@ -78,6 +79,62 @@ class _HashingAnimalDescription(_FilenameAnimalDescription):
         return [self.path]
 
 
+class _UploadableAnimalDescription(_FilenameAnimalDescription):
+    """Animal-target description that opts in to the upload flow.
+
+    Renames uploads to ``<animal_ids>_<YYYY-MM-DD><ext>`` so the
+    round-trip (upload → sync → re-parse) lands on the same animal(s).
+    Inherits ``hash_files() -> []`` from the parent so uploaded rows
+    skip content hashing.
+    """
+
+    @classmethod
+    def upload_filename(cls, targets, original_filename, *, date, notes):
+        ext = Path(original_filename).suffix.lower() or '.bin'
+        ids = ' '.join(t.custom_id for t in targets)
+        return f'{ids}_{date:%Y-%m-%d}{ext}'
+
+
+class _UploadableAnimalDescriptionSubclass(_UploadableAnimalDescription):
+    """Inherits upload capability without redefining ``upload_filename``.
+
+    Used by ``test_is_upload_capable_walks_mro`` to confirm an indirect
+    subclass still registers as upload-capable.
+    """
+
+
+class _HashingUploadableAnimalDescription(_HashingAnimalDescription):
+    """Upload-capable animal description that also hashes content.
+
+    Mirrors ``_UploadableAnimalDescription`` but participates in the
+    hash path — used to test that ``handle_upload`` populates
+    ``file_hash`` for description classes whose ``hash_files()`` is
+    non-empty.
+    """
+
+    @classmethod
+    def upload_filename(cls, targets, original_filename, *, date, notes):
+        ext = Path(original_filename).suffix.lower() or '.bin'
+        ids = ' '.join(t.custom_id for t in targets)
+        return f'{ids}_{date:%Y-%m-%d}{ext}'
+
+
+class _UploadableEarDescription(DataTypeDescription):
+    """Ear-target description that opts in to the upload flow."""
+
+    def parse(self):
+        return None  # filename → metadata mapping not relevant to upload tests
+
+    def hash_files(self):
+        return []
+
+    @classmethod
+    def upload_filename(cls, targets, original_filename, *, date, notes):
+        ext = Path(original_filename).suffix.lower() or '.bin'
+        parts = [f'{t.animal.custom_id}-{t.side[0]}' for t in targets]
+        return f'{" ".join(parts)}_{date:%Y-%m-%d}{ext}'
+
+
 # The registry shape the production loader expects: a module-level
 # ``DESCRIPTION_CLASSES`` dict mapping short keys to subclasses.
 DESCRIPTION_CLASSES = {
@@ -85,4 +142,8 @@ DESCRIPTION_CLASSES = {
     'fake_animal': _FilenameAnimalDescription,
     'fake_animal_event_hashed': _HashingAnimalEventDescription,
     'fake_animal_hashed': _HashingAnimalDescription,
+    'fake_animal_upload': _UploadableAnimalDescription,
+    'fake_animal_upload_subclass': _UploadableAnimalDescriptionSubclass,
+    'fake_animal_upload_hashed': _HashingUploadableAnimalDescription,
+    'fake_ear_upload': _UploadableEarDescription,
 }

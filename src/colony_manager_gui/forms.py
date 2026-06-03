@@ -2,6 +2,7 @@ import re
 from datetime import date, datetime
 from sqlalchemy import select
 from flask_wtf import FlaskForm
+from flask_wtf.file import MultipleFileField
 from wtforms import HiddenField, BooleanField, StringField, IntegerField, DateField, TimeField, FloatField, SelectField, SelectMultipleField, TextAreaField, FieldList, Form, FormField, PasswordField
 from wtforms.validators import DataRequired, InputRequired, NumberRange, Optional, ValidationError, Length, Email, EqualTo
 from wtforms.widgets import ListWidget, CheckboxInput
@@ -173,6 +174,37 @@ def datatype_form_for(target_type, *args, **kwargs):
 
 class DataLocationForm(FlaskForm):
     base_path = StringField('Base Path', validators=[DataRequired()])
+
+
+class UploadFilesForm(FlaskForm):
+    """User-driven file upload from an entity (Animal / Ear / ...) detail page.
+
+    ``datatype`` and ``location`` choices are populated by the route
+    from :mod:`colony_manager_gui.services.uploads`. ``targets`` and
+    ``file_notes`` are intentionally NOT WTForms fields:
+
+    * ``targets`` — the picker is a server-side typeahead and
+      enumerating the entire target table into
+      ``SelectMultipleField.choices`` (potentially hundreds of rows) is
+      wasteful. The route reads ``request.form.getlist('targets')`` and
+      validates each id via ``services.uploads.resolve_targets``, which
+      also enforces ``target_type`` so a forged id cannot sneak through.
+    * ``file_notes`` — an Alpine-rendered notes input per uploaded
+      file. The route reads ``request.form.getlist('file_notes')`` and
+      pairs the entries positionally with the uploaded ``files`` (zip
+      + pad). This is simpler than a ``FieldList`` and avoids a
+      submit-time form re-binding when the file count changes.
+    """
+    datatype = SelectField('Type', coerce=int, validators=[DataRequired()])
+    location = SelectField('Location', coerce=int, validators=[DataRequired()])
+    date = DateField('Date', default=date.today, validators=[DataRequired()])
+    # No ``FileRequired`` here: it would set the HTML5 ``required``
+    # attribute on the rendered input, and the browser would block
+    # submission with "Please select a file" BEFORE the form's
+    # ``@submit`` handler syncs the JS-staged files into the input.
+    # The route validates ``request.files.getlist('files')`` is
+    # non-empty and flashes a friendly error otherwise.
+    files = MultipleFileField('Files')
 
 class NoteForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])

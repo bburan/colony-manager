@@ -1,0 +1,22 @@
+{# Typeahead results — swapped into ``#targetSearchResults`` whenever
+   the user types in the Targets picker.
+
+   Args:
+     matches (iterable of (id, label) tuples) — capped by the service.
+
+   Each row is a ``<button type="button">`` that calls the Alpine
+   ``add(id, label)`` defined on the modal's chip container. The chip
+   container is the nearest ancestor with ``x-data``, so ``@click`` is
+   automatically scoped to it.
+#}
+{# Outer ``@click`` attribute is single-quoted so ``|tojson``'s embedded
+   ``"`` survives without closing the attribute. #}
+{% if matches %}
+{% for id, label in matches %}
+<button type="button"
+        class="list-group-item list-group-item-action py-1 px-2"
+        @click='add({{ id }}, {{ label|tojson }})'>
+    {{ label }}
+</button>
+{% endfor %}
+{% endif %}

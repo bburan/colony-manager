@@ -5,7 +5,10 @@
      animal (Animal) — used by the popup partial for status buttons; for ears
                        pass ear.animal
      title (str, optional) — section header text
-     add_url (str, optional) — kept for future upload support; not used yet
+
+   The Upload button lives on the parent template (view_animal.html /
+   view_ear.html) above the include, so the modal is tied to the
+   entity, not the file list.
 #}
 {% import 'macros.html' as macros %}
 {% set image_exts = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff', '.webp') %}

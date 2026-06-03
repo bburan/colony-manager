@@ -1,0 +1,175 @@
+{# File upload modal body — loaded into ``#modalBody`` via hx-get.
+
+   Args:
+     form          (UploadFilesForm)
+     target        (Animal | Ear | ...) — the launching entity, pre-filled
+                                          as the first chip in the picker.
+     target_type   (str) — polymorphic key (matches TARGET_LOADERS).
+     initial_label (str) — human label for ``target`` (chip text).
+     has_choices   (bool) — false when no upload-capable DataType has a
+                            DataLocation; we render an empty-state alert.
+
+   The ``x-data`` scope wraps the entire form body so a single
+   ``colonyUploadModal`` instance can drive both the chip picker (top)
+   and the per-file notes list (bottom). See ``window.colonyUploadModal``
+   in base.html.
+#}
+{% import "macros.html" as macros %}
+<form action="{{ url_for('data_files.upload_files',
+                         target_type=target_type, target_id=target.id) }}"
+      method="POST" enctype="multipart/form-data"
+      x-data='colonyUploadModal({{ target.id }}, {{ initial_label|tojson }})'
+      @submit="onSubmit($event)">
+    <header class="modal-header">
+        <h3 class="modal-title h6 fw-bold text-uppercase text-secondary">
+            <i class="fas fa-upload me-1"></i> Upload Files
+        </h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </header>
+    <main class="modal-body">
+        {{ form.hidden_tag() }}
+
+        {% if not has_choices %}
+        <div class="alert alert-warning small mb-0">
+            No upload-capable DataType is configured for
+            <strong>{{ target_type }}</strong>. Ask an administrator to
+            register a DataType whose description class implements
+            <code>upload_filename</code> and has at least one
+            DataLocation.
+        </div>
+        {% else %}
+
+        {# --- Targets picker (Alpine chips + HTMX typeahead) --- #}
+        <div class="mb-3">
+            <label class="form-label small fw-bold text-muted">Attach to</label>
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                <template x-for="t in targets" :key="t.id">
+                    <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
+                        <span x-text="t.label"></span>
+                        <button type="button"
+                                class="btn-close btn-close-white"
+                                style="font-size: 0.55rem;"
+                                aria-label="Remove"
+                                @click="remove(t.id)"></button>
+                        <input type="hidden" name="targets" :value="t.id">
+                    </span>
+                </template>
+            </div>
+            <input type="text"
+                   class="form-control form-control-sm"
+                   x-ref="q"
+                   name="q"
+                   placeholder="Search by custom_id…"
+                   autocomplete="off"
+                   hx-get="{{ url_for('data_files.upload_target_search',
+                                      target_type=target_type) }}"
+                   hx-trigger="keyup changed delay:200ms, search"
+                   hx-target="#targetSearchResults"
+                   hx-swap="innerHTML">
+            <div id="targetSearchResults" class="list-group small mt-1"></div>
+        </div>
+
+        {# --- DataType select (cascades to Location) --- #}
+        <div class="mb-2">
+            <label for="datatype" class="form-label small fw-bold text-muted">{{ form.datatype.label.text }}</label>
+            {{ form.datatype(
+                class="form-select form-select-sm",
+                **{
+                    'hx-get': url_for('data_files.upload_locations',
+                                      target_type=target_type, target_id=target.id),
+                    'hx-target': '#uploadLocationContainer',
+                    'hx-swap': 'innerHTML',
+                    'hx-trigger': 'change',
+                }
+            ) }}
+        </div>
+
+        {# --- Location select (HTMX cascade target) --- #}
+        <div class="mb-2" id="uploadLocationContainer">
+            {% include 'partials/upload_locations_select.html' %}
+        </div>
+
+        {# --- Date --- #}
+        <div class="mb-2">
+            <label for="date" class="form-label small fw-bold text-muted">{{ form.date.label.text }}</label>
+            {{ form.date(class="form-control form-control-sm") }}
+        </div>
+
+        {# --- Files + per-file notes ---
+              The file input is wrapped in a drop zone. Native
+              ``<input type=file>`` ignores drag-and-drop, so the
+              wrapper intercepts the events and copies the dropped
+              ``FileList`` into the input via a ``DataTransfer``
+              (see ``onDrop`` in base.html's ``colonyUploadModal``).
+              ``.prevent`` stops the browser's default "open the file"
+              behaviour. #}
+        <div class="mb-2">
+            <label for="files" class="form-label small fw-bold text-muted">{{ form.files.label.text }}</label>
+            <div class="p-3 rounded text-center"
+                 style="border: 2px dashed var(--bs-border-color); transition: background-color .15s, border-color .15s;"
+                 :style="dragDepth > 0 ? 'border: 2px dashed var(--bs-primary); background-color: var(--bs-primary-bg-subtle);' : ''"
+                 @dragenter.prevent="onDragEnter()"
+                 @dragover.prevent
+                 @dragleave.prevent="onDragLeave()"
+                 @drop.prevent="onDrop($event)">
+                <div class="small text-muted mb-2">
+                    <i class="fas fa-cloud-upload-alt me-1"></i>
+                    Drag files here, or browse:
+                </div>
+                {{ form.files(
+                    class="form-control form-control-sm",
+                    multiple=True,
+                    **{'@change': 'onFilesChanged($event)', 'x-ref': 'filesInput'}
+                ) }}
+            </div>
+            <div class="form-text small">
+                Each file is renamed by the DataType's description class
+                before being written to the location.
+            </div>
+        </div>
+
+        {# Staged files — appears as soon as the user picks or drops
+           any. Each row shows the filename, a Remove button, and a
+           per-file notes input. The ``name="file_notes"`` inputs are
+           submitted in document order, which matches the order of
+           files in the input's FileList (rebuilt from this array by
+           ``onSubmit``); the route pairs them positionally with
+           ``request.files.getlist('files')``. #}
+        <div class="mb-2" x-show="files.length > 0" x-cloak>
+            <label class="form-label small fw-bold text-muted">
+                Staged files
+                (<span x-text="files.length"></span>)
+            </label>
+            <div class="list-group small">
+                <template x-for="(f, idx) in files" :key="idx">
+                    <div class="list-group-item p-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="text-muted text-truncate small flex-grow-1"
+                                 style="min-width: 0;"
+                                 x-text="f.name"
+                                 :title="f.name"></div>
+                            <button type="button"
+                                    class="btn-close"
+                                    style="font-size: 0.55rem;"
+                                    aria-label="Remove this file"
+                                    @click="removeFile(idx)"></button>
+                        </div>
+                        <input type="text"
+                               class="form-control form-control-sm mt-1"
+                               name="file_notes"
+                               placeholder="Notes for this file (optional)"
+                               x-model="f.notes">
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        {% endif %}
+    </main>
+    <footer class="modal-footer border-top-0 pb-4 px-4">
+        <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm px-3" {% if not has_choices %}disabled{% endif %}>
+            Upload
+        </button>
+    </footer>
+</form>

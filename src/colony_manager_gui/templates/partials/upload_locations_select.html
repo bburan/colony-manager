@@ -1,0 +1,26 @@
+{# DataLocation cascade target — swapped into ``#uploadLocationContainer``
+   whenever the DataType select changes.
+
+   Args:
+     locations (iterable of DataLocation) — may be empty.
+
+   Rendered both during the initial modal load (with ``form`` in scope)
+   and from the cascade endpoint (without ``form``). The plain
+   ``name="location"`` markup posts back correctly either way because
+   ``UploadFilesForm.location`` is a ``SelectField`` with ``coerce=int``;
+   WTForms reads the value from the request directly, regardless of how
+   the ``<select>`` was rendered.
+#}
+<label for="location" class="form-label small fw-bold text-muted">Location</label>
+<select name="location" id="location" class="form-select form-select-sm">
+{% if not locations %}
+    <option value="" disabled selected>(no location configured)</option>
+{% else %}
+{% for loc in locations %}
+    <option value="{{ loc.id }}"
+            {% if locations|length == 1 %}selected{% endif %}>
+        {{ loc.base_path }}
+    </option>
+{% endfor %}
+{% endif %}
+</select>

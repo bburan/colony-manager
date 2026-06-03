@@ -297,6 +297,100 @@
             }
         });
 
+        // Alpine component used by the file-upload modal
+        // (partials/upload_modal.html). Lives on ``window`` so the
+        // x-data attribute can reference it after HTMX swaps the modal
+        // body into the DOM. Stateless — re-rendering the modal is
+        // free.
+        //
+        // Tracks two pieces of UI state:
+        //   * ``targets`` — chip picker (Animal / Ear instances).
+        //   * ``files``   — one entry per file the user picked, with a
+        //                   per-file ``notes`` string. Repopulated on
+        //                   each change of the underlying file input,
+        //                   so re-picking files always re-syncs the
+        //                   notes rows.
+        window.colonyUploadModal = function (initialId, initialLabel) {
+            // ``rawFiles`` lives in the closure, NOT inside the
+            // x-data object. Alpine's reactivity wraps everything it
+            // can reach with a Proxy, and Proxy-wrapped File objects
+            // lose their prototype-chain getters — ``proxyFile.name``
+            // returns ``undefined``. Keeping the File instances out of
+            // the reactive tree preserves their getters. The reactive
+            // ``files`` array carries only the plain strings the
+            // template renders; the two arrays stay in lockstep order.
+            const rawFiles = [];
+            return {
+                targets: [{id: initialId, label: initialLabel}],
+                // ``files`` is the visible staging list: one
+                // ``{name, notes}`` per ``rawFiles[i]``. Browse and
+                // drag-drop APPEND to both; the X button on each row
+                // splices both. The underlying ``<input type=file>``
+                // is synced from ``rawFiles`` only at form-submit time
+                // (``onSubmit``) — meanwhile the input is cleared
+                // after each browse so the user can re-pick the same
+                // file later if they removed it from the list.
+                files: [],
+                // ``dragDepth`` is a counter rather than a boolean
+                // because ``dragenter`` / ``dragleave`` fire on every
+                // child element as the cursor moves around the drop
+                // zone — toggling a boolean would flicker. The drop
+                // zone is "active" iff depth > 0.
+                dragDepth: 0,
+                add(id, label) {
+                    if (this.targets.find(t => t.id === id)) return;
+                    this.targets.push({id: id, label: label});
+                    const results = document.getElementById('targetSearchResults');
+                    if (results) results.innerHTML = '';
+                    if (this.$refs.q) this.$refs.q.value = '';
+                },
+                remove(id) {
+                    if (this.targets.length <= 1) return;
+                    this.targets = this.targets.filter(t => t.id !== id);
+                },
+                _appendFiles(fileList) {
+                    for (const f of fileList) {
+                        rawFiles.push(f);
+                        this.files.push({name: f.name, notes: ''});
+                    }
+                },
+                onFilesChanged(event) {
+                    this._appendFiles(event.target.files);
+                    // Clear the input so a subsequent browse of the
+                    // same file still fires ``change`` (browsers
+                    // suppress the event when ``value`` is unchanged).
+                    event.target.value = '';
+                },
+                removeFile(idx) {
+                    this.files.splice(idx, 1);
+                    rawFiles.splice(idx, 1);
+                },
+                onDragEnter() { this.dragDepth += 1; },
+                onDragLeave() {
+                    this.dragDepth = Math.max(0, this.dragDepth - 1);
+                },
+                onDrop(event) {
+                    this.dragDepth = 0;
+                    const dropped = event.dataTransfer && event.dataTransfer.files;
+                    if (!dropped || dropped.length === 0) return;
+                    this._appendFiles(dropped);
+                },
+                onSubmit(event) {
+                    // Rebuild the input's FileList from the staged
+                    // array right before multipart serialization. If
+                    // JS is somehow disabled or this handler doesn't
+                    // run, the form still submits whatever the input
+                    // currently holds — a graceful fallback to the
+                    // pre-staging behaviour.
+                    const input = this.$refs.filesInput;
+                    if (!input) return;
+                    const dt = new DataTransfer();
+                    for (const f of rawFiles) dt.items.add(f);
+                    input.files = dt.files;
+                },
+            };
+        };
+
         document.addEventListener('show.bs.popover', function (e) {
             const allPopovers = document.querySelectorAll('[data-bs-toggle="popover"]');
             allPopovers.forEach(el => {

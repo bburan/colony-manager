@@ -23,12 +23,15 @@
     {% endif %}
     <dt class="col-4">Tags</dt>
     <dd class="col-8">
-        <ul class="list-group list-group-horizontal">
+        <div class="d-flex flex-wrap gap-1">
             {% for tag in animal.tags %}
-                <li class="list-group-item">{{ tag.name }}</li>
+                <a href="{{ url_for('animals.list_animals', tag_id=tag.id, status_filter='all') }}"
+                   class="badge rounded-pill bg-secondary text-decoration-none"
+                   title="{{ tag.display_name }}">{{ tag.display_name }}</a>
+            {% else %}
+                <span class="text-muted small">—</span>
             {% endfor %}
-        </ul>
-
+        </div>
     </dd>
     <dt class="col-4 d-flex align-items-center">
         <span>Studies</span>
@@ -40,12 +43,13 @@
                 hx-target="#modalBody"><i class="fas fa-plus"></i></button>
     </dt>
     <dd class="col-8">
-        <ul class="list-group">
+        <div class="d-flex flex-wrap gap-1">
             {% for study in animal.studies %}
-                <li class="list-group-item">
-                    <a href="{{ url_for('studies.view_study', study_id=study.id) }}" class="text-decoration-none">{{ study.name }}</a>
-                </li>
+                <a href="{{ url_for('studies.view_study', study_id=study.id) }}"
+                   class="badge rounded-pill bg-primary text-decoration-none">{{ study.name }}</a>
+            {% else %}
+                <span class="text-muted small">—</span>
             {% endfor %}
-        </ul>
+        </div>
     </dd>
 </dl>

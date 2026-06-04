@@ -644,12 +644,13 @@ class Cage(VersionedModel):
 
 class AnimalTag(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)
-    name = Column(String(150), unique=True, nullable=False)
+    name = Column(String(150), nullable=False)
     parent_id = Column(Integer, ForeignKey('animal_tag.id'), nullable=True)
     subtags = relationship(
         'AnimalTag',
         backref=backref('parent', remote_side=[id]),
     )
+    __table_args__ = (UniqueConstraint('name', 'parent_id'),)
 
 class Animal(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -1067,12 +1068,13 @@ class FeedLog(VersionedModel):
 
 class AnimalEventTag(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)
-    name = Column(String(150), unique=True, nullable=False)
+    name = Column(String(150), nullable=False)
     parent_id = Column(Integer, ForeignKey('animal_event_tag.id'), nullable=True)
     subtags = relationship(
         'AnimalEventTag',
         backref=backref('parent', remote_side=[id]),
     )
+    __table_args__ = (UniqueConstraint('name', 'parent_id'),)
 
 class AnimalEvent(VersionedModel):
     id = Column(Integer, primary_key=True)
@@ -1187,12 +1189,13 @@ class Ear(VersionedModel):
 
 class EarTag(VersionedModel, NestedMixin):
     id = Column(Integer, primary_key=True)
-    name = Column(String(150), unique=True, nullable=False)
+    name = Column(String(150), nullable=False)
     parent_id = Column(Integer, ForeignKey('ear_tag.id'), nullable=True)
     subtags = relationship(
         'EarTag',
         backref=backref('parent', remote_side=[id]),
     )
+    __table_args__ = (UniqueConstraint('name', 'parent_id'),)
 
 class ConfocalImageType(VersionedModel):
     id = Column(Integer, primary_key=True)

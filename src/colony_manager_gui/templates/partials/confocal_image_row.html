@@ -1,5 +1,4 @@
 {% set image_options = {
-    'pending': 'Pending',
     'imaged': 'Imaged',
     'analyzed': 'Analyzed',
     'region_missing': 'Region Missing',
@@ -19,10 +18,14 @@
        @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }">
     <tr>
         <td class="fw-semibold">{{ img.frequency }}</td>
+        {% set status_known = img.status in image_options %}
         <td>
             <select name="status" autocomplete="off"
-                    class="form-select form-select-sm border-0 bg-light"
+                    class="form-select form-select-sm border-0 {% if not status_known %}bg-danger text-white{% else %}bg-light{% endif %}"
                     :class="{ 'bg-success-subtle': success, 'bg-danger-subtle': error }">
+                {% if not status_known %}
+                    <option value="{{ img.status }}" selected>{{ img.status }} (unrecognized)</option>
+                {% endif %}
                 {% for value, label in image_options.items() %}
                     <option value="{{ value }}" {% if img.status == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}

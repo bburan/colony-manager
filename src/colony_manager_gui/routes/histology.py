@@ -382,7 +382,7 @@ def create_confocal_image(ear_id):
                 frequency=float(freq_str),
                 image_type=form.image_type.data,
                 notes=form.notes.data,
-                status='pending',
+                status='imaged',
             )
             db.session.add(new_image)
             new_images.append(new_image)

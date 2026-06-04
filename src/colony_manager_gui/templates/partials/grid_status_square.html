@@ -1,23 +1,21 @@
 {# Renders the colored status square for one ConfocalImage. Used both inline
    in the grid table and as an OOB swap target after status/notes updates. #}
 {% set status_colors = {
-    'pending': '#adb5bd',
     'imaged': '#0dcaf0',
     'analyzed': '#198754',
     'region_missing': '#343a40',
-    'region_bad': '#dc3545',
+    'region_bad': '#6c757d',
     'need_review': '#ffc107',
 } %}
 {% set status_labels = {
-    'pending': 'Pending',
     'imaged': 'Imaged',
     'analyzed': 'Analyzed',
     'region_missing': 'Region Missing',
     'region_bad': 'Poor histology',
     'need_review': 'Needs review',
 } %}
-{% set status = img.status or 'pending' %}
-{% set color = status_colors.get(status, '#adb5bd') %}
+{% set status = img.status or 'imaged' %}
+{% set color = status_colors.get(status, '#dc3545') %}
 {% set file_count = img.data_files|length %}
 {% set has_files = file_count > 0 %}
 {% set status_implies_work = status in ('imaged', 'analyzed', 'need_review', 'region_bad') %}

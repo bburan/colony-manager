@@ -659,17 +659,41 @@
             }
         });
 
+        function _loadBokehResources(jsUrls, cssUrls) {
+            for (const url of (cssUrls || [])) {
+                if (!document.querySelector(`link[href="${url}"]`)) {
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = url;
+                    document.head.appendChild(link);
+                }
+            }
+            // Load JS files sequentially — bokeh-widgets depends on bokeh core.
+            const pending = (jsUrls || []).filter(
+                url => !document.querySelector(`script[src="${url}"]`)
+            );
+            return pending.reduce((chain, url) => chain.then(
+                () => new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = url;
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                })
+            ), Promise.resolve());
+        }
+
         async function openPlotModal(url, title) {
             const plotModalElement = document.getElementById('plotModal');
             const plotModalTitle = document.getElementById('plotModalTitle');
             const plotModalBody = document.getElementById('plotModalBody');
-            
+
             // Get or create modal instance
             let modalInstance = bootstrap.Modal.getInstance(plotModalElement);
             if (!modalInstance) {
                 modalInstance = new bootstrap.Modal(plotModalElement);
             }
-            
+
             plotModalTitle.textContent = title || 'Data Plot';
             plotModalBody.innerHTML = `
                 <div class="d-flex justify-content-center p-5">
@@ -691,10 +715,43 @@
                     }
                 }
                 const plotData = await response.json();
-                
-                plotModalBody.innerHTML = '<div id="plotly-chart" style="width:100%; height: 600px;"></div>';
-                Plotly.newPlot('plotly-chart', plotData.data || plotData, plotData.layout || {}, {responsive: true});
-                
+
+                if (plotData.type === 'bokeh') {
+                    await _loadBokehResources(plotData.js_urls, plotData.css_urls);
+
+                    if (plotData.figure_div) {
+                        // Image plot: figure wrapped in a CSS aspect-ratio container
+                        // so the browser maintains square pixels on every resize
+                        // without any JS resize handler.
+                        const ar = plotData.image_width / plotData.image_height;
+                        plotModalBody.innerHTML = '';
+
+                        const figWrapper = document.createElement('div');
+                        figWrapper.style.cssText = 'width:100%;aspect-ratio:' + ar + ';';
+                        figWrapper.innerHTML = plotData.figure_div;
+                        const bkRoot = figWrapper.querySelector('[data-root-id]');
+                        if (bkRoot) bkRoot.style.cssText = 'width:100%;height:100%;';
+                        plotModalBody.appendChild(figWrapper);
+
+                        const ctrlEl = document.createElement('div');
+                        ctrlEl.innerHTML = plotData.controls_div || '';
+                        plotModalBody.appendChild(ctrlEl);
+                    } else {
+                        plotModalBody.innerHTML = plotData.div;
+                    }
+
+                    const parser = new DOMParser();
+                    const scriptEl = parser.parseFromString(plotData.script, 'text/html').querySelector('script');
+                    if (scriptEl) {
+                        const s = document.createElement('script');
+                        s.textContent = scriptEl.textContent;
+                        document.body.appendChild(s);
+                    }
+                } else {
+                    plotModalBody.innerHTML = '<div id="plotly-chart" style="width:100%; height: 600px;"></div>';
+                    Plotly.newPlot('plotly-chart', plotData.data || plotData, plotData.layout || {}, {responsive: true});
+                }
+
             } catch (error) {
                 plotModalBody.innerHTML = `
                     <div class="alert alert-danger m-3">

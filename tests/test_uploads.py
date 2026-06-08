@@ -26,6 +26,7 @@ from sqlalchemy import select
 from colony_manager.datatypes import (
     DataTypeDescription, is_upload_capable, reset_registry_cache,
 )
+from colony_manager.enums import DataStatus
 from colony_manager.models import (
     AnimalData, Data, EarData,
 )
@@ -296,7 +297,7 @@ def test_handle_upload_creates_animal_data_row(db_session, app, tmp_path):
     row = rows[0]
     assert row.name == 'A001_2025-06-15.jpg'
     assert row.relative_path == 'A001_2025-06-15.jpg'
-    assert row.status == 'reviewed'
+    assert row.status == DataStatus.REVIEWED
     assert row.notes == 'handled by Dr. Smith'
     assert row.date == date(2025, 6, 15)
     assert row.discovered_at is not None

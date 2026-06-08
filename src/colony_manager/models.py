@@ -2,6 +2,8 @@ from datetime import date, datetime, timedelta
 import re
 from statistics import mean
 
+from colony_manager.enums import DataStatus, SyncJobStatus
+
 from sqlalchemy import (
     func, orm, UniqueConstraint, Index, MetaData, Table, Column, Integer, String,
     ForeignKey, Text, Boolean, Date, DateTime, Time, Float, JSON, and_, or_
@@ -458,7 +460,7 @@ class Data(VersionedModel):
     file_hash = Column(String(64), nullable=True)
     name = Column(String(255), nullable=False)
     date = Column(Date, nullable=True)
-    status = Column(String(50), nullable=False, default='unreviewed')
+    status = Column(String(50), nullable=False, default=DataStatus.UNREVIEWED)
     notes = Column(Text, nullable=True)
     mtime = Column(DateTime, nullable=True)
     ctime = Column(DateTime, nullable=True)
@@ -717,7 +719,7 @@ class Animal(VersionedModel):
     def last_event_date(self):
         completion_dates = [
             e.completion_date for e in self.events
-            if e.status == 'completed' and e.completion_date is not None
+            if e.completion_date is not None
         ]
         return max(completion_dates) if completion_dates else date.min
 
@@ -1298,8 +1300,7 @@ class SyncJob(Base):
     )
     # 'sync' | 'rematch' | 'force_rematch'
     kind = Column(String(32), nullable=False)
-    # 'pending' | 'running' | 'success' | 'failed'
-    status = Column(String(32), nullable=False, default='pending')
+    status = Column(String(32), nullable=False, default=SyncJobStatus.PENDING)
     enqueued_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)

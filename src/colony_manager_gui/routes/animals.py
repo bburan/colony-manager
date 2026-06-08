@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy import func, case, or_, select
 from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
+from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Cage, Study, Ear, Feed, FeedLog,
@@ -974,7 +975,7 @@ def auto_create_unmatched_data():
 def set_data_status(animal_id, data_id):
     """Toggle the status of a Data file (reviewed / excluded / unreviewed)."""
     data_file = get_or_404(Data, data_id)
-    new_status = request.form.get('status', 'unreviewed')
+    new_status = request.form.get('status', DataStatus.UNREVIEWED)
     data_file.status = new_status
     db.session.commit()
     

@@ -13,13 +13,14 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from colony_manager.enums import SyncJobKind, SyncJobStatus
 from colony_manager.models import SyncJob
 from colony_manager_gui.worker import _sweep_stale_jobs
 
 
 def test_sweep_marks_row_without_rq_job_id(db_session, app):
     """A row in 'pending' with no rq_job_id is presumed orphaned."""
-    job = SyncJob(kind='sync', status='pending', rq_job_id=None)
+    job = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING, rq_job_id=None)
     db_session.add(job)
     db_session.commit()
     job_id = job.id
@@ -28,7 +29,7 @@ def test_sweep_marks_row_without_rq_job_id(db_session, app):
 
     db_session.expire_all()
     refreshed = db_session.get(SyncJob, job_id)
-    assert refreshed.status == 'failed'
+    assert refreshed.status == SyncJobStatus.FAILED
     assert refreshed.error == 'Worker restarted while job was in flight.'
     assert refreshed.finished_at is not None
 
@@ -36,7 +37,8 @@ def test_sweep_marks_row_without_rq_job_id(db_session, app):
 def test_sweep_marks_row_with_stale_rq_job_id(db_session, app):
     """A row whose RQ id no longer exists in Redis is failed."""
     job = SyncJob(
-        kind='rematch', status='running', rq_job_id='nonexistent-rq-id',
+        kind=SyncJobKind.REMATCH, status=SyncJobStatus.RUNNING,
+        rq_job_id='nonexistent-rq-id',
     )
     db_session.add(job)
     db_session.commit()
@@ -46,7 +48,7 @@ def test_sweep_marks_row_with_stale_rq_job_id(db_session, app):
 
     db_session.expire_all()
     refreshed = db_session.get(SyncJob, job_id)
-    assert refreshed.status == 'failed'
+    assert refreshed.status == SyncJobStatus.FAILED
     assert refreshed.error == 'Worker restarted while job was in flight.'
 
 
@@ -67,7 +69,7 @@ def test_sweep_keeps_row_with_live_rq_job_id(db_session, app):
     # non-terminal state. Real-world this would never linger like
     # this — but the sweep mustn't touch it either way.
     job = SyncJob(
-        kind='sync', status='pending', rq_job_id=rq_job.id,
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING, rq_job_id=rq_job.id,
     )
     db_session.add(job)
     db_session.commit()
@@ -77,7 +79,7 @@ def test_sweep_keeps_row_with_live_rq_job_id(db_session, app):
 
     db_session.expire_all()
     refreshed = db_session.get(SyncJob, job_id)
-    assert refreshed.status == 'pending'  # unchanged
+    assert refreshed.status == SyncJobStatus.PENDING  # unchanged
     assert refreshed.error is None
     assert refreshed.finished_at is None
 
@@ -85,12 +87,12 @@ def test_sweep_keeps_row_with_live_rq_job_id(db_session, app):
 def test_sweep_ignores_terminal_states(db_session, app):
     """Rows already in ``success`` / ``failed`` aren't touched."""
     succeeded = SyncJob(
-        kind='sync', status='success', rq_job_id=None,
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS, rq_job_id=None,
         finished_at=datetime(2025, 1, 1, 12, 0, 0),
     )
     failed = SyncJob(
-        kind='sync', status='failed', rq_job_id=None, error='prior boom',
-        finished_at=datetime(2025, 1, 2, 12, 0, 0),
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.FAILED, rq_job_id=None,
+        error='prior boom', finished_at=datetime(2025, 1, 2, 12, 0, 0),
     )
     db_session.add_all([succeeded, failed])
     db_session.commit()
@@ -99,9 +101,9 @@ def test_sweep_ignores_terminal_states(db_session, app):
     _sweep_stale_jobs(app, app.rq_queue)
 
     db_session.expire_all()
-    assert db_session.get(SyncJob, succ_id).status == 'success'
+    assert db_session.get(SyncJob, succ_id).status == SyncJobStatus.SUCCESS
     refreshed_failed = db_session.get(SyncJob, fail_id)
-    assert refreshed_failed.status == 'failed'
+    assert refreshed_failed.status == SyncJobStatus.FAILED
     assert refreshed_failed.error == 'prior boom'  # original error preserved
 
 
@@ -118,10 +120,10 @@ def test_sweep_handles_mixed_rows(db_session, app):
     with app.app_context():
         rq_job = app.rq_queue.enqueue(lambda: None)
 
-    stale = SyncJob(kind='sync', status='pending', rq_job_id='dead-id')
-    live = SyncJob(kind='sync', status='pending', rq_job_id=rq_job.id)
+    stale = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING, rq_job_id='dead-id')
+    live = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING, rq_job_id=rq_job.id)
     done = SyncJob(
-        kind='sync', status='success', rq_job_id='whatever',
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS, rq_job_id='whatever',
         finished_at=datetime(2025, 1, 1),
     )
     db_session.add_all([stale, live, done])
@@ -131,6 +133,6 @@ def test_sweep_handles_mixed_rows(db_session, app):
     _sweep_stale_jobs(app, app.rq_queue)
 
     db_session.expire_all()
-    assert db_session.get(SyncJob, stale_id).status == 'failed'
-    assert db_session.get(SyncJob, live_id).status == 'pending'
-    assert db_session.get(SyncJob, done_id).status == 'success'
+    assert db_session.get(SyncJob, stale_id).status == SyncJobStatus.FAILED
+    assert db_session.get(SyncJob, live_id).status == SyncJobStatus.PENDING
+    assert db_session.get(SyncJob, done_id).status == SyncJobStatus.SUCCESS

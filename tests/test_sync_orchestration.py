@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import select
 
 from colony_manager.datatypes import reset_registry_cache
+from colony_manager.enums import DataStatus
 from colony_manager.models import AnimalEvent, AnimalEventData, AnimalData, Data
 
 from .factories import (
@@ -366,7 +367,7 @@ def test_intra_location_move_does_not_re_flag_as_missing(
     db_session.expire_all()
     row = db_session.scalars(select(AnimalEventData)).one()
     assert row.relative_path == 'MV-1_2025-12-01.txt'
-    assert row.status == 'unreviewed'
+    assert row.status == DataStatus.UNREVIEWED
     original_id = row.id
     original_hash = row.file_hash
     assert original_hash, 'file_hash should be populated by the hashing fake'
@@ -391,7 +392,7 @@ def test_intra_location_move_does_not_re_flag_as_missing(
     row = db_session.get(AnimalEventData, original_id)
     assert row is not None
     assert row.relative_path == 'subdir/MV-1_2025-12-01.txt'
-    assert row.status == 'unreviewed'  # not 'missing'!
+    assert row.status == DataStatus.UNREVIEWED  # not 'missing'!
     assert row.file_hash == original_hash
 
 
@@ -435,7 +436,7 @@ def test_sync_recovers_missing_row_when_file_reappears(
         location_id=location.id,
         relative_path='REC-1_2025-12-08.txt',
         name='REC-1_2025-12-08.txt',
-        status='missing',
+        status=DataStatus.MISSING,
     )
     db_session.add(stuck)
     db_session.commit()
@@ -477,7 +478,7 @@ def test_sync_does_not_recover_when_file_actually_missing(
         location_id=location.id,
         relative_path='GONE-1_2025-12-08.txt',
         name='GONE-1_2025-12-08.txt',
-        status='missing',
+        status=DataStatus.MISSING,
     )
     db_session.add(stuck)
     db_session.commit()
@@ -494,7 +495,7 @@ def test_sync_does_not_recover_when_file_actually_missing(
 
     db_session.expire_all()
     refreshed = db_session.get(AnimalEventData, stuck_id)
-    assert refreshed.status == 'missing'
+    assert refreshed.status == DataStatus.MISSING
 
 
 def test_move_re_resolves_targets_when_animal_id_changes(

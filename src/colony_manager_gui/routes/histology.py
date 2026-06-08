@@ -2,6 +2,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import contains_eager, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response
 
+from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
     Ear, EarTag, Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Study, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
@@ -277,7 +278,12 @@ def view_grid():
     if conflicts_only:
         # data_files is already selectinloaded above, so img.data_files is an
         # in-memory list — no further queries issued here.
-        conflict_statuses = {'imaged', 'analyzed', 'need_review', 'region_bad'}
+        conflict_statuses = {
+            ConfocalImageStatus.IMAGED,
+            ConfocalImageStatus.ANALYZED,
+            ConfocalImageStatus.NEED_REVIEW,
+            ConfocalImageStatus.REGION_BAD,
+        }
 
         def ear_has_conflict(ear):
             if ear.id in orphans_by_ear:
@@ -382,7 +388,7 @@ def create_confocal_image(ear_id):
                 frequency=float(freq_str),
                 image_type=form.image_type.data,
                 notes=form.notes.data,
-                status='imaged',
+                status=ConfocalImageStatus.IMAGED,
             )
             db.session.add(new_image)
             new_images.append(new_image)

@@ -13,6 +13,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 
+from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalEventData, Data, DataLocation, FeedLog,
     WeightLog,
@@ -486,7 +487,7 @@ def test_list_unmatched_data_missing_status_filter(logged_in_client):
     assert response.status_code == 200
 
 
-def _make_unmatched_data_row(db_session, *, status='missing', name='f.txt'):
+def _make_unmatched_data_row(db_session, *, status=DataStatus.MISSING, name='f.txt'):
     """Helper: build the minimum DataType + DataLocation + AnimalEventData
     row needed to exercise the unmatched-data delete path.
     """
@@ -560,7 +561,7 @@ def test_bulk_auto_create_unmatched_data_creates_events(
         location_id=location.id,
         relative_path='AC-1_2025-12-10.txt',
         name='AC-1_2025-12-10.txt',
-        status='unreviewed',
+        status=DataStatus.UNREVIEWED,
         date=date(2025, 12, 10),
         # Populated by sync in real use; auto_create_animal_event's
         # siblings-linking step reads this to decide whether to
@@ -613,7 +614,7 @@ def test_bulk_auto_create_skips_files_without_candidates(
         location_id=location.id,
         relative_path='orphan.txt',
         name='orphan.txt',
-        status='unreviewed',
+        status=DataStatus.UNREVIEWED,
         date=date(2025, 12, 10),
     )
     db_session.add(row)

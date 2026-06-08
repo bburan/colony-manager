@@ -7,6 +7,8 @@ app boots against the same DB. These tests don't cover any feature
 """
 from sqlalchemy import select
 
+from colony_manager.enums import SyncJobKind, SyncJobStatus
+
 
 def test_db_session_round_trip(db_session):
     """Insert and read back a row using the colony_manager.db session.
@@ -46,7 +48,7 @@ def test_sync_job_rq_job_id_column_round_trip(db_session):
     from colony_manager.models import SyncJob
 
     job = SyncJob(
-        kind='sync', status='pending', rq_job_id='deadbeef-cafe-1234',
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING, rq_job_id='deadbeef-cafe-1234',
     )
     db_session.add(job)
     db_session.commit()

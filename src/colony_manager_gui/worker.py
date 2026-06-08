@@ -37,12 +37,15 @@ def _sweep_stale_jobs(app, queue):
     from rq.job import Job
     from rq.exceptions import NoSuchJobError
 
+    from colony_manager.enums import SyncJobStatus
     from colony_manager.models import SyncJob
     from . import db
 
     with app.app_context():
         rows = db.session.scalars(
-            select(SyncJob).where(SyncJob.status.in_(('pending', 'running')))
+            select(SyncJob).where(
+                SyncJob.status.in_((SyncJobStatus.PENDING, SyncJobStatus.RUNNING))
+            )
         ).all()
         swept = 0
         for job in rows:
@@ -52,7 +55,7 @@ def _sweep_stale_jobs(app, queue):
                     continue  # still live in Redis
                 except NoSuchJobError:
                     pass
-            job.status = 'failed'
+            job.status = SyncJobStatus.FAILED
             job.error = 'Worker restarted while job was in flight.'
             job.finished_at = datetime.utcnow()
             swept += 1

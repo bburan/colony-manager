@@ -9,6 +9,7 @@ from flask_login import current_user, login_user
 from datetime import date, timedelta
 
 from colony_manager import models
+from colony_manager.enums import ConfocalImageStatus
 
 from .. import db
 from .. import forms
@@ -176,12 +177,12 @@ def view_dashboard():
     image_analysis_pending = db.session.scalars(
         select(models.ConfocalImage)
         .options(*_image_options)
-        .where(models.ConfocalImage.status == 'pending')
+        .where(models.ConfocalImage.status == ConfocalImageStatus.IMAGED)
     ).all()
     image_analysis_review = db.session.scalars(
         select(models.ConfocalImage)
         .options(*_image_options)
-        .where(models.ConfocalImage.status == 'need_review')
+        .where(models.ConfocalImage.status == ConfocalImageStatus.NEED_REVIEW)
     ).all()
 
     species_id = int(session.get('selected_species', -1))

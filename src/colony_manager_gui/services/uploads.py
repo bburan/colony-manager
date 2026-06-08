@@ -24,6 +24,7 @@ from sqlalchemy import select
 from werkzeug.utils import safe_join
 
 from colony_manager.datatypes import is_upload_capable, load_description_class
+from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, DATA_SUBCLASSES, Data, DataLocation, DataType, Ear,
 )
@@ -479,7 +480,7 @@ def handle_upload(
         date=date,
         notes=(notes or None),
         file_hash=file_hash,
-        status='reviewed',
+        status=DataStatus.REVIEWED,
         mtime=datetime.fromtimestamp(stat.st_mtime),
         ctime=datetime.fromtimestamp(stat.st_ctime),
         discovered_at=datetime.now(),

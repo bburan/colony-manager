@@ -13,6 +13,7 @@ from datetime import date
 
 from sqlalchemy import select
 
+from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
     ConfocalImage, ConfocalImageType, Ear, ImmunolabelingPanel,
 )
@@ -76,7 +77,7 @@ def test_view_grid_with_seeded_image_type(logged_in_client, db_session):
     ear = make_ear(db_session, animal=animal, side='Left')
     db_session.add(ConfocalImage(
         ear_id=ear.id, image_type_id=image_type.id,
-        frequency=8000.0, status='pending',
+        frequency=8000.0, status=ConfocalImageStatus.IMAGED,
     ))
     db_session.commit()
 
@@ -150,7 +151,7 @@ def test_delete_ear_with_images_refuses(logged_in_client, db_session):
     ear = make_ear(db_session, animal=animal, side='Left')
     db_session.add(ConfocalImage(
         ear_id=ear.id, image_type_id=image_type.id,
-        frequency=8000.0, status='pending',
+        frequency=8000.0, status=ConfocalImageStatus.IMAGED,
     ))
     db_session.commit()
     ear_id = ear.id
@@ -169,7 +170,7 @@ def test_delete_confocal_image(logged_in_client, db_session):
     ear = make_ear(db_session, animal=animal, side='Left')
     img = ConfocalImage(
         ear_id=ear.id, image_type_id=image_type.id,
-        frequency=8000.0, status='pending',
+        frequency=8000.0, status=ConfocalImageStatus.IMAGED,
     )
     db_session.add(img)
     db_session.commit()

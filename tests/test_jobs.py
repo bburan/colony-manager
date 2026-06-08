@@ -23,6 +23,7 @@ import json
 import pytest
 from sqlalchemy import select
 
+from colony_manager.enums import SyncJobKind, SyncJobStatus
 from colony_manager.models import SyncJob
 from colony_manager_gui import jobs
 
@@ -47,9 +48,9 @@ def test_enqueue_datatype_sync_runs_to_completion(app, db_session, tmp_path):
 
     db_session.expire_all()
     job = db_session.get(SyncJob, job_id)
-    assert job.kind == 'sync'
+    assert job.kind == SyncJobKind.SYNC
     assert job.datatype_id == dtype.id
-    assert job.status == 'success'
+    assert job.status == SyncJobStatus.SUCCESS
     assert job.started_at is not None
     assert job.finished_at is not None
     assert job.rq_job_id is not None
@@ -69,8 +70,8 @@ def test_enqueue_datatype_rematch_runs_to_completion(app, db_session):
 
     db_session.expire_all()
     job = db_session.get(SyncJob, job_id)
-    assert job.kind == 'rematch'
-    assert job.status == 'success'
+    assert job.kind == SyncJobKind.REMATCH
+    assert job.status == SyncJobStatus.SUCCESS
     assert job.rq_job_id is not None
 
 
@@ -85,7 +86,7 @@ def test_enqueue_datatype_force_rematch_sets_kind(app, db_session):
 
     db_session.expire_all()
     job = db_session.get(SyncJob, job_id)
-    assert job.kind == 'force_rematch'
+    assert job.kind == SyncJobKind.FORCE_REMATCH
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +120,7 @@ def test_work_function_failure_records_error(app, db_session, monkeypatch):
 
     db_session.expire_all()
     job = db_session.get(SyncJob, job_id)
-    assert job.status == 'failed'
+    assert job.status == SyncJobStatus.FAILED
     assert job.error == 'RuntimeError: boom'
     assert job.finished_at is not None
 
@@ -132,9 +133,10 @@ def test_recent_jobs_orders_newest_first(db_session, app):
     """``recent_jobs`` orders by enqueued_at descending."""
     from datetime import datetime, timedelta
     base = datetime(2025, 6, 1, 12, 0, 0)
-    older = SyncJob(kind='sync', status='success', enqueued_at=base)
+    older = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS, enqueued_at=base)
     newer = SyncJob(
-        kind='sync', status='success', enqueued_at=base + timedelta(hours=1),
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS,
+        enqueued_at=base + timedelta(hours=1),
     )
     db_session.add_all([older, newer])
     db_session.commit()
@@ -146,7 +148,7 @@ def test_recent_jobs_orders_newest_first(db_session, app):
 
 def test_recent_jobs_respects_limit(db_session, app):
     for _ in range(5):
-        db_session.add(SyncJob(kind='sync', status='success'))
+        db_session.add(SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS))
     db_session.commit()
     with app.app_context():
         assert len(jobs.recent_jobs(limit=3)) == 3
@@ -154,18 +156,18 @@ def test_recent_jobs_respects_limit(db_session, app):
 
 def test_parse_summary_handles_empty(app):
     """Defensive: row with no summary returns {} rather than crashing."""
-    job = SyncJob(kind='sync', status='pending')
+    job = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.PENDING)
     assert jobs.parse_summary(job) == {}
 
 
 def test_parse_summary_decodes_json(app):
-    job = SyncJob(kind='sync', status='success', summary='{"added": 3}')
+    job = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS, summary='{"added": 3}')
     assert jobs.parse_summary(job) == {'added': 3}
 
 
 def test_parse_summary_malformed_returns_empty(app):
     """Don't crash the dashboard on a corrupted summary."""
-    job = SyncJob(kind='sync', status='success', summary='not-json')
+    job = SyncJob(kind=SyncJobKind.SYNC, status=SyncJobStatus.SUCCESS, summary='not-json')
     assert jobs.parse_summary(job) == {}
 
 
@@ -213,7 +215,7 @@ def test_sync_datatype_route_enqueues_job(logged_in_client, db_session):
         select(SyncJob).where(SyncJob.datatype_id == dtype.id)
     ).first()
     assert job is not None
-    assert job.kind == 'sync'
+    assert job.kind == SyncJobKind.SYNC
 
 
 def test_rematch_datatype_route_enqueues_job(logged_in_client, db_session):
@@ -231,7 +233,7 @@ def test_rematch_datatype_route_enqueues_job(logged_in_client, db_session):
         select(SyncJob).where(SyncJob.datatype_id == dtype.id)
     ).first()
     assert job is not None
-    assert job.kind == 'rematch'
+    assert job.kind == SyncJobKind.REMATCH
 
 
 def test_rematch_force_query_param_sets_kind(logged_in_client, db_session):
@@ -248,4 +250,4 @@ def test_rematch_force_query_param_sets_kind(logged_in_client, db_session):
     job = db_session.scalars(
         select(SyncJob).where(SyncJob.datatype_id == dtype.id)
     ).first()
-    assert job.kind == 'force_rematch'
+    assert job.kind == SyncJobKind.FORCE_REMATCH

@@ -25,6 +25,7 @@ from datetime import datetime
 from flask import current_app
 from sqlalchemy import select
 
+from colony_manager.enums import SyncJobKind, SyncJobStatus
 from colony_manager.models import SyncJob
 
 from . import db
@@ -51,17 +52,17 @@ def _execute_job(job_id, work):
     if job is None:
         log.warning('SyncJob %s vanished before worker started.', job_id)
         return
-    job.status = 'running'
+    job.status = SyncJobStatus.RUNNING
     job.started_at = datetime.utcnow()
     db.session.commit()
 
     try:
         summary = work() or {}
-        job.status = 'success'
+        job.status = SyncJobStatus.SUCCESS
         job.summary = json.dumps(summary)
     except Exception as exc:  # noqa: BLE001 — defensive: persist + reraise
         log.exception('SyncJob %s failed', job_id)
-        job.status = 'failed'
+        job.status = SyncJobStatus.FAILED
         job.error = f'{type(exc).__name__}: {exc}'
         raise
     finally:
@@ -108,7 +109,7 @@ def _enqueue(kind, datatype_id, func, *args):
     worker boot and re-failed cleanly.
     """
     queue = current_app.rq_queue
-    job = SyncJob(kind=kind, datatype_id=datatype_id, status='pending')
+    job = SyncJob(kind=kind, datatype_id=datatype_id, status=SyncJobStatus.PENDING)
     db.session.add(job)
     db.session.commit()
     job_id = job.id
@@ -127,13 +128,13 @@ def _enqueue(kind, datatype_id, func, *args):
 
 def enqueue_datatype_sync(datatype_id):
     """Queue a ``sync_locations`` run scoped to one DataType."""
-    return _enqueue('sync', datatype_id, run_sync_job, datatype_id)
+    return _enqueue(SyncJobKind.SYNC, datatype_id, run_sync_job, datatype_id)
 
 
 def enqueue_datatype_rematch(datatype_id, force=False):
     """Queue a ``rematch_datatype`` run for one DataType."""
     return _enqueue(
-        'force_rematch' if force else 'rematch',
+        SyncJobKind.FORCE_REMATCH if force else SyncJobKind.REMATCH,
         datatype_id,
         run_rematch_job, datatype_id, force,
     )

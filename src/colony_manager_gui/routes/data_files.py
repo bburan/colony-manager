@@ -22,7 +22,7 @@ from werkzeug.utils import safe_join
 from colony_manager.models import Data
 
 from .. import db
-from ..forms import UploadFilesForm
+from ..forms.common import UploadFilesForm
 from ..services import uploads as upload_service
 from .util import flash_form_errors, get_or_404
 

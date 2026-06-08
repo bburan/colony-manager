@@ -10,7 +10,8 @@ from colony_manager.models import (
     _canonical_side,
 )
 from .. import db
-from ..forms import HistologyForm, NoteForm, ConfocalImageForm
+from ..forms.histology import ConfocalImageForm, HistologyForm
+from ..forms.common import NoteForm
 from .util import flash_form_errors, get_or_404, render_error_alert, is_htmx, render_modal
 from ..services.data_linking import resync_confocal_image
 

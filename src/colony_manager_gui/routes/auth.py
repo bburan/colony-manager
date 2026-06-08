@@ -8,7 +8,7 @@ import flask_login
 from colony_manager_gui import db
 from colony_manager_gui.auth_decorators import public
 from colony_manager_gui.routes.util import flash_form_errors, get_or_404, render_modal
-from colony_manager_gui.forms import UserLoginForm, UserCreateForm, UserEditForm
+from colony_manager_gui.forms.auth import UserLoginForm, UserCreateForm, UserEditForm
 from colony_manager.models import User
 
 auth_bp = Blueprint('auth', __name__)

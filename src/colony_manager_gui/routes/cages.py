@@ -6,7 +6,8 @@ from colony_manager.models import (
     Cage, Animal, AnimalEvent, AnimalProcedure, AnimalTag, Source,
 )
 from .. import db
-from ..forms import CageForm, NoteForm, TerminationForm, QuickAddToStudyForm
+from ..forms.cages import CageForm
+from ..forms.common import NoteForm, QuickAddToStudyForm, TerminationForm
 from .util import flash_form_errors, get_or_404, render_modal
 
 cages_bp = Blueprint('cages', __name__)

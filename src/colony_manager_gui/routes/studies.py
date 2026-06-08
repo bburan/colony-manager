@@ -6,7 +6,8 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from colony_manager.models import Study, Animal, AnimalEvent
 from .. import db
-from ..forms import StudyForm, AddToStudyForm, QuickAddToStudyForm, NoteForm
+from ..forms.studies import AddToStudyForm, StudyForm
+from ..forms.common import NoteForm, QuickAddToStudyForm
 from .util import flash_form_errors, get_or_404, render_modal
 
 studies_bp = Blueprint('studies', __name__)

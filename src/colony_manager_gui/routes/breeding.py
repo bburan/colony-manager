@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from colony_manager.models import BreedingPair, Litter, Animal, Cage
 from .. import db
-from ..forms import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
+from ..forms.breeding import BreedingPairForm, LitterForm, LitterDeleteForm, WeaningForm
 from .util import flash_form_errors, get_or_404, render_modal
 
 breeding_bp = Blueprint('breeding', __name__)

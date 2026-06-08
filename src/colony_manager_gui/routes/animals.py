@@ -14,9 +14,14 @@ from colony_manager.models import (
 )
 
 from .. import db
-from .. import forms
 from .. import models
-from ..forms import AnimalForm, AnimalEventForm, AnimalEventEditForm, AnimalCustomIDForm, NoteForm, TerminationForm, QuickAddToStudyForm, DailyLogForm, DosageCalculateForm, mark_disabled, mark_readonly
+from ..forms.animals import (
+    AnimalCustomIDForm, AnimalForm, AnimalEventForm, AnimalEventEditForm,
+    DailyLogForm, DosageCalculateForm,
+)
+from ..forms.common import (
+    NoteForm, QuickAddToStudyForm, TerminationForm, mark_disabled, mark_readonly,
+)
 from .util import flash_form_errors, get_or_404, paginate, render_modal
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,

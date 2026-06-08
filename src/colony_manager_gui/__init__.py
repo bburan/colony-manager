@@ -127,7 +127,7 @@ def create_app():
     def inject_global_vars():
         from sqlalchemy import select
         from colony_manager.models import Species
-        from colony_manager_gui.forms import CSRFOnlyForm
+        from colony_manager_gui.forms.common import CSRFOnlyForm
         species_id = int(session.get('selected_species', -1))
         if species_id != -1:
             selected_species = get_or_404(Species, species_id).name

@@ -12,11 +12,11 @@ from colony_manager import models
 from colony_manager.enums import ConfocalImageStatus
 
 from .. import db
-from .. import forms
-from ..forms import (
-    FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, DataTypeForm,
-    DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS, datatype_form_for,
-    DosageProtocolForm,
+from ..forms.common import create_nested_form, CSRFOnlyForm
+from ..forms.settings import (
+    FeedForm, SimpleAddForm, SimpleAddWithDescriptionForm, ProcedureTargetForm,
+    DataTypeForm, DataLocationForm, DATATYPE_FORMS, DATATYPE_TARGET_LABELS,
+    datatype_form_for, DosageProtocolForm,
 )
 from .util import flash_form_errors, get_or_404, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
 from colony_manager.datatypes import load_description_class
@@ -38,17 +38,17 @@ def _restrict_settings_to_admin():
 
 
 SETTINGS_MAP = {
-    'species': {'model': models.Species, 'form': forms.SimpleAddForm},
-    'source': {'model': models.Source, 'form': forms.SimpleAddForm},
-    'confocal_image_type': {'model': models.ConfocalImageType, 'form': forms.SimpleAddForm},
-    'termination_reason': {'model': models.TerminationReason, 'form': forms.SimpleAddForm},
-    'animal_procedure': {'model': models.AnimalProcedure, 'form': forms.create_nested_form(models.AnimalProcedure)},
-    'animal_procedure_target': {'model': models.AnimalProcedureTarget, 'form': forms.ProcedureTargetForm},
-    'feed': {'model': models.Feed, 'form': forms.FeedForm},
-    'animal_tag': {'model': models.AnimalTag, 'form': forms.create_nested_form(models.AnimalTag)},
-    'animal_event_tag': {'model': models.AnimalEventTag, 'form': forms.create_nested_form(models.AnimalEventTag)},
-    'ear_tag': {'model': models.EarTag, 'form': forms.create_nested_form(models.EarTag)},
-    'immunolabeling_panel': {'model': models.ImmunolabelingPanel, 'form': forms.SimpleAddWithDescriptionForm},
+    'species':              {'model': models.Species,             'form': SimpleAddForm},
+    'source':               {'model': models.Source,              'form': SimpleAddForm},
+    'confocal_image_type':  {'model': models.ConfocalImageType,   'form': SimpleAddForm},
+    'termination_reason':   {'model': models.TerminationReason,   'form': SimpleAddForm},
+    'animal_procedure':     {'model': models.AnimalProcedure,     'form': create_nested_form(models.AnimalProcedure)},
+    'animal_procedure_target': {'model': models.AnimalProcedureTarget, 'form': ProcedureTargetForm},
+    'feed':                 {'model': models.Feed,                'form': FeedForm},
+    'animal_tag':           {'model': models.AnimalTag,           'form': create_nested_form(models.AnimalTag)},
+    'animal_event_tag':     {'model': models.AnimalEventTag,      'form': create_nested_form(models.AnimalEventTag)},
+    'ear_tag':              {'model': models.EarTag,              'form': create_nested_form(models.EarTag)},
+    'immunolabeling_panel': {'model': models.ImmunolabelingPanel, 'form': SimpleAddWithDescriptionForm},
 }
 
 @main_bp.route('/')
@@ -469,7 +469,6 @@ def create_feed():
 
 @main_bp.route('/set-species/<species_id>', methods=['POST'])
 def set_species(species_id):
-    from ..forms import CSRFOnlyForm
     form = CSRFOnlyForm()
     if not form.validate_on_submit():
         abort(400)

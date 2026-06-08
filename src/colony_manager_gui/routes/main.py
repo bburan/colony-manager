@@ -219,20 +219,63 @@ def view_dashboard():
 
 @main_bp.route('/calendar')
 def view_calendar():
+    from collections import defaultdict
+
     events = db.session.scalars(
         select(models.AnimalEvent).options(
             joinedload(models.AnimalEvent.animal),
-            joinedload(models.AnimalEvent.procedure),
+            joinedload(models.AnimalEvent.procedure)
+                .joinedload(models.AnimalProcedure.parent)
+                .joinedload(models.AnimalProcedure.parent),
         )
     ).all()
-    calendar_events = []
+
+    # Group by (procedure_id, status, date) → set of (animal_id, label) tuples
+    day_groups = defaultdict(set)
+    proc_names = {}
     for event in events:
-        calendar_events.append({
-            'title': f"{event.animal.custom_id}: {event.procedure.name}",
-            'start': event.completion_date.isoformat() if event.completion_date is not None else event.scheduled_date.isoformat(),
-            'url': url_for('animals.view_animal', animal_id=event.animal.id),
-            'backgroundColor': '#198754' if event.completion_date is not None else '#0d6efd',
-        })
+        event_date = event.completion_date if event.completion_date is not None else event.scheduled_date
+        status = 'completed' if event.completion_date is not None else 'scheduled'
+        label = event.animal.custom_id or f'Animal #{event.animal.id}'
+        day_groups[(event.procedure_id, status, event_date)].add((event.animal.id, label))
+        proc_names[event.procedure_id] = event.procedure.display_name
+
+    # Collect (date, animals) per (procedure_id, status) then merge consecutive dates
+    proc_status_dates = defaultdict(list)
+    for (proc_id, status, event_date), animals in day_groups.items():
+        proc_status_dates[(proc_id, status)].append((event_date, animals))
+
+    calendar_events = []
+    for (proc_id, status), date_entries in proc_status_dates.items():
+        date_entries.sort(key=lambda x: x[0])
+        i = 0
+        while i < len(date_entries):
+            start_date, animals = date_entries[i]
+            end_date = start_date
+            all_animals = set(animals)
+            j = i + 1
+            while j < len(date_entries):
+                next_date, next_animals = date_entries[j]
+                if next_date <= end_date + timedelta(days=1) and set(next_animals) == all_animals:
+                    end_date = next_date
+                    j += 1
+                else:
+                    break
+            entry = {
+                'title': proc_names[proc_id],
+                'start': start_date.isoformat(),
+                'backgroundColor': '#198754' if status == 'completed' else '#0d6efd',
+                'borderColor': '#198754' if status == 'completed' else '#0d6efd',
+                'extendedProps': {
+                    'animals': [{'id': aid, 'label': lbl}
+                                for aid, lbl in sorted(all_animals, key=lambda x: x[1])],
+                },
+            }
+            if end_date > start_date:
+                entry['end'] = (end_date + timedelta(days=1)).isoformat()
+            calendar_events.append(entry)
+            i = j
+
     return render_template('calendar.html', calendar_events=calendar_events)
 
 

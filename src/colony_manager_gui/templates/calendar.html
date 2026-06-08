@@ -18,9 +18,6 @@ Event Calendar
             </div>
         </div>
 
-        <div class="text-muted small d-none d-md-block">
-            <i class="fas fa-info-circle me-1"></i>Click an event to view animal details
-        </div>
     </header>
 
     <main class="card-body p-4">
@@ -28,8 +25,8 @@ Event Calendar
     </main>
 </article>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css"/>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
 <style>
     :root {
@@ -75,6 +72,12 @@ Event Calendar
         transform: scale(1.02);
     }
 
+    /* Tooltip */
+    .fc-tooltip .tooltip-inner {
+        text-align: left;
+        max-width: 300px;
+    }
+
     /* List View Customization */
     .fc-list-day-cushion {
         background-color: #f8f9fa !important;
@@ -106,15 +109,36 @@ Event Calendar
                 list: 'Agenda' // Renamed for clarity
             },
             events: {{ calendar_events|tojson }},
+            eventDidMount: function(info) {
+                const props = info.event.extendedProps;
+                const animals = props.animals && props.animals.length
+                    ? props.animals.map(a => a.label).join(', ')
+                    : '—';
+                new bootstrap.Tooltip(info.el, {
+                    title: animals,
+                    placement: 'top',
+                    trigger: 'hover',
+                    container: 'body',
+                    customClass: 'fc-tooltip',
+                });
+            },
+            eventWillUnmount: function(info) {
+                const tip = bootstrap.Tooltip.getInstance(info.el);
+                if (tip) tip.dispose();
+            },
             eventClick: function(info) {
                 info.jsEvent.preventDefault();
-                if (info.event.url) {
-                    window.location.href = info.event.url;
-                }
-            },
-            eventDidMount: function(info) {
-                // Add tooltip using basic title attribute
-                info.el.setAttribute('title', info.event.title);
+                const event = info.event;
+                const props = event.extendedProps;
+                const baseUrl = '{{ url_for("animals.view_animal", animal_id=0) }}'.replace('/0', '/');
+                document.getElementById('dictModalTitle').textContent = event.title;
+                document.getElementById('dictModalBody').innerHTML =
+                    '<div class="list-group list-group-flush">' +
+                    props.animals.map(a =>
+                        `<a href="${baseUrl}${a.id}" class="list-group-item list-group-item-action">${a.label}</a>`
+                    ).join('') +
+                    '</div>';
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('dictModal')).show();
             }
         });
         calendar.render();

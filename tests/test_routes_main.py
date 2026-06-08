@@ -5,11 +5,16 @@ and the settings CRUD routes. The dashboard itself is exercised by
 the smoke baseline (`tests/test_routes_smoke.py`); this file targets
 the settings sub-routes and the create-setting duplicate-check path.
 """
+import json
+import re
+from datetime import date, timedelta
+
 from sqlalchemy import select
 
 from colony_manager.models import (
-    AnimalEventDataType, DataType, Feed, Species, TerminationReason,
+    Animal, AnimalEventDataType, DataType, Feed, Species, TerminationReason,
 )
+from .factories import make_animal, make_cage, make_event, make_procedure, make_species
 
 
 # ---------------------------------------------------------------------------
@@ -172,3 +177,97 @@ def test_calendar_renders_with_no_events(logged_in_client):
     """
     response = logged_in_client.get('/calendar')
     assert response.status_code == 200
+
+
+def _parse_calendar_events(response):
+    """Extract the calendar_events JSON array from the rendered calendar page."""
+    html = response.data.decode()
+    match = re.search(r'events:\s*(\[[\s\S]*?\]),\s*\n\s*eventDidMount', html)
+    if not match:
+        return []
+    return json.loads(match.group(1))
+
+
+def test_calendar_merges_consecutive_days_with_identical_animal_set(
+    logged_in_client, db_session
+):
+    """Same procedure + same two animals on three consecutive days → one event."""
+    proc = make_procedure(db_session, name='CalMerge-Proc')
+    a1 = make_animal(db_session, custom_id='CalMerge-A1')
+    a2 = make_animal(db_session, custom_id='CalMerge-A2')
+    today = date.today()
+    for animal in (a1, a2):
+        for delta in range(3):
+            make_event(db_session, animal=animal, procedure=proc,
+                       completion_date=today + timedelta(days=delta))
+
+    response = logged_in_client.get('/calendar')
+    events = _parse_calendar_events(response)
+    proc_events = [e for e in events if e['title'] == 'CalMerge-Proc']
+
+    assert len(proc_events) == 1
+    assert proc_events[0]['start'] == today.isoformat()
+    assert proc_events[0]['end'] == (today + timedelta(days=3)).isoformat()
+
+
+def test_calendar_does_not_merge_consecutive_days_with_different_animal_sets(
+    logged_in_client, db_session
+):
+    """Same procedure but different animal each day → two separate events."""
+    proc = make_procedure(db_session, name='CalNoMerge-Proc')
+    a1 = make_animal(db_session, custom_id='CalNoMerge-A1')
+    a2 = make_animal(db_session, custom_id='CalNoMerge-A2')
+    today = date.today()
+    make_event(db_session, animal=a1, procedure=proc, completion_date=today)
+    make_event(db_session, animal=a2, procedure=proc,
+               completion_date=today + timedelta(days=1))
+
+    response = logged_in_client.get('/calendar')
+    events = _parse_calendar_events(response)
+    proc_events = [e for e in events if e['title'] == 'CalNoMerge-Proc']
+
+    assert len(proc_events) == 2
+
+
+def test_calendar_uses_procedure_display_name_for_nested_procedures(
+    logged_in_client, db_session
+):
+    """A child procedure's title should show the full 'Parent > Child' hierarchy."""
+    parent = make_procedure(db_session, name='CalHier-Parent')
+    child = make_procedure(db_session, name='CalHier-Child', parent=parent)
+    animal = make_animal(db_session, custom_id='CalHier-A1')
+    make_event(db_session, animal=animal, procedure=child,
+               completion_date=date.today())
+
+    response = logged_in_client.get('/calendar')
+    events = _parse_calendar_events(response)
+    titles = [e['title'] for e in events]
+
+    assert 'CalHier-Parent > CalHier-Child' in titles
+
+
+def test_calendar_uses_fallback_label_for_animal_without_custom_id(
+    logged_in_client, db_session
+):
+    """An animal with no custom_id should appear as 'Animal #<id>' in extendedProps."""
+    proc = make_procedure(db_session, name='CalFallback-Proc')
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    animal = Animal(
+        cage_id=cage.id, species_id=species.id,
+        sex='male', dob=date.today(), custom_id=None,
+    )
+    db_session.add(animal)
+    db_session.commit()
+    make_event(db_session, animal=animal, procedure=proc,
+               completion_date=date.today())
+
+    response = logged_in_client.get('/calendar')
+    events = _parse_calendar_events(response)
+    proc_events = [e for e in events if e['title'] == 'CalFallback-Proc']
+
+    assert len(proc_events) == 1
+    animals = proc_events[0]['extendedProps']['animals']
+    assert len(animals) == 1
+    assert animals[0]['label'] == f'Animal #{animal.id}'
+    assert animals[0]['id'] == animal.id

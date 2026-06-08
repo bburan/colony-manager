@@ -2,13 +2,13 @@ import datetime
 import re
 from datetime import date
 
-from sqlalchemy import func, case, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload, selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
 from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
-    Cage, Study, Ear, Feed, FeedLog,
+    Cage, Ear, Feed, FeedLog,
     WeightLog, Data, DataType, AnimalEventData,
     ConfocalImageData, AnimalData, EarData, data_candidate_animals,
 )
@@ -26,6 +26,7 @@ from .util import flash_form_errors, get_or_404, paginate, render_modal
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,
 )
+from ..services.animal_queries import get_filtered_animals, get_animal_filter_options
 
 
 animals_bp = Blueprint('animals', __name__)
@@ -41,129 +42,29 @@ def list_animals():
     if sort_dir not in ('asc', 'desc'):
         sort_dir = _SORT_DIR_DEFAULTS.get(sort_by, 'asc')
 
-    event_filter = request.args.get('event_filter', 'all')
-    status_filter = request.args.get('status_filter', 'active')
-    sex_filter = request.args.get('sex_filter', 'all')
-    study_filter = request.args.get('study_filter', 'all')
-    procedure_filter = request.args.get('procedure_id', 'all')
-    tag_filter = request.args.get('tag_id', 'all')
-    event_tag_filter = request.args.get('event_tag_id', 'all')
-    age_unit = request.args.get('age_unit', 'day')
-    search_query = request.args.get('search_query', '')
+    filters = {
+        'sort_by': sort_by,
+        'sort_dir': sort_dir,
+        'event_filter': request.args.get('event_filter', 'all'),
+        'status_filter': request.args.get('status_filter', 'active'),
+        'sex_filter': request.args.get('sex_filter', 'all'),
+        'study_filter': request.args.get('study_filter', 'all'),
+        'procedure_id': request.args.get('procedure_id', 'all'),
+        'tag_id': request.args.get('tag_id', 'all'),
+        'event_tag_id': request.args.get('event_tag_id', 'all'),
+        'age_unit': request.args.get('age_unit', 'day'),
+        'search_query': request.args.get('search_query', ''),
+        'species_id': int(session.get('selected_species', -1)),
+    }
 
-    today = date.today()
-
-    # ``species`` and ``cage`` are dereferenced once per row in the table
-    # template; eager-load both so the row render isn't 1+2N queries.
-    # ``events`` and ``studies`` drive the per-row aggregate properties
-    # (events_count, event_due, etc.); load both in bulk so those don't
-    # fan out into N queries either.
-    stmt = select(Animal).options(
-        joinedload(Animal.species),
-        joinedload(Animal.cage),
-        selectinload(Animal.events),
-        selectinload(Animal.studies),
-    ).where(Animal.custom_id.is_not(None))
-
-    species_id = int(session.get('selected_species', -1))
-    if species_id != -1:
-        stmt = stmt.where(Animal.species_id == species_id)
-
-    if search_query:
-        stmt = stmt.where(Animal.custom_id.ilike(f'%{search_query}%'))
-
-    if status_filter == 'active':
-        stmt = stmt.where(Animal.terminated == False)  # noqa: E712
-    elif status_filter == 'terminated':
-        stmt = stmt.where(Animal.terminated == True)  # noqa: E712
-
-    if sex_filter in ('male', 'female'):
-        stmt = stmt.where(Animal.sex == sex_filter)
-
-    if study_filter != 'all':
-        stmt = stmt.where(Animal.studies.any(Study.id == int(study_filter)))
-
-    if procedure_filter != 'all':
-        proc_ids = AnimalProcedure.descendant_ids(db.session, int(procedure_filter))
-        stmt = stmt.where(
-            Animal.events.any(AnimalEvent.procedure_id.in_(proc_ids))
-        )
-
-    if tag_filter != 'all':
-        tag_ids = AnimalTag.descendant_ids(db.session, int(tag_filter))
-        stmt = stmt.where(Animal.tags.any(AnimalTag.id.in_(tag_ids)))
-
-    if event_tag_filter != 'all':
-        et_ids = AnimalEventTag.descendant_ids(db.session, int(event_tag_filter))
-        stmt = stmt.where(Animal.events.any(
-            AnimalEvent.tags.any(AnimalEventTag.id.in_(et_ids))
-        ))
-
-    if event_filter == 'has_events':
-        stmt = stmt.where(Animal.events.any())
-    elif event_filter == 'no_events':
-        stmt = stmt.where(~Animal.events.any())
-    elif event_filter == 'due_overdue':
-        stmt = stmt.where(Animal.events.any(
-            (AnimalEvent.scheduled_date <= today)
-            & AnimalEvent.completion_date.is_(None)
-        ))
-    elif event_filter == 'overdue':
-        stmt = stmt.where(Animal.events.any(
-            (AnimalEvent.scheduled_date < today)
-            & AnimalEvent.completion_date.is_(None)
-        ))
-
-    # Sorting — pushed into SQL. ``age`` orders by dob, so direction is
-    # inverted (asc age = youngest = newest dob).
-    if sort_by == 'event_date':
-        last_event_subq = (
-            select(
-                AnimalEvent.animal_id.label('animal_id'),
-                func.max(AnimalEvent.completion_date).label('last_event_date'),
-            ).group_by(AnimalEvent.animal_id).subquery()
-        )
-        stmt = stmt.outerjoin(
-            last_event_subq, last_event_subq.c.animal_id == Animal.id
-        )
-        col = last_event_subq.c.last_event_date
-        order = col.desc().nullslast() if sort_dir == 'desc' else col.asc().nullsfirst()
-    elif sort_by == 'age':
-        col = Animal.dob
-        order = col.asc() if sort_dir == 'desc' else col.desc()
-    else:  # 'id'
-        col = Animal.custom_id
-        order = col.desc() if sort_dir == 'desc' else col.asc()
-
-    animals = db.session.scalars(stmt.order_by(order)).unique().all()
-
-    procedures = AnimalProcedure.get_ordered(db.session)
-    animal_tags = AnimalTag.get_ordered(db.session)
-    event_tags = AnimalEventTag.get_ordered(db.session)
-    studies = db.session.scalars(
-        select(Study).order_by(Study.name)
-    ).all()
+    animals = get_filtered_animals(db.session, filters)
+    options = get_animal_filter_options(db.session)
 
     return render_template(
         'animals.html',
         animals=animals,
-        procedures=procedures,
-        animal_tags=animal_tags,
-        event_tags=event_tags,
-        studies=studies,
-        filters={
-            'sort_by': sort_by,
-            'sort_dir': sort_dir,
-            'status_filter': status_filter,
-            'sex_filter': sex_filter,
-            'event_filter': event_filter,
-            'study_filter': study_filter,
-            'procedure_id': procedure_filter,
-            'tag_id': tag_filter,
-            'event_tag_id': event_tag_filter,
-            'age_unit': age_unit,
-            'search_query': search_query,
-        },
+        filters=filters,
+        **options,
     )
 
 

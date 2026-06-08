@@ -1,11 +1,10 @@
-from sqlalchemy import exists, select
-from sqlalchemy.orm import contains_eager, selectinload
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response
 
 from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
-    Ear, EarTag, Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
-    Study, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
+    Ear, Animal, ConfocalImage, ImmunolabelingPanel, ConfocalImageType,
     ConfocalImageData, data_candidate_ears,
     _canonical_side,
 )
@@ -14,154 +13,29 @@ from ..forms.histology import ConfocalImageForm, HistologyForm
 from ..forms.common import NoteForm
 from .util import flash_form_errors, get_or_404, render_error_alert, is_htmx, render_modal
 from ..services.data_linking import resync_confocal_image
+from ..services.histology_queries import (
+    parse_ear_filters, apply_ear_filters, apply_ear_sort,
+    get_ear_filter_options, get_filtered_ears,
+)
 
 histology_bp = Blueprint('histology', __name__)
-
-_EAR_SORT_DIR_DEFAULTS = {
-    'id': 'asc',
-    'euthanasia': 'desc',
-    'cryoprotection': 'desc',
-    'dissection': 'desc',
-    'immunolabel': 'desc',
-}
-
-
-def _ear_sort_cols():
-    """Lazy column map. Built at call time so the columns bind correctly."""
-    return {
-        'id': Animal.custom_id,
-        'euthanasia': Animal.termination_date,
-        'cryoprotection': Ear.cryoprotection_date,
-        'dissection': Ear.dissection_date,
-        'immunolabel': Ear.immunolabel_date,
-    }
-
-
-def _parse_ear_filters(args):
-    sort_by = args.get('sort_by', 'id')
-    sort_dir = args.get('sort_dir', '')
-    if sort_dir not in ('asc', 'desc'):
-        sort_dir = _EAR_SORT_DIR_DEFAULTS.get(sort_by, 'asc')
-    return {
-        'sort_by': sort_by,
-        'sort_dir': sort_dir,
-        'immunolabel_filter': args.get('immunolabel_filter', 'all'),
-        'analysis_filter': args.get('analysis_filter', 'all'),
-        'side_filter': args.get('side_filter', 'all'),
-        'tag_id': args.get('tag_id', 'all'),
-        'cryo_filter': args.get('cryo_filter', 'all'),
-        'sex_filter': args.get('sex_filter', 'all'),
-        'procedure_id': args.get('procedure_id', 'all'),
-        'animal_tag_id': args.get('animal_tag_id', 'all'),
-        'event_tag_id': args.get('event_tag_id', 'all'),
-        'study_id': args.get('study_id', 'all'),
-    }
-
-
-def _apply_ear_filters(query, f):
-    """Apply every filter from ``_parse_ear_filters`` to ``query``.
-
-    Assumes ``query`` is rooted on ``Ear`` and already joined to ``Animal``
-    (needed for sex / sort by custom_id or termination_date).
-    """
-    if f['immunolabel_filter'] == 'labeled':
-        query = query.filter(Ear.immunolabel_date.is_not(None))
-    elif f['immunolabel_filter'] == 'pending':
-        query = query.filter(Ear.immunolabel_date.is_(None))
-
-    if f['cryo_filter'] == 'done':
-        query = query.filter(Ear.cryoprotection_date.is_not(None))
-    elif f['cryo_filter'] == 'pending':
-        query = query.filter(Ear.cryoprotection_date.is_(None))
-
-    if f['side_filter'] in ('Left', 'Right'):
-        query = query.filter(Ear.side == f['side_filter'])
-
-    if f['tag_id'] != 'all':
-        ids = EarTag.descendant_ids(db.session, int(f['tag_id']))
-        query = query.filter(Ear.tags.any(EarTag.id.in_(ids)))
-
-    if f['sex_filter'] in ('male', 'female'):
-        query = query.filter(Animal.sex == f['sex_filter'])
-
-    if f['procedure_id'] != 'all':
-        ids = AnimalProcedure.descendant_ids(db.session, int(f['procedure_id']))
-        query = query.filter(Animal.events.any(
-            AnimalEvent.procedure_id.in_(ids)
-        ))
-
-    if f['animal_tag_id'] != 'all':
-        ids = AnimalTag.descendant_ids(db.session, int(f['animal_tag_id']))
-        query = query.filter(Animal.tags.any(AnimalTag.id.in_(ids)))
-
-    if f['event_tag_id'] != 'all':
-        ids = AnimalEventTag.descendant_ids(db.session, int(f['event_tag_id']))
-        query = query.filter(Animal.events.any(
-            AnimalEvent.tags.any(AnimalEventTag.id.in_(ids))
-        ))
-
-    if f['study_id'] != 'all':
-        query = query.filter(Animal.studies.any(
-            Study.id == int(f['study_id'])
-        ))
-
-    if f['analysis_filter'] != 'all':
-        subquery = exists().where(
-            (ConfocalImage.ear_id == Ear.id)
-            & (ConfocalImage.status == f['analysis_filter'])
-        )
-        query = query.filter(subquery)
-
-    species_id = int(session.get('selected_species', -1))
-    if species_id != -1:
-        query = query.filter(Animal.species_id == species_id)
-
-    return query
-
-
-def _apply_ear_sort(query, f):
-    col = _ear_sort_cols().get(f['sort_by'], Animal.custom_id)
-    if f['sort_dir'] == 'desc':
-        order = col.desc().nullslast()
-    else:
-        order = col.asc().nullsfirst()
-    return query.order_by(order, Ear.side)
-
-
-def _ear_filter_lookups():
-    return {
-        'ear_tags': EarTag.get_ordered(db.session),
-        'procedures': AnimalProcedure.get_ordered(db.session),
-        'animal_tags': AnimalTag.get_ordered(db.session),
-        'event_tags': AnimalEventTag.get_ordered(db.session),
-        'studies': db.session.scalars(
-            select(Study).order_by(Study.name)
-        ).all(),
-    }
 
 
 @histology_bp.route('/')
 def list_histology():
-    f = _parse_ear_filters(request.args)
-    stmt = _apply_ear_filters(
-        select(Ear).join(Animal).options(
-            contains_eager(Ear.animal),
-            selectinload(Ear.tags),
-        ),
-        f,
-    )
-    ears = db.session.scalars(_apply_ear_sort(stmt, f)).all()
+    f = parse_ear_filters(request.args, int(session.get('selected_species', -1)))
+    ears = get_filtered_ears(db.session, f)
     return render_template(
         'histology.html',
         ears=ears,
         filters=f,
-        **_ear_filter_lookups(),
+        **get_ear_filter_options(db.session),
     )
 
 
 @histology_bp.route('/grid')
 def view_grid():
-    f = _parse_ear_filters(request.args)
+    f = parse_ear_filters(request.args, int(session.get('selected_species', -1)))
     conflicts_only = request.args.get('conflicts_only') in ('1', 'true', 'on')
 
     image_types = db.session.scalars(
@@ -178,7 +52,7 @@ def view_grid():
             orphans_by_ear={},
             has_other_column=False,
             filters={**f, 'image_type': '', 'conflicts_only': '1' if conflicts_only else ''},
-            **_ear_filter_lookups(),
+            **get_ear_filter_options(db.session),
         )
 
     selected_id = request.args.get('image_type', type=int)
@@ -188,18 +62,7 @@ def view_grid():
     if selected_image_type is None:
         selected_image_type = image_types[0]
 
-    # Eager-load the two relationships the template accesses on every row:
-    # - contains_eager: Animal is already JOIN-ed for filtering/sorting, so
-    #   we piggyback on that JOIN to populate ear.animal at no extra cost.
-    # - selectinload: EarTag is M2M; one SELECT IN replaces N lazy loads.
-    ear_stmt = _apply_ear_filters(
-        select(Ear).join(Animal).options(
-            contains_eager(Ear.animal),
-            selectinload(Ear.tags),
-        ),
-        f,
-    )
-    ears = db.session.scalars(_apply_ear_sort(ear_stmt, f)).all()
+    ears = get_filtered_ears(db.session, f)
 
     # Column set: distinct frequencies across all in-scope ConfocalImage rows
     # for the selected image type. Fixed regardless of row filters.
@@ -307,7 +170,7 @@ def view_grid():
         has_other_column=has_other_column,
         filters={**f, 'image_type': selected_image_type.id,
                  'conflicts_only': '1' if conflicts_only else ''},
-        **_ear_filter_lookups(),
+        **get_ear_filter_options(db.session),
     )
 
 

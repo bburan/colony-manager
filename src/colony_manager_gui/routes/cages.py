@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, Response
 
 from colony_manager.models import Cage, Animal
 from .. import db
@@ -19,7 +19,7 @@ _CAGE_SORT_DIR_DEFAULTS = {
 
 
 @cages_bp.route('/')
-def list_cages():
+def list_cages() -> Response | str:
     sort_by = request.args.get('sort_by', 'custom_id')
     sort_dir = request.args.get('sort_dir', '')
     if sort_dir not in ('asc', 'desc'):
@@ -48,7 +48,7 @@ def list_cages():
 
 
 @cages_bp.route('/<int:cage_id>')
-def view_cage(cage_id):
+def view_cage(cage_id) -> Response | str:
     cage = get_or_404(Cage, cage_id)
     # Sort animals by custom_id with NULLs at the end. The previous
     # Jinja ``|sort(attribute='custom_id')`` filter raised TypeError on
@@ -62,7 +62,7 @@ def view_cage(cage_id):
 
 
 @cages_bp.route('/create', methods=['POST'])
-def create_cage():
+def create_cage() -> Response | str:
     form = CageForm()
     if form.validate_on_submit():
         cage = Cage(
@@ -89,7 +89,7 @@ def create_cage():
 
 
 @cages_bp.route('/<int:cage_id>/update', methods=['POST'])
-def update_cage(cage_id):
+def update_cage(cage_id) -> Response | str:
     cage = get_or_404(Cage, cage_id)
     form = CageForm()
     if form.validate_on_submit():
@@ -102,7 +102,7 @@ def update_cage(cage_id):
 
 
 @cages_bp.route('/<int:cage_id>/update_note', methods=['POST'])
-def update_cage_note(cage_id):
+def update_cage_note(cage_id) -> Response | str:
     cage = get_or_404(Cage, cage_id)
     form = NoteForm()
     if form.validate_on_submit():
@@ -116,13 +116,13 @@ def update_cage_note(cage_id):
 
 # --- Modal Routes ---
 @cages_bp.route('/create_modal')
-def create_cage_modal():
+def create_cage_modal() -> Response | str:
     return render_modal(CageForm(), label='Add Cage',
                         submit_url=url_for('cages.create_cage'))
 
 
 @cages_bp.route('/<int:cage_id>/edit_note_modal')
-def update_cage_note_modal(cage_id):
+def update_cage_note_modal(cage_id) -> Response | str:
     cage = get_or_404(Cage, cage_id)
     return render_modal(NoteForm(obj=cage), item=cage,
                         label=f'Edit note for {cage.custom_id}',

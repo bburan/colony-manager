@@ -1,6 +1,9 @@
 """Database query and filtering logic for the histology list and grid views."""
-from sqlalchemy import exists, select
-from sqlalchemy.orm import contains_eager, selectinload
+from collections.abc import Mapping
+from typing import Any
+
+from sqlalchemy import Select, exists, select
+from sqlalchemy.orm import Session, contains_eager, selectinload
 
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
@@ -26,7 +29,7 @@ def _ear_sort_cols():
     }
 
 
-def parse_ear_filters(args, species_id: int = -1):
+def parse_ear_filters(args: Mapping[str, str], species_id: int = -1) -> dict[str, Any]:
     """Parse filter parameters from a request.args-like mapping.
 
     ``species_id`` must be resolved by the caller from the Flask session
@@ -54,7 +57,7 @@ def parse_ear_filters(args, species_id: int = -1):
     }
 
 
-def apply_ear_filters(query, filters: dict, session):
+def apply_ear_filters(query: Select[Any], filters: dict[str, Any], session: Session) -> Select[Any]:
     """Apply every filter from ``parse_ear_filters`` to ``query``.
 
     Assumes ``query`` is rooted on ``Ear`` and already joined to ``Animal``
@@ -115,7 +118,7 @@ def apply_ear_filters(query, filters: dict, session):
     return query
 
 
-def apply_ear_sort(query, filters: dict):
+def apply_ear_sort(query: Select[Any], filters: dict[str, Any]) -> Select[Any]:
     col = _ear_sort_cols().get(filters['sort_by'], Animal.custom_id)
     if filters['sort_dir'] == 'desc':
         order = col.desc().nullslast()
@@ -124,7 +127,7 @@ def apply_ear_sort(query, filters: dict):
     return query.order_by(order, Ear.side)
 
 
-def get_ear_filter_options(session):
+def get_ear_filter_options(session: Session) -> dict[str, list[Any]]:
     """Return lookup lists for the histology filter UI."""
     return {
         'ear_tags': EarTag.get_ordered(session),
@@ -135,7 +138,7 @@ def get_ear_filter_options(session):
     }
 
 
-def get_filtered_ears(session, filters: dict):
+def get_filtered_ears(session: Session, filters: dict[str, Any]) -> list[Ear]:
     """Return ears matching ``filters`` (convenience wrapper for list view)."""
     stmt = apply_ear_filters(
         select(Ear).join(Animal).options(

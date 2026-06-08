@@ -17,10 +17,12 @@ See ``docs/uploads.md`` for the user-facing contract.
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
-from typing import List
+from datetime import date as Date, datetime
+from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+from werkzeug.datastructures import FileStorage
 from werkzeug.utils import safe_join
 
 from colony_manager.datatypes import is_upload_capable, load_description_class
@@ -67,7 +69,7 @@ TARGET_LOADERS = {
 }
 
 
-def target_label(target_type, instance):
+def target_label(target_type: str, instance: Animal | Ear) -> str:
     """Return the chip/typeahead label for ``instance``.
 
     Convenience wrapper exposed for templates (registered as a jinja
@@ -93,7 +95,7 @@ class UploadError(Exception):
 # Candidate filtering (drives the modal's Type / Location dropdowns)
 # ---------------------------------------------------------------------------
 
-def candidate_datatypes(session, target_type):
+def candidate_datatypes(session: Session, target_type: str) -> list[DataType]:
     """DataTypes that can receive a user upload for ``target_type``.
 
     A DataType qualifies when all three hold:
@@ -124,7 +126,7 @@ def candidate_datatypes(session, target_type):
     return out
 
 
-def candidate_locations(session, datatype_id):
+def candidate_locations(session: Session, datatype_id: int) -> list[DataLocation]:
     """Locations attached to ``datatype_id``, ordered by base_path."""
     return session.scalars(
         select(DataLocation)
@@ -137,7 +139,7 @@ def candidate_locations(session, datatype_id):
 # Target picker (typeahead + post-submit resolution)
 # ---------------------------------------------------------------------------
 
-def search_targets(session, target_type, q, *, limit=15):
+def search_targets(session: Session, target_type: str, q: str, *, limit: int = 15) -> list[tuple[int, str]]:
     """Typeahead match for the modal's Targets picker.
 
     Returns up to ``limit`` items, each ``(id, label)``. Case-insensitive
@@ -168,7 +170,7 @@ def search_targets(session, target_type, q, *, limit=15):
     raise UploadError(f'Unknown target_type: {target_type!r}')
 
 
-def resolve_targets(session, target_type, target_ids):
+def resolve_targets(session: Session, target_type: str, target_ids: list[int]) -> list[Animal | Ear]:
     """Load each id, refusing if any is missing or of the wrong type.
 
     Used at POST time to turn ``request.form.getlist('targets')`` into a
@@ -205,7 +207,7 @@ def resolve_targets(session, target_type, target_ids):
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _seeded_metadata(target_type, targets, date):
+def _seeded_metadata(target_type: str, targets: list[Animal | Ear], date: Date | None) -> dict[str, Any]:
     """Build a ``parsed_metadata`` dict equivalent to what a sync re-parse
     would have produced.
 
@@ -228,7 +230,7 @@ def _seeded_metadata(target_type, targets, date):
     return to_json_safe(meta)
 
 
-def _sanitize_relative_path(raw):
+def _sanitize_relative_path(raw: str) -> str:
     """Normalize a description-class-returned path into a safe relative path.
 
     Accepts either a plain basename (``A001.jpg``) or a slash-separated
@@ -264,7 +266,7 @@ def _sanitize_relative_path(raw):
     return '/'.join(cleaned_parts)
 
 
-def _resolve_relative_path(location_dir, rel_path):
+def _resolve_relative_path(location_dir: str, rel_path: str) -> str:
     """Suffix the *filename* of ``rel_path`` until the path is free.
 
     Both the on-disk file and the ``(location_id, relative_path)``
@@ -309,15 +311,16 @@ class UploadResult:
 
 
 def handle_upload(
-    session, *,
-    target_type,
-    targets: List,
-    datatype_id,
-    location_id,
-    date,
-    notes,
-    file_storage,
-):
+    session: Session,
+    *,
+    target_type: str,
+    targets: list[Animal | Ear],
+    datatype_id: int,
+    location_id: int,
+    date: Date,
+    notes: str | None,
+    file_storage: FileStorage,
+) -> UploadResult:
     """Persist one uploaded ``FileStorage`` as a polymorphic ``Data`` row.
 
     Parameters

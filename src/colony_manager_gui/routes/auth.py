@@ -2,7 +2,7 @@ from urllib.parse import urlparse, urljoin
 
 import sqlalchemy
 from sqlalchemy import select, text
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, Response
 import flask_login
 
 from colony_manager_gui import db
@@ -20,7 +20,7 @@ _AUTH_PUBLIC_ENDPOINTS = {'auth.login_user', 'auth.add_user', 'auth.logout_user'
 
 @auth_bp.before_request
 def _restrict_auth_to_admin():
-    from flask import request
+    from flask import request, Response
     if request.endpoint in _AUTH_PUBLIC_ENDPOINTS:
         return
     if flask_login.current_user.is_anonymous or not flask_login.current_user.is_admin():
@@ -34,13 +34,13 @@ def is_safe_url(target):
            ref_url.netloc == test_url.netloc
 
 @auth_bp.route('/logout')
-def logout_user():
+def logout_user() -> Response | str:
     flask_login.logout_user()
     return redirect(request.referrer or url_for('auth.login_user'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @public
-def login_user():
+def login_user() -> Response | str:
     # Here we use a class of some kind to represent and validate our
     # client-side form data. For example, WTForms is a library that will
     # handle this for us, and we use a custom LoginForm to validate.
@@ -68,7 +68,7 @@ def login_user():
 
 @auth_bp.route('/add', methods=['GET', 'POST'])
 @public
-def add_user():
+def add_user() -> Response | str:
     # Self-registration is always open. The first user to register is
     # auto-activated and elevated to admin to bootstrap the system;
     # subsequent accounts are inactive until an admin approves them.
@@ -104,12 +104,12 @@ def add_user():
                            create_form=create_form)
 
 @auth_bp.route('/')
-def list_users():
+def list_users() -> Response | str:
     users = db.session.scalars(select(User)).all()
     return render_template('list_users.html', users=users)
 
 @auth_bp.route('/<int:user_id>/update', methods=['POST'])
-def update_user_admin(user_id):
+def update_user_admin(user_id) -> Response | str:
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))
@@ -124,7 +124,7 @@ def update_user_admin(user_id):
     return redirect(request.referrer or url_for('auth.list_users'))
 
 @auth_bp.route('/<int:user_id>/edit_modal')
-def edit_user_modal(user_id):
+def edit_user_modal(user_id) -> Response | str:
     if not flask_login.current_user.is_admin():
         flash('Must be admin to update user.', 'danger')
         return redirect(request.referrer or url_for('auth.list_users'))

@@ -14,7 +14,7 @@ import mimetypes
 import os
 
 from flask import (
-    Blueprint, abort, current_app, flash, redirect, render_template,
+    Blueprint, Response, abort, current_app, flash, redirect, render_template,
     request, send_file, url_for,
 )
 from werkzeug.utils import safe_join
@@ -71,7 +71,7 @@ def _is_image(name):
 
 
 @data_files_bp.route('/data/<int:data_id>/raw')
-def view_raw(data_id):
+def view_raw(data_id) -> Response | str:
     data_file = get_or_404(Data, data_id)
     full = _resolve_disk_path(data_file)
     mimetype, _ = mimetypes.guess_type(full)
@@ -79,7 +79,7 @@ def view_raw(data_id):
 
 
 @data_files_bp.route('/data/<int:data_id>/thumbnail')
-def view_thumbnail(data_id):
+def view_thumbnail(data_id) -> Response | str:
     data_file = get_or_404(Data, data_id)
     if not _is_image(data_file.name):
         abort(404)
@@ -151,7 +151,7 @@ def _populate_form_choices(form, target_type, *, datatype_id=None,
 
 
 @data_files_bp.route('/data/upload/<target_type>/<int:target_id>/modal')
-def upload_modal(target_type, target_id):
+def upload_modal(target_type, target_id) -> Response | str:
     """Render the upload modal body. Loaded via ``hx-get`` into ``#modalBody``."""
     target = _resolve_target_or_404(target_type, target_id)
     form = UploadFilesForm()
@@ -172,7 +172,7 @@ def upload_modal(target_type, target_id):
 
 
 @data_files_bp.route('/data/upload/<target_type>/search')
-def upload_target_search(target_type):
+def upload_target_search(target_type) -> Response | str:
     """Typeahead endpoint for the Targets picker."""
     if target_type not in upload_service.TARGET_LOADERS:
         abort(404, description=f'Unknown target_type {target_type!r}')
@@ -188,7 +188,7 @@ def upload_target_search(target_type):
 
 
 @data_files_bp.route('/data/upload/<target_type>/<int:target_id>/locations')
-def upload_locations(target_type, target_id):
+def upload_locations(target_type, target_id) -> Response | str:
     """HTMX cascade: render the Location ``<select>`` for a chosen DataType."""
     if target_type not in upload_service.TARGET_LOADERS:
         abort(404, description=f'Unknown target_type {target_type!r}')

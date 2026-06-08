@@ -1,6 +1,6 @@
 from collections import Counter, defaultdict
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, Response
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -339,13 +339,13 @@ def _find_shared_data_files(animals):
 
 
 @studies_bp.route('/')
-def list_studies():
+def list_studies() -> Response | str:
     studies = db.session.scalars(select(Study)).all()
     return render_template('studies.html', studies=studies)
 
 
 @studies_bp.route('/<int:study_id>')
-def view_study(study_id):
+def view_study(study_id) -> Response | str:
     study = get_or_404(Study, study_id)
     edit_form = StudyForm(obj=study)
     add_form = AddToStudyForm()
@@ -403,7 +403,7 @@ def view_study(study_id):
 
 
 @studies_bp.route('/create', methods=['POST'])
-def create_study():
+def create_study() -> Response | str:
     form = StudyForm()
     if form.validate_on_submit():
         study = Study(name=form.name.data, description=form.description.data)
@@ -416,7 +416,7 @@ def create_study():
 
 
 @studies_bp.route('/<int:study_id>/update', methods=['POST'])
-def update_study(study_id):
+def update_study(study_id) -> Response | str:
     study = get_or_404(Study, study_id)
     form = StudyForm(obj=study)
     if form.validate_on_submit():
@@ -429,7 +429,7 @@ def update_study(study_id):
 
 
 @studies_bp.route('/<int:study_id>/animals/add', methods=['POST'])
-def add_study_animals(study_id):
+def add_study_animals(study_id) -> Response | str:
     study = get_or_404(Study, study_id)
     form = AddToStudyForm()
     # See view_study for why this uses db.session.query(...) instead
@@ -446,7 +446,7 @@ def add_study_animals(study_id):
 
 
 @studies_bp.route('/<int:study_id>/animals/<int:animal_id>/delete', methods=['POST'])
-def remove_study_animal(study_id, animal_id):
+def remove_study_animal(study_id, animal_id) -> Response | str:
     study = get_or_404(Study, study_id)
     animal = get_or_404(Animal, animal_id)
     if animal in study.animals:
@@ -459,7 +459,7 @@ def remove_study_animal(study_id, animal_id):
 
 
 @studies_bp.route('/bulk_assign', methods=['POST'])
-def bulk_assign_animals():
+def bulk_assign_animals() -> Response | str:
     """Add a list of animals (by ID) to a study in one shot.
 
     Posted from the Animal Overview bulk-action bar: ``study_id`` plus
@@ -500,7 +500,7 @@ def bulk_assign_animals():
 
 
 @studies_bp.route('/add/<int:animal_id>', methods=['POST'])
-def add_study_animal(animal_id):
+def add_study_animal(animal_id) -> Response | str:
     animal = get_or_404(Animal, animal_id)
     form = QuickAddToStudyForm()
     if form.validate_on_submit():
@@ -517,13 +517,13 @@ def add_study_animal(animal_id):
 
 # --- Modal Routes ---
 @studies_bp.route('/create_modal')
-def create_study_modal():
+def create_study_modal() -> Response | str:
     return render_modal(StudyForm(), label='Add Study',
                         submit_url=url_for('studies.create_study'))
 
 
 @studies_bp.route('/<int:study_id>/edit_modal')
-def edit_study_modal(study_id):
+def edit_study_modal(study_id) -> Response | str:
     study = get_or_404(Study, study_id)
     return render_modal(StudyForm(obj=study), item=study,
                         label=f'Edit Study {study.name}',

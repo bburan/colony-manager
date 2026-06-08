@@ -1,15 +1,16 @@
 """Database query and filtering logic for the animal list view."""
 from datetime import date
+from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag, Study,
 )
 
 
-def get_filtered_animals(session, filters: dict):
+def get_filtered_animals(session: Session, filters: dict[str, Any]) -> list[Animal]:
     """Return all animals matching ``filters``.
 
     Expected filter keys (all optional, with defaults):
@@ -118,7 +119,7 @@ def get_filtered_animals(session, filters: dict):
     return session.scalars(stmt.order_by(order)).unique().all()
 
 
-def get_animal_filter_options(session):
+def get_animal_filter_options(session: Session) -> dict[str, list[Any]]:
     """Return lookup lists for the animal list filter UI."""
     return {
         'procedures': AnimalProcedure.get_ordered(session),

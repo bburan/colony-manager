@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urljoin
 import sqlalchemy
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort, Response
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 
@@ -52,7 +52,7 @@ SETTINGS_MAP = {
 }
 
 @main_bp.route('/')
-def view_dashboard():
+def view_dashboard() -> Response | str:
     today = date.today()
 
     # 1. Metrics for Top Cards
@@ -219,7 +219,7 @@ def view_dashboard():
 
 
 @main_bp.route('/calendar')
-def view_calendar():
+def view_calendar() -> Response | str:
     from collections import defaultdict
 
     events = db.session.scalars(
@@ -282,7 +282,7 @@ def view_calendar():
 
 # --- Settings Routes ---
 @main_bp.route('/settings')
-def list_settings():
+def list_settings() -> Response | str:
     settings = {
         k: {
             'items': db.session.scalars(select(v['model'])).all(),
@@ -306,7 +306,7 @@ def list_settings():
 
 
 @main_bp.route('/settings/jobs/recent')
-def list_recent_jobs():
+def list_recent_jobs() -> Response | str:
     """HTMX poll target — returns the recent-jobs panel HTML."""
     return render_template(
         'partials/recent_jobs_panel.html',
@@ -349,7 +349,7 @@ def _setting_success_body(item_type, item, form):
 
 
 @main_bp.route('/settings/<item_type>/create', methods=['POST'])
-def create_setting(item_type):
+def create_setting(item_type) -> Response | str:
     Model = SETTINGS_MAP[item_type]['model']
     form = SETTINGS_MAP[item_type]['form']()
     pretty = item_type.replace("_", " ")
@@ -394,7 +394,7 @@ def create_setting(item_type):
 
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/update', methods=['POST'])
-def update_setting(item_type, item_id):
+def update_setting(item_type, item_id) -> Response | str:
     item = get_or_404(SETTINGS_MAP[item_type]['model'], item_id)
     form = SETTINGS_MAP[item_type]['form'](obj=item)
     list_url = url_for('main.list_settings')
@@ -427,7 +427,7 @@ def update_setting(item_type, item_id):
 
 
 @main_bp.route('/settings/<item_type>/<int:item_id>/delete', methods=['POST'])
-def delete_setting(item_type, item_id):
+def delete_setting(item_type, item_id) -> Response | str:
     Model = SETTINGS_MAP[item_type]['model']
     item = get_or_404(Model, item_id)
     item_name = item.name
@@ -455,7 +455,7 @@ def delete_setting(item_type, item_id):
     )
 
 @main_bp.route('/settings/feed/create', methods=['POST'])
-def create_feed():
+def create_feed() -> Response | str:
     form = FeedForm()
     if form.validate_on_submit():
         feed = models.Feed()
@@ -468,7 +468,7 @@ def create_feed():
     return redirect(request.referrer or url_for('main.list_settings'))
 
 @main_bp.route('/set-species/<species_id>', methods=['POST'])
-def set_species(species_id):
+def set_species(species_id) -> Response | str:
     form = CSRFOnlyForm()
     if not form.validate_on_submit():
         abort(400)
@@ -510,7 +510,7 @@ def _save_datatype_children(dt):
 
 
 @main_bp.route('/settings/datatype/create_modal')
-def create_datatype_modal():
+def create_datatype_modal() -> Response | str:
     target_type = request.args.get('target_type')
     if target_type:
         form = datatype_form_for(target_type)
@@ -527,7 +527,7 @@ def create_datatype_modal():
 
 
 @main_bp.route('/settings/datatype/create', methods=['POST'])
-def create_datatype():
+def create_datatype() -> Response | str:
     list_url = url_for('main.list_settings')
     retarget = '#datatype-error'
 
@@ -570,7 +570,7 @@ def create_datatype():
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/edit_modal')
-def edit_datatype_modal(datatype_id):
+def edit_datatype_modal(datatype_id) -> Response | str:
     dt = get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type, obj=dt)
     return render_template(
@@ -581,7 +581,7 @@ def edit_datatype_modal(datatype_id):
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
-def update_datatype(datatype_id):
+def update_datatype(datatype_id) -> Response | str:
     dt = get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type)
     list_url = url_for('main.list_settings')
@@ -611,7 +611,7 @@ def update_datatype(datatype_id):
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/sync', methods=['POST'])
-def sync_datatype(datatype_id):
+def sync_datatype(datatype_id) -> Response | str:
     """Queue a background sync_locations run for one DataType."""
     dt = get_or_404(models.DataType, datatype_id)
     if not dt.description_class or not dt.locations:
@@ -627,7 +627,7 @@ def sync_datatype(datatype_id):
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
-def rematch_datatype(datatype_id):
+def rematch_datatype(datatype_id) -> Response | str:
     """Queue a background rematch run for a DataType's Data files.
 
     Pass ``?force=1`` to walk every row (clearing existing target links,
@@ -644,7 +644,7 @@ def rematch_datatype(datatype_id):
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
-def delete_datatype(datatype_id):
+def delete_datatype(datatype_id) -> Response | str:
     dt = get_or_404(models.DataType, datatype_id)
     list_url = url_for('main.list_settings')
     if dt.data_files:
@@ -718,7 +718,7 @@ def _save_protocol_drugs(protocol):
 
 
 @main_bp.route('/settings/dosage_protocol/create_modal')
-def create_dosage_protocol_modal():
+def create_dosage_protocol_modal() -> Response | str:
     form = DosageProtocolForm()
     return render_template(
         'partials/form_dosage_protocol_modal.html',
@@ -727,7 +727,7 @@ def create_dosage_protocol_modal():
 
 
 @main_bp.route('/settings/dosage_protocol/<int:protocol_id>/edit_modal')
-def edit_dosage_protocol_modal(protocol_id):
+def edit_dosage_protocol_modal(protocol_id) -> Response | str:
     protocol = get_or_404(models.DosageProtocol, protocol_id)
     form = DosageProtocolForm(obj=protocol)
     return render_template(
@@ -737,7 +737,7 @@ def edit_dosage_protocol_modal(protocol_id):
 
 
 @main_bp.route('/settings/dosage_protocol/create', methods=['POST'])
-def create_dosage_protocol():
+def create_dosage_protocol() -> Response | str:
     form = DosageProtocolForm()
     list_url = url_for('main.list_settings')
     retarget = '#error-dosage_protocol'
@@ -775,7 +775,7 @@ def create_dosage_protocol():
 
 
 @main_bp.route('/settings/dosage_protocol/<int:protocol_id>/update', methods=['POST'])
-def update_dosage_protocol(protocol_id):
+def update_dosage_protocol(protocol_id) -> Response | str:
     protocol = get_or_404(models.DosageProtocol, protocol_id)
     form = DosageProtocolForm()
     list_url = url_for('main.list_settings')
@@ -805,7 +805,7 @@ def update_dosage_protocol(protocol_id):
 
 
 @main_bp.route('/settings/dosage_protocol/<int:protocol_id>/delete', methods=['POST'])
-def delete_dosage_protocol(protocol_id):
+def delete_dosage_protocol(protocol_id) -> Response | str:
     protocol = get_or_404(models.DosageProtocol, protocol_id)
     name = protocol.name
     db.session.delete(protocol)

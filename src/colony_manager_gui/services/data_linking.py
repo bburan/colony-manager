@@ -13,18 +13,20 @@ import math
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from typing import Any
 
 from sqlalchemy import or_, select
 
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalEventData, AnimalEventDataType,
+    ConfocalImage, Data, Ear,
     _canonical_side, _expand_sides,
 )
 from colony_manager_gui import db
 
 
-def to_json_safe(value):
+def to_json_safe(value: Any) -> Any:
     """Recursively convert a parsed dict so it round-trips through JSON.
 
     Date / datetime values become ISO strings; tuples become lists. Other
@@ -45,7 +47,7 @@ def to_json_safe(value):
 # File parsing helpers
 # ---------------------------------------------------------------------------
 
-def parsed_animal_sides(f, animal_custom_id):
+def parsed_animal_sides(f: Data, animal_custom_id: str) -> list[str] | None:
     """Sides the parser assigns to ``animal_custom_id`` in file ``f``.
 
     Returns ``None`` when the parser does not see this animal in this file,
@@ -72,7 +74,7 @@ def parsed_animal_sides(f, animal_custom_id):
     return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
 
 
-def parse_confocal_file(f, desc_cache=None):
+def parse_confocal_file(f: Data, desc_cache: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Return the parsed metadata for a ``ConfocalImageData`` file.
 
     Prefers the cached ``f.parsed_metadata`` column (populated by sync /
@@ -110,7 +112,7 @@ def parse_confocal_file(f, desc_cache=None):
 # Confocal image linking
 # ---------------------------------------------------------------------------
 
-def parse_orphan_confocal_files(ear):
+def parse_orphan_confocal_files(ear: Ear) -> list[dict[str, Any]]:
     """Re-parse unmatched ``ConfocalImageData`` candidates attached to ``ear``.
 
     Returns a list of dicts with keys ``file``, ``frequency``,
@@ -141,7 +143,7 @@ def parse_orphan_confocal_files(ear):
     return results
 
 
-def resync_confocal_image(image):
+def resync_confocal_image(image: ConfocalImage) -> int:
     """Link unmatched ``ConfocalImageData`` rows whose parsed metadata matches *image*.
 
     Walks ``image.ear.candidate_data_files`` filtered to unmatched confocal
@@ -179,7 +181,7 @@ def resync_confocal_image(image):
 # Animal-event file linking
 # ---------------------------------------------------------------------------
 
-def resync_event_files(event):
+def resync_event_files(event: AnimalEvent) -> None:
     """Unlink files whose date or parsed side no longer matches *event*, then link matching files."""
     new_date = event.completion_date or event.scheduled_date
     animal_custom_id = event.animal.custom_id
@@ -231,7 +233,7 @@ class AutoCreateResult:
     linked: int = 0
 
 
-def auto_create_animal_event(animal, data_file):
+def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> AutoCreateResult:
     """Auto-create an ``AnimalEvent`` for an unassigned file, then link siblings.
 
     Reuses an existing matching event if one is already on the animal —

@@ -1,13 +1,15 @@
 """Database query and filtering logic for the cage list view."""
+from typing import Any
+
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, Cage, Source,
 )
 
 
-def get_filtered_cages(session, filters: dict):
+def get_filtered_cages(session: Session, filters: dict[str, Any]) -> list[Cage]:
     """Return all cages matching ``filters``.
 
     Expected filter keys (all optional, with defaults):
@@ -137,7 +139,7 @@ def get_filtered_cages(session, filters: dict):
     return session.scalars(stmt.order_by(order)).unique().all()
 
 
-def get_cage_filter_options(session):
+def get_cage_filter_options(session: Session) -> dict[str, list[Any]]:
     """Return lookup lists for the cage list filter UI."""
     return {
         'sources': session.scalars(select(Source).order_by(Source.name)).all(),

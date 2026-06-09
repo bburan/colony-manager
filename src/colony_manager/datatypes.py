@@ -265,6 +265,28 @@ class DataTypeDescription(ABC):
         """
         ...
 
+    # -- Rating / scoring status ---------------------------------------------
+
+    supports_rating: bool = False
+    """Set to ``True`` on subclasses that can report whether their data
+    has been scored or rated (e.g. peak-picked ABR waveforms).  The
+    nightly ``flask data sync-rating`` job skips any DataTypeDescription
+    whose class has this set to ``False``."""
+
+    def get_rating_status(self):
+        """Return rating completeness, or ``None`` if not applicable.
+
+        Called by the nightly sync job; result is cached in
+        ``Data.is_rated`` / ``Data.rating_note``.
+
+        Returns
+        -------
+        dict or None
+            ``{'is_rated': bool, 'note': str | None}`` when
+            ``supports_rating`` is ``True``; ``None`` otherwise.
+        """
+        return None
+
     # -- Upload contract -----------------------------------------------------
     #
     # Subclasses opt in to the upload-from-UI flow by defining a

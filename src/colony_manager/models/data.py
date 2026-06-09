@@ -254,6 +254,8 @@ class Data(VersionedModel):
     date            = Column(Date, nullable=True)
     status          = Column(String(50), nullable=False, default=DataStatus.UNREVIEWED)
     notes           = Column(Text, nullable=True)
+    is_rated        = Column(Boolean, nullable=True)
+    rating_note     = Column(Text, nullable=True)
     mtime           = Column(DateTime, nullable=True)
     ctime           = Column(DateTime, nullable=True)
     discovered_at   = Column(DateTime, nullable=True)

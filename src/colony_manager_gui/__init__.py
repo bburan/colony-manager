@@ -167,4 +167,7 @@ def create_app():
             return
         return redirect(url_for('auth.login_user', next=request.url))
 
+    from colony_manager_gui.commands import data_cli
+    app.cli.add_command(data_cli, name='data')
+
     return app

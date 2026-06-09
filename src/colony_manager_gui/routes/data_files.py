@@ -49,6 +49,7 @@ def _detail_url(target_type, target_id):
 
 
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff', '.webp'}
+PDF_EXTS   = {'.pdf'}
 
 
 def _resolve_disk_path(data_file):
@@ -70,6 +71,27 @@ def _is_image(name):
     return ext in IMAGE_EXTS
 
 
+def _is_pdf(name):
+    return os.path.splitext(name)[1].lower() in PDF_EXTS
+
+
+def _pdf_thumbnail(full, cache_path, max_size):
+    """Render the first page of a PDF to a JPEG thumbnail."""
+    import fitz
+    from PIL import Image
+    doc = fitz.open(full)
+    try:
+        page = doc[0]
+        zoom = (max_size * 1.5) / max(page.rect.width, page.rect.height)
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+        img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
+        img.thumbnail((max_size, max_size))
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        img.save(cache_path, format='JPEG', quality=82, optimize=True)
+    finally:
+        doc.close()
+
+
 @data_files_bp.route('/data/<int:data_id>/raw')
 def view_raw(data_id) -> Response | str:
     data_file = get_or_404(Data, data_id)
@@ -81,31 +103,76 @@ def view_raw(data_id) -> Response | str:
 @data_files_bp.route('/data/<int:data_id>/thumbnail')
 def view_thumbnail(data_id) -> Response | str:
     data_file = get_or_404(Data, data_id)
-    if not _is_image(data_file.name):
-        abort(404)
-
     full = _resolve_disk_path(data_file)
     cache_dir = current_app.config['THUMBNAIL_CACHE_DIR']
     max_size = current_app.config['THUMBNAIL_MAX_SIZE']
 
-    # Cache key incorporates source path + mtime + size so a re-saved file
-    # invalidates automatically.
     stat = os.stat(full)
     key = hashlib.sha1(
         f'{full}|{stat.st_mtime_ns}|{stat.st_size}|{max_size}'.encode('utf-8')
     ).hexdigest()
     cache_path = os.path.join(cache_dir, key[:2], key[2:] + '.jpg')
 
+    if _is_pdf(data_file.name):
+        if not os.path.exists(cache_path):
+            _pdf_thumbnail(full, cache_path, max_size)
+    elif _is_image(data_file.name):
+        if not os.path.exists(cache_path):
+            from PIL import Image, ImageOps
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            with Image.open(full) as img:
+                img = ImageOps.exif_transpose(img)
+                if img.mode not in ('RGB', 'L'):
+                    img = img.convert('RGB')
+                img.thumbnail((max_size, max_size))
+                img.save(cache_path, format='JPEG', quality=82, optimize=True)
+    else:
+        abort(404)
+
+    return send_file(cache_path, mimetype='image/jpeg')
+
+
+@data_files_bp.route('/data/<int:data_id>/pdf-image')
+def view_pdf_image(data_id) -> Response | str:
+    """Render all pages of a PDF as a single stacked JPEG for the zoom modal."""
+    data_file = get_or_404(Data, data_id)
+    if not _is_pdf(data_file.name):
+        abort(404)
+
+    full = _resolve_disk_path(data_file)
+    cache_dir = current_app.config['THUMBNAIL_CACHE_DIR']
+
+    stat = os.stat(full)
+    key = hashlib.sha1(
+        f'{full}|{stat.st_mtime_ns}|{stat.st_size}|pdf-full'.encode('utf-8')
+    ).hexdigest()
+    cache_path = os.path.join(cache_dir, key[:2], key[2:] + '-full.jpg')
+
     if not os.path.exists(cache_path):
-        from PIL import Image, ImageOps
+        import fitz
+        from PIL import Image
+        doc = fitz.open(full)
+        try:
+            pages = []
+            for page in doc:
+                pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
+                pages.append(Image.frombytes('RGB', [pix.width, pix.height], pix.samples))
+        finally:
+            doc.close()
+
+        if not pages:
+            abort(404)
+
+        total_w = max(pg.width for pg in pages)
+        total_h = sum(pg.height for pg in pages)
+        combined = Image.new('RGB', (total_w, total_h), 'white')
+        y = 0
+        for pg in pages:
+            combined.paste(pg, (0, y))
+            y += pg.height
 
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        with Image.open(full) as img:
-            img = ImageOps.exif_transpose(img)
-            if img.mode not in ('RGB', 'L'):
-                img = img.convert('RGB')
-            img.thumbnail((max_size, max_size))
-            img.save(cache_path, format='JPEG', quality=82, optimize=True)
+        combined.save(cache_path, format='JPEG', quality=85, optimize=True)
 
     return send_file(cache_path, mimetype='image/jpeg')
 

@@ -11,7 +11,7 @@
    entity, not the file list.
 #}
 {% import 'macros.html' as macros %}
-{% set image_exts = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff', '.webp') %}
+{% set image_exts = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff', '.webp', '.pdf') %}
 {% set file_list = files|list %}
 {% set images = [] %}
 {% set others = [] %}
@@ -27,9 +27,10 @@
     {% for f in images %}
     <div class="col" x-data="{ open: false }">
         <div class="card h-100 shadow-sm">
+            {% set zoom_url = url_for('data_files.view_pdf_image', data_id=f.id) if f.name.lower().endswith('.pdf') else url_for('data_files.view_raw', data_id=f.id) %}
             <button type="button"
                     class="btn p-0 border-0 bg-transparent"
-                    onclick="openImageModal('{{ url_for('data_files.view_raw', data_id=f.id) }}', '{{ f.name }}')"
+                    onclick="openImageModal('{{ zoom_url }}', '{{ f.name }}')"
                     title="{{ f.name }}">
                 <img src="{{ url_for('data_files.view_thumbnail', data_id=f.id) }}"
                      alt="{{ f.name }}"
@@ -48,6 +49,10 @@
                     <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;">{{ f.name }}</span>
                     {% if f.notes %}
                     <i class="fas fa-comment fa-xs text-muted flex-shrink-0" title="{{ f.notes }}"></i>
+                    {% endif %}
+                    {% if f.is_rated is not none %}
+                    <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }} flex-shrink-0"
+                       title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
                     {% endif %}
                 </button>
                 <div x-show="open" x-cloak class="mt-2 pt-2 border-top">
@@ -83,6 +88,10 @@
                     {% endif %}
                     {% if f.notes %}
                     <i class="fas fa-comment df-note-indicator flex-shrink-0" title="{{ f.notes }}"></i>
+                    {% endif %}
+                    {% if f.is_rated is not none %}
+                    <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }} flex-shrink-0"
+                       title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
                     {% endif %}
                 </button>
                 <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>

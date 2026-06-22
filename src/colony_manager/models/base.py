@@ -170,6 +170,19 @@ class NestedMixin:
                     stack.append(child_id)
         return result
 
+    @classmethod
+    def get_by_display_name(cls, session, display_name: str):
+        """Fetches an instance by its full display name (e.g., 'Parent >
+        Child')."""
+        if not display_name:
+            return None
+
+        all_items = cls.get_ordered(session)
+        for item in all_items:
+            if item.display_name == display_name:
+                return item
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Side-normalization helpers (used by DataType.match_targets subclasses)

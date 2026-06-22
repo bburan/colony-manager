@@ -782,6 +782,105 @@ def list_unmatched_data() -> Response | str:
         datatypes=datatypes,
     )
 
+@animals_bp.route('/unrated-data')
+def list_unrated_data() -> Response | str:
+    """Files whose DataType supports rating but have not yet been rated."""
+    from colony_manager.models import DataType
+    from colony_manager.datatypes import load_description_class
+    from datetime import datetime
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    datatype_id_filter = request.args.get('datatype_id', None, type=int)
+    search_filter = (request.args.get('q', '') or '').strip()
+    date_from_raw = (request.args.get('date_from', '') or '').strip()
+    date_to_raw = (request.args.get('date_to', '') or '').strip()
+    sort = request.args.get('sort', 'date')
+    direction = request.args.get('dir', 'desc')
+
+    def _parse_date(raw):
+        try:
+            return datetime.strptime(raw, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return None
+
+    date_from = _parse_date(date_from_raw)
+    date_to = _parse_date(date_to_raw)
+
+    all_dts = db.session.scalars(
+        select(DataType).where(DataType.description_class.isnot(None)).order_by(DataType.name)
+    ).all()
+    ratable_datatypes = []
+    ratable_ids = []
+    for dt in all_dts:
+        try:
+            if load_description_class(dt.description_class).supports_rating:
+                ratable_datatypes.append(dt)
+                ratable_ids.append(dt.id)
+        except Exception:
+            pass
+
+    stmt = select(Data).where(
+        Data.datatype_id.in_(ratable_ids),
+        or_(Data.is_rated == False, Data.is_rated.is_(None)),
+    )
+
+    if datatype_id_filter:
+        stmt = stmt.where(Data.datatype_id == datatype_id_filter)
+
+    if search_filter:
+        like = f'%{search_filter}%'
+        stmt = stmt.where(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
+
+    if date_from is not None:
+        stmt = stmt.where(Data.date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(Data.date <= date_to)
+
+    sort_columns = {
+        'date': Data.date,
+        'name': Data.name,
+        'datatype': DataType.name,
+    }
+    sort_col = sort_columns.get(sort, Data.date)
+    if sort == 'datatype':
+        stmt = stmt.join(DataType, Data.datatype_id == DataType.id)
+    if direction == 'asc':
+        stmt = stmt.order_by(sort_col.asc(), Data.name.asc())
+    else:
+        stmt = stmt.order_by(sort_col.desc(), Data.name.asc())
+
+    pagination = paginate(stmt, page=page, per_page=per_page)
+
+    return render_template(
+        'unrated_data.html',
+        files=pagination.items,
+        pagination=pagination,
+        ratable_datatypes=ratable_datatypes,
+        filters={
+            'datatype_id': datatype_id_filter,
+            'per_page': per_page,
+            'q': search_filter,
+            'date_from': date_from_raw,
+            'date_to': date_to_raw,
+            'sort': sort,
+            'dir': direction,
+        },
+    )
+
+
+@animals_bp.route('/unrated-data/sync-rating', methods=['POST'])
+def trigger_rating_sync() -> Response | str:
+    """Enqueue a rating-sync job for all ratable DataTypes (or one if filtered)."""
+    from colony_manager_gui.jobs import enqueue_rating_sync
+    datatype_id = request.form.get('datatype_id', None, type=int)
+    enqueue_rating_sync(datatype_id)
+    flash('Rating scan queued.', 'info')
+    return redirect(url_for('animals.list_unrated_data',
+                            **{k: v for k, v in request.form.items()
+                               if k not in ('csrf_token', 'datatype_id')}))
+
+
 @animals_bp.route('/unmatched-data/delete', methods=['POST'])
 def delete_unmatched_data() -> Response | str:
     """Bulk-delete selected Data rows (typically files marked 'missing').

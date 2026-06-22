@@ -30,6 +30,47 @@ log = logging.getLogger(__name__)
 XXH3_128_HEX_LEN = 32
 
 
+def sync_rating_status(filter_datatype_id=None):
+    """Update ``is_rated`` / ``rating_note`` for all ratable Data rows.
+
+    Skips rows whose DataType has no description class or whose class does
+    not set ``supports_rating = True``.  Returns a counts dict suitable
+    for JSON-serialising into a ``SyncJob.summary``.
+    """
+    from colony_manager.models import DataType
+
+    stmt = select(Data).join(DataType, Data.datatype_id == DataType.id)
+    if filter_datatype_id is not None:
+        stmt = stmt.where(DataType.id == filter_datatype_id)
+
+    updated = errors = skipped = 0
+
+    for row in db.session.scalars(stmt):
+        try:
+            desc_cls = row.datatype.get_description_class()
+        except Exception:
+            skipped += 1
+            continue
+        if desc_cls is None or not desc_cls.supports_rating:
+            skipped += 1
+            continue
+        try:
+            result = row.get_description().get_rating_status()
+        except Exception as exc:
+            log.warning('sync_rating_status error for data id=%s: %s', row.id, exc)
+            errors += 1
+            continue
+        if result is None:
+            skipped += 1
+            continue
+        row.is_rated    = result['is_rated']
+        row.rating_note = result.get('note')
+        updated += 1
+
+    db.session.commit()
+    return {'updated': updated, 'errors': errors, 'skipped': skipped}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block header %}
+Unrated Data Files
+{% endblock %}
+
+{% set link_args = {
+    'datatype_id': filters.datatype_id or '',
+    'per_page': filters.per_page,
+    'q': filters.q,
+    'date_from': filters.date_from,
+    'date_to': filters.date_to,
+    'sort': filters.sort,
+    'dir': filters.dir,
+} %}
+
+{% macro sort_header(label, key) -%}
+    {% set is_active = filters.sort == key %}
+    {% set next_dir = 'asc' if (is_active and filters.dir == 'desc') else ('desc' if is_active else ('desc' if key == 'date' else 'asc')) %}
+    {% set h_args = link_args.copy() %}
+    {% set _ = h_args.update({'sort': key, 'dir': next_dir, 'page': 1}) %}
+    <a href="{{ url_for('animals.list_unrated_data', **h_args) }}" class="text-decoration-none text-reset">
+        {{ label }}
+        {% if is_active %}
+            <i class="fas fa-arrow-{{ 'down' if filters.dir == 'desc' else 'up' }} small ms-1"></i>
+        {% endif %}
+    </a>
+{%- endmacro %}
+
+{% block content %}
+<div class="card shadow-sm mb-3">
+    <form method="GET" action="{{ url_for('animals.list_unrated_data') }}">
+        <input type="hidden" name="sort" value="{{ filters.sort }}">
+        <input type="hidden" name="dir" value="{{ filters.dir }}">
+        <input type="hidden" name="page" value="1">
+
+        <div class="card-header d-flex justify-content-between align-items-center gap-3">
+            <h2 class="h6 fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center">
+                <i class="fas fa-filter me-2"></i>Filters &amp; Sorting
+                <span class="badge bg-light text-secondary border ms-3 fw-normal">
+                    {{ pagination.total }} Results
+                </span>
+            </h2>
+
+            <div class="d-flex align-items-center gap-3">
+                <div class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
+                    <input type="text" name="q" class="form-control border-end-0"
+                           placeholder="Search filename or path..." value="{{ filters.q }}">
+                    <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                </div>
+
+                <a href="{{ url_for('animals.list_unrated_data') }}"
+                   class="btn btn-link btn-sm text-decoration-none text-muted p-0"
+                   title="Reset all filters">
+                    <i class="fas fa-undo-alt me-1"></i>
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">DataType</label>
+                    <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All DataTypes</option>
+                        {% for dt in ratable_datatypes %}
+                        <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Date from</label>
+                    <input type="date" name="date_from" value="{{ filters.date_from }}"
+                           class="form-control form-control-sm" onchange="this.form.submit()">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Date to</label>
+                    <input type="date" name="date_to" value="{{ filters.date_to }}"
+                           class="form-control form-control-sm" onchange="this.form.submit()">
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Per page</label>
+                    <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for n in [25, 50, 100, 200] %}
+                        <option value="{{ n }}" {% if filters.per_page == n %}selected{% endif %}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Files that have not been rated</h2>
+        <div class="d-flex align-items-center gap-2">
+            <form method="POST" action="{{ url_for('animals.trigger_rating_sync') }}"
+                  onsubmit="return confirm('Rescan all ratable files to refresh rating status?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if filters.datatype_id %}
+                <input type="hidden" name="datatype_id" value="{{ filters.datatype_id }}">
+                {% endif %}
+                <button class="btn btn-sm btn-outline-secondary"
+                        title="Re-check rating status for{% if filters.datatype_id %} this DataType{% else %} all ratable DataTypes{% endif %}">
+                    <i class="fas fa-rotate me-1"></i>Rescan
+                </button>
+            </form>
+            <span class="badge bg-secondary">{{ pagination.total }} total</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if files %}
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>{{ sort_header('DataType', 'datatype') }}</th>
+                    <th>Target</th>
+                    <th>{{ sort_header('Location', 'name') }}</th>
+                    <th>{{ sort_header('Date', 'date') }}</th>
+                    <th>Rating Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in files %}
+                <tr>
+                    <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
+                    <td class="small">
+                        {% if f.target_type == 'animal_event' %}
+                            {% for t in f.targets %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=t.animal_id) }}"
+                                   class="badge bg-light text-dark text-decoration-none">{{ t.animal.display_id }}</a>
+                            {% else %}
+                                <span class="text-muted">unmatched</span>
+                            {% endfor %}
+                        {% elif f.target_type == 'animal' %}
+                            {% for t in f.targets %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=t.id) }}"
+                                   class="badge bg-light text-dark text-decoration-none">{{ t.display_id }}</a>
+                            {% else %}
+                                <span class="text-muted">unmatched</span>
+                            {% endfor %}
+                        {% elif f.target_type == 'ear' %}
+                            {% for t in f.targets %}
+                                <a href="{{ url_for('histology.view_ear', ear_id=t.id) }}"
+                                   class="badge bg-light text-dark text-decoration-none">{{ t.full_display }}</a>
+                            {% else %}
+                                <span class="text-muted">unmatched</span>
+                            {% endfor %}
+                        {% else %}
+                            {% for t in f.targets %}
+                                <span class="badge bg-light text-dark">{{ t }}</span>
+                            {% else %}
+                                <span class="text-muted">unmatched</span>
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td><span class="small text-muted">{{ f.relative_path }}</span></td>
+                    <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
+                    <td class="small text-muted">{{ f.rating_note or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-4">
+            <p class="text-muted mb-0">No unrated files found for the current filters.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav aria-label="Unrated files pagination">
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('animals.list_unrated_data', page=pagination.prev_num, **link_args) }}">«</a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('animals.list_unrated_data', page=p, **link_args) }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('animals.list_unrated_data', page=pagination.next_num, **link_args) }}">»</a>
+                </li>
+            </ul>
+        </nav>
+        <p class="text-center text-muted small mt-1 mb-0">
+            Page {{ pagination.page }} of {{ pagination.pages }}
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

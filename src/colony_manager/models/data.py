@@ -47,15 +47,16 @@ class DataType(VersionedModel):
 
     TARGET_LABEL = 'Generic'
 
-    def get_description(self):
+    def get_description_class(self):
         if not self.description_class:
-            return {}
+            return None
         from colony_manager.datatypes import load_description_class
         return load_description_class(self.description_class)
 
     def get_description_callbacks(self):
         try:
-            return self.get_description().get_callbacks()
+            cls = self.get_description_class()
+            return cls.get_callbacks() if cls is not None else {}
         except Exception:
             return {}
 
@@ -274,6 +275,13 @@ class Data(VersionedModel):
         'polymorphic_on': target_type,
         'polymorphic_identity': 'data',
     }
+
+    def get_description(self):
+        """Return a DataTypeDescription instance for this file, or None."""
+        cls = self.datatype.get_description_class()
+        if cls is None:
+            return None
+        return cls(self)
 
     @property
     def targets(self):

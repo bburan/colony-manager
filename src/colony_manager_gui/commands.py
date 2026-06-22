@@ -4,8 +4,7 @@ import logging
 import click
 from flask.cli import with_appcontext
 
-from colony_manager.datatypes import load_description_class
-from colony_manager.models import Data, DataType
+from colony_manager.models import DataType
 
 log = logging.getLogger(__name__)
 
@@ -29,55 +28,27 @@ def sync_rating(datatype_name, verbose):
     """
     from sqlalchemy import select
     from colony_manager_gui import db
+    from colony_manager_gui.sync import sync_rating_status
 
-    session = db.session
-
-    stmt = select(Data).join(DataType, Data.datatype_id == DataType.id)
+    datatype_id = None
     if datatype_name:
-        stmt = stmt.where(DataType.name == datatype_name)
+        dt = db.session.scalars(
+            select(DataType).where(DataType.name == datatype_name)
+        ).first()
+        if dt is None:
+            raise click.ClickException(f'DataType not found: {datatype_name}')
+        datatype_id = dt.id
 
-    updated = errors = skipped = 0
+    counts = sync_rating_status(filter_datatype_id=datatype_id)
 
-    for row in session.scalars(stmt):
-        key = row.datatype.description_class
-        if not key:
-            skipped += 1
-            continue
-
-        try:
-            desc_cls = load_description_class(key)
-        except Exception:
-            skipped += 1
-            continue
-
-        if not desc_cls.supports_rating:
-            skipped += 1
-            continue
-
-        try:
-            result = desc_cls(row).get_rating_status()
-        except Exception as exc:
-            log.warning('sync-rating error for data id=%s: %s', row.id, exc)
-            errors += 1
-            continue
-
-        if result is None:
-            skipped += 1
-            continue
-
-        row.is_rated    = result['is_rated']
-        row.rating_note = result.get('note')
-        updated += 1
-
-        if verbose:
-            click.echo(
-                f'  [{row.id}] {row.name}: '
-                f'{"rated" if row.is_rated else "unrated"}'
-                + (f' — {row.rating_note}' if row.rating_note else '')
-            )
-
-    session.commit()
-    click.echo(
-        f'sync-rating complete: {updated} updated, {errors} errors, '
-        f'{skipped} skipped (no rating support or missing path).'
-    )
+    if verbose:
+        click.echo(
+            f'sync-rating complete: {counts["updated"]} updated, '
+            f'{counts["errors"]} errors, {counts["skipped"]} skipped.'
+        )
+    else:
+        click.echo(
+            f'sync-rating complete: {counts["updated"]} updated, '
+            f'{counts["errors"]} errors, {counts["skipped"]} skipped '
+            f'(no rating support or missing path).'
+        )

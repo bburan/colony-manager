@@ -29,7 +29,7 @@ from colony_manager.enums import SyncJobKind, SyncJobStatus
 from colony_manager.models import SyncJob
 
 from . import db
-from .sync import sync_locations, rematch_datatype
+from .sync import sync_locations, rematch_datatype, sync_rating_status
 
 
 log = logging.getLogger(__name__)
@@ -138,6 +138,19 @@ def enqueue_datatype_rematch(datatype_id, force=False):
         datatype_id,
         run_rematch_job, datatype_id, force,
     )
+
+
+def run_rating_sync_job(job_id, datatype_id=None):
+    """RQ entry point: update is_rated / rating_note for ratable Data rows."""
+    _execute_job(
+        job_id,
+        lambda: sync_rating_status(filter_datatype_id=datatype_id),
+    )
+
+
+def enqueue_rating_sync(datatype_id=None):
+    """Queue a ``sync_rating_status`` run, optionally scoped to one DataType."""
+    return _enqueue(SyncJobKind.RATING_SYNC, datatype_id, run_rating_sync_job, datatype_id)
 
 
 # ---------------------------------------------------------------------------

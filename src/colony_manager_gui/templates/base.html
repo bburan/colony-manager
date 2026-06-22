@@ -137,9 +137,7 @@
                         ('animals.list_animals', 'Animals'),
                         ('studies.list_studies', 'Studies'),
                     ] %}
-                    {% set nav_items_after = [
-                        ('animals.list_unmatched_data', 'Data'),
-                    ] %}
+                    {% set nav_items_after = [] %}
                     {% if not current_user.is_anonymous and current_user.is_admin() %}
                         {% set nav_items_after = nav_items_after + [('main.list_settings', 'Settings')] %}
                     {% endif %}
@@ -158,6 +156,17 @@
                                    href="{{ url_for('histology.list_histology') }}">List</a></li>
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'histology.view_grid' }}"
                                    href="{{ url_for('histology.view_grid') }}">Grid</a></li>
+                        </ul>
+                    </li>
+                    {% set data_endpoints = ['animals.list_unmatched_data', 'animals.list_unrated_data'] %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint in data_endpoints }}"
+                           href="#" role="button" data-bs-toggle="dropdown">Data</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_unmatched_data' }}"
+                                   href="{{ url_for('animals.list_unmatched_data') }}">Unmatched</a></li>
+                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_unrated_data' }}"
+                                   href="{{ url_for('animals.list_unrated_data') }}">Needs Rating</a></li>
                         </ul>
                     </li>
                     {% for endpoint, label in nav_items_after %}

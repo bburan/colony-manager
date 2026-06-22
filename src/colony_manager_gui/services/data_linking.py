@@ -58,8 +58,7 @@ def parsed_animal_sides(f: Data, animal_custom_id: str) -> list[str] | None:
     parsed = f.parsed_metadata
     if parsed is None:
         try:
-            cls = f.datatype.get_description()
-            parsed = cls(f).parse() or {}
+            parsed = f.get_description().parse() or {}
         except Exception:
             return None
     raw_ids = parsed.get('animal_id')

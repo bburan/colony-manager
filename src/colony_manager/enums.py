@@ -20,6 +20,7 @@ class SyncJobKind(StrEnum):
     SYNC          = 'sync'
     REMATCH       = 'rematch'
     FORCE_REMATCH = 'force_rematch'
+    RATING_SYNC   = 'rating_sync'
 
 
 class DataStatus(StrEnum):

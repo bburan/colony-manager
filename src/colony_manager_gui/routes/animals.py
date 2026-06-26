@@ -328,7 +328,7 @@ def update_animal_daily_log(animal_id, date) -> Response | str:
                         animal_id=animal.id,
                         feed_id=feed_form.feed_id.data,
                         quantity=feed_form.quantity.data,
-                        date=form.date.data,
+                        date=date,
                     )
                     db.session.add(new_feeding)
             else:

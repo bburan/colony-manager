@@ -14,13 +14,13 @@ Example::
         animal = make_animal(db_session, cage=cage, species=species)
         ...
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from itertools import count
 
 from colony_manager.models import (
     Animal, AnimalDataType, AnimalEvent, AnimalEventDataType,
     AnimalProcedure, AnimalProcedureTarget, BreedingPair, Cage,
-    ConfocalImage, ConfocalImageDataType, ConfocalImageType,
+    ConfocalImage, ConfocalImageData, ConfocalImageDataType, ConfocalImageType,
     DataLocation, DosageProtocol, DosageProtocolDrug, Ear, EarDataType,
     Feed, FeedLog, Litter, Source, Species, TerminationReason, User,
     WeightLog,
@@ -39,6 +39,7 @@ _procedure_target_seq = count(1)
 _feed_seq = count(1)
 _ear_seq = count(1)
 _confocal_type_seq = count(1)
+_confocal_data_seq = count(1)
 _datatype_seq = count(1)
 _dosage_protocol_seq = count(1)
 
@@ -233,6 +234,35 @@ def make_confocal_image(session, *, ear, image_type=None, frequency=8000.0):
         image_type_id=image_type.id,
         frequency=frequency,
     )
+    session.add(obj)
+    session.commit()
+    return obj
+
+
+def make_confocal_image_data(
+    session, *, datatype=None, location=None, confocal_image=None, mtime=None,
+):
+    """Build a ConfocalImageData file row.
+
+    Creates its own ConfocalImageDataType + DataLocation by default.
+    Pass ``confocal_image`` to link the file to a matched ConfocalImage;
+    omit it to leave the file unmatched.
+    """
+    n = next(_confocal_data_seq)
+    if datatype is None:
+        datatype = make_confocal_image_data_type(session)
+    if location is None:
+        location = make_data_location(session, datatype=datatype, base_path=f'/tmp/cd_{n}')
+    obj = ConfocalImageData(
+        datatype_id=datatype.id,
+        location_id=location.id,
+        target_type='confocal_image',
+        relative_path=f'scan_{n:04d}.lsm',
+        name=f'scan_{n:04d}.lsm',
+        mtime=mtime if mtime is not None else datetime.now() - timedelta(days=1),
+    )
+    if confocal_image is not None:
+        obj.confocal_images = [confocal_image]
     session.add(obj)
     session.commit()
     return obj

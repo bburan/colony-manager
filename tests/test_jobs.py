@@ -251,3 +251,78 @@ def test_rematch_force_query_param_sets_kind(logged_in_client, db_session):
         select(SyncJob).where(SyncJob.datatype_id == dtype.id)
     ).first()
     assert job.kind == SyncJobKind.FORCE_REMATCH
+
+
+# ---------------------------------------------------------------------------
+# HTMX-specific route behaviour
+# ---------------------------------------------------------------------------
+
+def test_sync_datatype_htmx_returns_jobs_panel(logged_in_client, db_session):
+    """HTMX POST returns the rendered jobs-panel partial (200), not a redirect."""
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(db_session, default_procedure=procedure)
+    dtype.description_class = 'fake_animal_event'
+    make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    db_session.commit()
+
+    import os
+    prior = os.environ.get('COLONY_MANAGER_DESCRIPTION_REGISTRY')
+    os.environ['COLONY_MANAGER_DESCRIPTION_REGISTRY'] = 'tests._description_fakes'
+    from colony_manager.datatypes import reset_registry_cache
+    reset_registry_cache()
+    try:
+        response = logged_in_client.post(
+            f'/settings/datatype/{dtype.id}/sync',
+            headers={'HX-Request': 'true'},
+        )
+    finally:
+        if prior is None:
+            os.environ.pop('COLONY_MANAGER_DESCRIPTION_REGISTRY', None)
+        else:
+            os.environ['COLONY_MANAGER_DESCRIPTION_REGISTRY'] = prior
+        reset_registry_cache()
+
+    assert response.status_code == 200
+    assert 'Location' not in response.headers
+
+
+def test_sync_datatype_htmx_error_when_missing_prereqs(logged_in_client, db_session):
+    """HTMX POST returns 400 + HX-Retarget when the DataType has no
+    description_class or locations, rather than redirecting."""
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(db_session, default_procedure=procedure)
+    # No description_class set, no locations — prerequisite check must fail.
+    db_session.commit()
+
+    response = logged_in_client.post(
+        f'/settings/datatype/{dtype.id}/sync',
+        headers={'HX-Request': 'true'},
+    )
+    assert response.status_code == 400
+    assert response.headers.get('HX-Retarget') == '#error-datatypes'
+
+
+def test_rematch_datatype_htmx_returns_jobs_panel(logged_in_client, db_session):
+    """HTMX POST for rematch returns 200 + jobs-panel partial, not a redirect."""
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(db_session, default_procedure=procedure)
+
+    response = logged_in_client.post(
+        f'/settings/datatype/{dtype.id}/rematch',
+        headers={'HX-Request': 'true'},
+    )
+    assert response.status_code == 200
+    assert 'Location' not in response.headers
+
+
+def test_rematch_force_htmx_returns_jobs_panel(logged_in_client, db_session):
+    """HTMX POST for force-rematch returns 200 + jobs-panel partial."""
+    procedure = make_procedure(db_session)
+    dtype = make_animal_event_data_type(db_session, default_procedure=procedure)
+
+    response = logged_in_client.post(
+        f'/settings/datatype/{dtype.id}/rematch?force=1',
+        headers={'HX-Request': 'true'},
+    )
+    assert response.status_code == 200
+    assert 'Location' not in response.headers

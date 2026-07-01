@@ -14,7 +14,10 @@ from sqlalchemy import select
 from colony_manager.models import (
     Animal, AnimalEventDataType, DataType, Feed, Species, TerminationReason,
 )
-from .factories import make_animal, make_cage, make_event, make_procedure, make_species
+from .factories import (
+    make_animal, make_cage, make_confocal_image, make_confocal_image_data,
+    make_ear, make_event, make_procedure, make_species,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -271,3 +274,82 @@ def test_calendar_uses_fallback_label_for_animal_without_custom_id(
     assert len(animals) == 1
     assert animals[0]['label'] == f'Animal #{animal.id}'
     assert animals[0]['id'] == animal.id
+
+
+# ---------------------------------------------------------------------------
+# Dashboard — recent events grouping & sorting
+# ---------------------------------------------------------------------------
+
+def test_dashboard_events_sorted_by_animal_custom_id(logged_in_client, db_session):
+    """Recent events are grouped by animal and sorted by custom_id ascending.
+
+    We insert animal B before A so that naïve insertion order would put B
+    first; the custom_id sort must override that.
+    """
+    today = date.today()
+    proc = make_procedure(db_session)
+    animal_b = make_animal(db_session, custom_id='DashEvt-B')
+    animal_a = make_animal(db_session, custom_id='DashEvt-A')
+    make_event(db_session, animal=animal_b, procedure=proc, completion_date=today)
+    make_event(db_session, animal=animal_a, procedure=proc, completion_date=today)
+
+    response = logged_in_client.get('/')
+    assert response.status_code == 200
+    html = response.data.decode()
+    pos_a = html.find('DashEvt-A')
+    pos_b = html.find('DashEvt-B')
+    assert pos_a != -1 and pos_b != -1, 'Both animal IDs must appear in the dashboard HTML'
+    assert pos_a < pos_b, 'DashEvt-A must appear before DashEvt-B (sorted by custom_id)'
+
+
+# ---------------------------------------------------------------------------
+# Dashboard — confocal grouping & sorting
+# ---------------------------------------------------------------------------
+
+def test_dashboard_confocal_sorted_by_animal_display_id(logged_in_client, db_session):
+    """Confocal ear groups are sorted by animal display_id ascending.
+
+    We insert animal B before A so that naïve insertion order would put B
+    first; the display_id sort must override that.
+    """
+    from datetime import datetime, timedelta
+    mtime = datetime.now() - timedelta(days=1)
+
+    animal_b = make_animal(db_session, custom_id='DashCF-B')
+    animal_a = make_animal(db_session, custom_id='DashCF-A')
+    ear_b = make_ear(db_session, animal=animal_b)
+    ear_a = make_ear(db_session, animal=animal_a)
+    img_b = make_confocal_image(db_session, ear=ear_b)
+    img_a = make_confocal_image(db_session, ear=ear_a)
+    make_confocal_image_data(db_session, confocal_image=img_b, mtime=mtime)
+    make_confocal_image_data(db_session, confocal_image=img_a, mtime=mtime)
+
+    response = logged_in_client.get('/')
+    assert response.status_code == 200
+    html = response.data.decode()
+    # ear.full_display = '{animal.custom_id} {side}', so the custom_id appears in the HTML.
+    pos_a = html.find('DashCF-A')
+    pos_b = html.find('DashCF-B')
+    assert pos_a != -1 and pos_b != -1, 'Both animal IDs must appear in the confocal section'
+    assert pos_a < pos_b, 'DashCF-A must appear before DashCF-B (sorted by display_id)'
+
+
+def test_dashboard_confocal_groups_images_by_ear(logged_in_client, db_session):
+    """Two ConfocalImage rows on the same ear collapse into one outer ear row.
+
+    Verifies that the grouping logic and template don't crash when multiple
+    ConfocalImage → ConfocalImageData pairs share an ear.
+    """
+    from datetime import datetime, timedelta
+    mtime = datetime.now() - timedelta(days=1)
+
+    animal = make_animal(db_session, custom_id='DashCFGrp-A')
+    ear = make_ear(db_session, animal=animal)
+    img1 = make_confocal_image(db_session, ear=ear, frequency=8000.0)
+    img2 = make_confocal_image(db_session, ear=ear, frequency=16000.0)
+    make_confocal_image_data(db_session, confocal_image=img1, mtime=mtime)
+    make_confocal_image_data(db_session, confocal_image=img2, mtime=mtime)
+
+    response = logged_in_client.get('/')
+    assert response.status_code == 200
+    assert b'DashCFGrp-A' in response.data

@@ -13,7 +13,17 @@
         {% endblock %}
     </main>
     <footer class="modal-footer border-top-0 pb-4 px-4">
+        {% if delete_url %}
+        <button type="button"
+                class="btn btn-outline-danger btn-sm me-auto"
+                hx-post="{{ delete_url }}"
+                hx-confirm="Delete this entry? This cannot be undone.">
+            <i class="fas fa-trash me-1"></i>Delete
+        </button>
+        {% endif %}
         <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        {% set _label = submit_label | default('Confirm') %}
+        {% set _btn_class = submit_btn_class | default('btn-primary') %}
         {% if hx_target %}
         {# Move HTMX attrs to the button (not the form) so the click event
            drives the request. Forms loaded via innerHTML swap into a Bootstrap
@@ -25,9 +35,9 @@
                 hx-target="{{ hx_target }}"
                 hx-swap="{{ hx_swap or 'outerHTML' }}"
                 hx-include="closest form"
-                class="btn btn-primary btn-sm px-3">Confirm</button>
+                class="btn {{ _btn_class }} btn-sm px-3">{{ _label }}</button>
         {% else %}
-        <button type="submit" class="btn btn-primary btn-sm px-3">Confirm</button>
+        <button type="submit" class="btn {{ _btn_class }} btn-sm px-3">{{ _label }}</button>
         {% endif %}
     </footer>
 </form>

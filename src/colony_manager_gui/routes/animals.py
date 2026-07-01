@@ -22,7 +22,7 @@ from ..forms.animals import (
 from ..forms.common import (
     NoteForm, QuickAddToStudyForm, TerminationForm, mark_disabled, mark_readonly,
 )
-from .util import flash_form_errors, get_or_404, paginate, render_modal
+from .util import flash_form_errors, get_or_404, is_htmx, paginate, render_modal
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,
 )
@@ -298,7 +298,10 @@ def delete_animal_daily_log(animal_id, date) -> Response | str:
         db.session.delete(entry)
     db.session.commit()
     flash('Daily log deleted successfully.', 'success')
-    return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal.id))
+    redirect_url = request.referrer or url_for('animals.view_animal', animal_id=animal.id)
+    if is_htmx():
+        return '', 200, {'HX-Redirect': redirect_url}
+    return redirect(redirect_url)
 
 @animals_bp.route('/<int:animal_id>/<date>/weight-feed/update', methods=['POST'])
 def update_animal_daily_log(animal_id, date) -> Response | str:
@@ -641,6 +644,7 @@ def update_animal_daily_log_modal(animal_id, date) -> Response | str:
         label=f'Update entry for {animal.display_id}',
         submit_url=url_for('animals.update_animal_daily_log', animal_id=animal.id, date=date),
         partial='partials/form_daily_log_modal.html',
+        delete_url=url_for('animals.delete_animal_daily_log', animal_id=animal.id, date=date),
     )
 
 
@@ -653,6 +657,8 @@ def delete_animal_daily_log_modal(animal_id, date) -> Response | str:
         label=f'Delete entry for {animal.display_id}',
         submit_url=url_for('animals.delete_animal_daily_log', animal_id=animal.id, date=date),
         partial='partials/form_daily_log_modal.html',
+        submit_label='Delete',
+        submit_btn_class='btn-danger',
     )
 
 

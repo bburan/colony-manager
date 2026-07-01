@@ -615,15 +615,20 @@ def sync_datatype(datatype_id) -> Response | str:
     """Queue a background sync_locations run for one DataType."""
     dt = get_or_404(models.DataType, datatype_id)
     if not dt.description_class or not dt.locations:
-        flash(
-            f'Cannot sync "{dt.name}": needs a description class and at '
-            f'least one location.',
-            'warning',
+        return htmx_error(
+            message=f'Cannot sync "{dt.name}": needs a description class and at least one location.',
+            retarget='#error-datatypes',
+            flash_title=f'Cannot sync "{dt.name}"',
+            redirect_to=url_for('main.list_settings'),
         )
-        return redirect(url_for('main.list_settings'))
     enqueue_datatype_sync(dt.id)
-    flash(f'Sync for "{dt.name}" queued. See status below.', 'info')
-    return redirect(url_for('main.list_settings', _anchor='setting-jobs'))
+    return htmx_or_redirect(
+        partial='partials/recent_jobs_panel.html',
+        context={'recent_jobs': recent_jobs(limit=10), 'parse_summary': parse_summary},
+        flash_message=f'Sync for "{dt.name}" queued. See status below.',
+        flash_category='info',
+        redirect_to=url_for('main.list_settings', _anchor='setting-jobs'),
+    )
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/rematch', methods=['POST'])
@@ -639,8 +644,13 @@ def rematch_datatype(datatype_id) -> Response | str:
     force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
     enqueue_datatype_rematch(dt.id, force=force)
     label = 'Force-rematch' if force else 'Rematch'
-    flash(f'{label} for "{dt.name}" queued in background.', 'info')
-    return redirect(url_for('main.list_settings', _anchor='setting-jobs'))
+    return htmx_or_redirect(
+        partial='partials/recent_jobs_panel.html',
+        context={'recent_jobs': recent_jobs(limit=10), 'parse_summary': parse_summary},
+        flash_message=f'{label} for "{dt.name}" queued in background.',
+        flash_category='info',
+        redirect_to=url_for('main.list_settings', _anchor='setting-jobs'),
+    )
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])

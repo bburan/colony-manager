@@ -96,7 +96,8 @@ def view_dashboard() -> Response | str:
                 .joinedload(models.ConfocalImage.image_type),
             selectinload(models.ConfocalImageData.confocal_images)
                 .joinedload(models.ConfocalImage.ear)
-                .joinedload(models.Ear.animal),
+                .joinedload(models.Ear.animal)
+                .joinedload(models.Animal.cage),
         )
         .where(
             models.ConfocalImageData.mtime != None,  # noqa: E711
@@ -119,6 +120,18 @@ def view_dashboard() -> Response | str:
                 recent_confocal_groups.append({'image': img, 'files': [f]})
             else:
                 recent_confocal_groups[idx]['files'].append(f)
+
+    # Group confocal images by ear, sorted by animal display_id then ear id
+    _ear_confocal_map: dict = {}
+    for grp in recent_confocal_groups:
+        ear = grp['image'].ear
+        if ear.id not in _ear_confocal_map:
+            _ear_confocal_map[ear.id] = {'ear': ear, 'animal': ear.animal, 'images': []}
+        _ear_confocal_map[ear.id]['images'].append(grp)
+    recent_confocal_by_ear = sorted(
+        _ear_confocal_map.values(),
+        key=lambda g: (g['animal'].display_id or '', g['ear'].id),
+    )
 
     # Animals terminated in the last 30 days. Template renders display_id,
     # which falls back to cage.custom_id when the animal has no custom id.
@@ -191,6 +204,15 @@ def view_dashboard() -> Response | str:
     else:
         species = None
 
+    # Group events by animal, preserving most-recent-first order (events is sorted by
+    # completion_date desc, so first appearance per animal_id = most recent event)
+    _animal_map: dict = {}
+    for event in recent_events:
+        if event.animal_id not in _animal_map:
+            _animal_map[event.animal_id] = {'animal': event.animal, 'events': []}
+        _animal_map[event.animal_id]['events'].append(event)
+    recent_events_by_animal = sorted(_animal_map.values(), key=lambda g: g['animal'].custom_id or '')
+
     return render_template(
         'view_dashboard.html',
         # Card Metrics
@@ -201,7 +223,9 @@ def view_dashboard() -> Response | str:
 
         # Schedule & Alerts
         recent_events=recent_events,
+        recent_events_by_animal=recent_events_by_animal,
         recent_confocal_groups=recent_confocal_groups,
+        recent_confocal_by_ear=recent_confocal_by_ear,
         unmatched_recent_confocal=unmatched_recent_confocal,
 
         # Additional information

@@ -1,52 +1,75 @@
-{# Recently completed events list with a per-event accordion that expands
-   to show the data files attached to each event.
+{# Recently completed events grouped by animal.
+   Outer accordion: one row per animal (caret to expand).
+   Inner accordion: one row per event with a nested file accordion.
 
    Args:
-     events (iterable of AnimalEvent) — already filtered to recently completed,
-       sorted by completion_date desc.
+     events_by_animal (list of dicts: {'animal': Animal, 'events': [AnimalEvent]})
+       Events within each group are sorted completion_date desc.
 #}
-{% if events %}
+{% if events_by_animal %}
 <ul class="list-group list-group-flush small">
-    {% for event in events %}
-    {% set file_count = event.data_files|length %}
+    {% for group in events_by_animal %}
+    {% set animal = group.animal %}
+    {% set animal_events = group.events %}
     <li class="list-group-item px-0 py-2" x-data="{ open: false }">
         <button type="button"
                 class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-2 w-100 text-start"
                 @click="open = !open"
-                :aria-expanded="open"
-                {% if file_count == 0 %}disabled{% endif %}>
+                :aria-expanded="open">
             <i class="fas fa-chevron-right fa-xs text-muted flex-shrink-0"
-               style="transition: transform 0.15s; {% if file_count == 0 %}visibility: hidden;{% endif %}"
+               style="transition: transform 0.15s;"
                :class="{ 'fa-rotate-90': open }"></i>
-            <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
-                {{ event.completion_date.strftime('%b %d') }}
-            </span>
-            <a href="{{ url_for('animals.view_animal', animal_id=event.animal_id) }}"
+            <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"
                class="fw-semibold text-decoration-none flex-shrink-0"
-               @click.stop>
-                {{ event.animal.display_id }}
-            </a>
-            <span class="text-truncate flex-grow-1" style="min-width: 0;">
-                {{ event.procedure.display_name }}
-                {% if event.procedure_target %}
-                <span class="text-muted">· {{ event.procedure_target.name }}</span>
-                {% endif %}
-                {% if event.side %}
-                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1"
-                      style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
-                {% endif %}
+               @click.stop>{{ animal.display_id }}</a>
+            <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
+                {{ animal_events[0].completion_date.strftime('%b %d') }}
             </span>
-            <span class="badge rounded-pill {{ 'bg-secondary-subtle text-secondary' if file_count else 'bg-light text-muted border' }} flex-shrink-0">
-                <i class="fas fa-paperclip fa-xs me-1"></i>{{ file_count }}
+            <span class="badge rounded-pill bg-secondary-subtle text-secondary flex-shrink-0">
+                {{ animal_events|length }}
             </span>
         </button>
-        {% if file_count %}
-        <div x-show="open" x-cloak class="mt-2 ms-4 ps-2 border-start">
-            {% with files=event.data_files, animal=event.animal %}
-                {% include 'partials/entity_data_files.html' %}
-            {% endwith %}
+        <div x-show="open" x-cloak class="mt-2 ms-3 ps-2 border-start">
+            <ul class="list-group list-group-flush">
+                {% for event in animal_events %}
+                {% set file_count = event.data_files|length %}
+                <li class="list-group-item px-0 py-2" x-data="{ open: false }">
+                    <button type="button"
+                            class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-2 w-100 text-start"
+                            @click="open = !open"
+                            :aria-expanded="open"
+                            {% if file_count == 0 %}disabled{% endif %}>
+                        <i class="fas fa-chevron-right fa-xs text-muted flex-shrink-0"
+                           style="transition: transform 0.15s; {% if file_count == 0 %}visibility: hidden;{% endif %}"
+                           :class="{ 'fa-rotate-90': open }"></i>
+                        <span class="text-muted flex-shrink-0" style="font-variant-numeric: tabular-nums;">
+                            {{ event.completion_date.strftime('%b %d') }}
+                        </span>
+                        <span class="text-truncate flex-grow-1" style="min-width: 0;">
+                            {{ event.procedure.display_name }}
+                            {% if event.procedure_target %}
+                            <span class="text-muted">· {{ event.procedure_target.name }}</span>
+                            {% endif %}
+                            {% if event.side %}
+                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1"
+                                  style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
+                            {% endif %}
+                        </span>
+                        <span class="badge rounded-pill {{ 'bg-secondary-subtle text-secondary' if file_count else 'bg-light text-muted border' }} flex-shrink-0">
+                            <i class="fas fa-paperclip fa-xs me-1"></i>{{ file_count }}
+                        </span>
+                    </button>
+                    {% if file_count %}
+                    <div x-show="open" x-cloak class="mt-2 ms-3 ps-2 border-start">
+                        {% with files=event.data_files, animal=event.animal %}
+                            {% include 'partials/entity_data_files.html' %}
+                        {% endwith %}
+                    </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
         </div>
-        {% endif %}
     </li>
     {% endfor %}
 </ul>

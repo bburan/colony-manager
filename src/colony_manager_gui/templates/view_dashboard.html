@@ -60,10 +60,10 @@ Dashboard
         <div class="card shadow-sm">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</h2>
-                <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events|length }}</span>
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events_by_animal|length }}</span>
             </div>
             <div class="card-body">
-                {% with events=recent_events %}
+                {% with events_by_animal=recent_events_by_animal %}
                     {% include "partials/recent_events.html" %}
                 {% endwith %}
             </div>
@@ -74,11 +74,11 @@ Dashboard
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-microscope me-2"></i>Recent Confocal Images (last 7 days)</h2>
                 <span class="badge bg-secondary-subtle text-secondary rounded-pill">
-                    {{ recent_confocal_groups|length + (1 if unmatched_recent_confocal else 0) }}
+                    {{ recent_confocal_by_ear|length + (1 if unmatched_recent_confocal else 0) }}
                 </span>
             </div>
             <div class="card-body">
-                {% with groups=recent_confocal_groups, unmatched=unmatched_recent_confocal %}
+                {% with confocal_by_ear=recent_confocal_by_ear, unmatched=unmatched_recent_confocal %}
                     {% include "partials/recent_confocal.html" %}
                 {% endwith %}
             </div>

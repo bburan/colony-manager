@@ -209,3 +209,51 @@ def test_update_cage_note(logged_in_client, db_session):
     assert response.status_code == 302
     db_session.refresh(cage)
     assert cage.notes == 'new note'
+
+
+# ---------------------------------------------------------------------------
+# Single housing
+# ---------------------------------------------------------------------------
+
+def test_single_housing_modal_renders_with_animal_display_id(logged_in_client, db_session):
+    """Modal pre-populates the cage ID field with the animal's display_id."""
+    animal = make_animal(db_session, custom_id='SH-A1')
+    response = logged_in_client.get(f'/animals/{animal.id}/single_housing_modal')
+    assert response.status_code == 200
+    assert b'SH-A1' in response.data
+
+
+def test_single_housing_creates_cage_and_moves_animal(logged_in_client, db_session):
+    """Happy path: new cage is created, animal is reassigned, redirect to new cage."""
+    animal = make_animal(db_session, custom_id='SH-B1')
+    original_cage_id = animal.cage_id
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/single_housing',
+        data={'cage_id': 'SH-B1'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    db_session.refresh(animal)
+    new_cage = db_session.get(Cage, animal.cage_id)
+    assert new_cage is not None
+    assert new_cage.custom_id == 'SH-B1'
+    assert new_cage.species_id == animal.species_id
+    assert animal.cage_id != original_cage_id
+    assert response.location.endswith(f'/cages/{new_cage.id}')
+
+
+def test_single_housing_rejects_duplicate_cage_id(logged_in_client, db_session):
+    """If the requested cage ID already exists the form is rejected."""
+    existing = make_cage(db_session, custom_id='SH-DUP')
+    animal = make_animal(db_session, custom_id='SH-C1')
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/single_housing',
+        data={'cage_id': 'SH-DUP'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(animal)
+    assert animal.cage_id != existing.id

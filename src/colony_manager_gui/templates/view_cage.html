@@ -41,6 +41,7 @@
             </header>
             <div class="card-body">
             {% set show_cage_column = False %}
+            {% set show_single_housing_action = True %}
             {# ``animals`` is sorted in the route (None custom_ids last)
                so we don't have to do None-safe sorting in Jinja. #}
             {% include 'partials/animal_table.html' %}
@@ -57,7 +58,7 @@
                         title="Edit notes"
                         hx-get="{{ url_for('cages.update_cage_note_modal', cage_id=cage.id) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
             </div>
-            <div class="card-body">{{ cage.notes }}</div>
+            <div class="card-body">{{ cage.notes or '' }}</div>
         </div>
     </div>
 </div>

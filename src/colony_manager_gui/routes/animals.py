@@ -19,6 +19,7 @@ from ..forms.animals import (
     AnimalCustomIDForm, AnimalForm, AnimalEventForm, AnimalEventEditForm,
     DailyLogForm, DosageCalculateForm,
 )
+from ..forms.cages import SingleHousingForm
 from ..forms.common import (
     NoteForm, QuickAddToStudyForm, TerminationForm, mark_disabled, mark_readonly,
 )
@@ -394,6 +395,37 @@ def terminate_animal_modal(animal_id) -> Response | str:
     return render_modal(TerminationForm(obj=animal), item=animal,
                         label=f'Remove {animal.display_id}',
                         submit_url=url_for('animals.terminate_animal', animal_id=animal.id))
+
+
+@animals_bp.route('/<int:animal_id>/single_housing_modal')
+def single_housing_modal(animal_id) -> Response | str:
+    animal = get_or_404(Animal, animal_id)
+    form = SingleHousingForm(cage_id=animal.display_id)
+    return render_modal(
+        form, item=animal,
+        label=f'Move {animal.display_id} to single housing',
+        submit_url=url_for('animals.single_housing', animal_id=animal.id),
+        submit_label='Move',
+        submit_btn_class='btn-success',
+    )
+
+
+@animals_bp.route('/<int:animal_id>/single_housing', methods=['POST'])
+def single_housing(animal_id) -> Response | str:
+    animal = get_or_404(Animal, animal_id)
+    form = SingleHousingForm()
+    if form.validate_on_submit():
+        new_cage = Cage(
+            custom_id=form.cage_id.data,
+            species_id=animal.species_id,
+        )
+        db.session.add(new_cage)
+        animal.cage = new_cage
+        db.session.commit()
+        flash(f'{animal.display_id} moved to new cage {new_cage.custom_id}.', 'success')
+        return redirect(url_for('cages.view_cage', cage_id=new_cage.id))
+    flash_form_errors(form, 'Could not move animal')
+    return redirect(request.referrer or url_for('cages.list_cages'))
 
 
 @animals_bp.route('/<int:animal_id>/quick_add_study_modal')

@@ -41,3 +41,16 @@ class CageForm(FlaskForm):
             select(Cage).where(Cage.custom_id == field.data)
         ).first():
             raise ValidationError(f'Cage ID "{field.data}" already exists.')
+
+
+class SingleHousingForm(FlaskForm):
+    cage_id = StringField(
+        'New Cage ID',
+        validators=[DataRequired(), Length(min=4, max=10)],
+    )
+
+    def validate_cage_id(self, field):
+        if db.session.scalars(
+            select(Cage).where(Cage.custom_id == field.data)
+        ).first():
+            raise ValidationError(f'Cage ID "{field.data}" already exists.')

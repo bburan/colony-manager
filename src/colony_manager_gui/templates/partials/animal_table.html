@@ -89,6 +89,16 @@
             {% if show_termination_action|default(True) %}
                 <td>
                     {% if animal.is_active %}
+                        {% if show_single_housing_action|default(False) %}
+                        <button type="button"
+                                hx-get="{{ url_for('animals.single_housing_modal', animal_id=animal.id) }}"
+                                hx-target="#modalBody"
+                                class="btn btn-outline-secondary btn-sm shadow"
+                                data-bs-toggle="tooltip"
+                                title="Move to single housing">
+                            <i class="fas fa-house"></i>
+                        </button>
+                        {% endif %}
                         <button type="button" hx-get="{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}" hx-target="#modalBody"
                                 class="btn btn-secondary btn-sm shadow"
                                 data-bs-toggle="tooltip"

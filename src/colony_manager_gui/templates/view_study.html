@@ -21,6 +21,7 @@ Study {{ study.name }}
                 {%  set animals=study.animals %}
                 {%  set show_study_column = False %}
                 {%  set show_termination_action = False %}
+                {%  set remove_from_study_id = study.id %}
                 {% include "partials/animal_table.html" %}
              </div>
          </div>

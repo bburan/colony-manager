@@ -1,3 +1,4 @@
+{% set _show_actions_col = show_termination_action|default(True) or remove_from_study_id|default(None) %}
 <table class="table table-hover small">
     <thead class="bg-light text-secondary text-uppercase fw-bold">
         <tr>
@@ -14,7 +15,7 @@
             <th>Age</th>
             <th>Events</th>
             {% if show_study_column|default(True) %}<th>Studies</th>{% endif %}
-            {% if show_termination_action|default(True) %}<th></th>{% endif %}
+            {% if _show_actions_col %}<th></th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -86,7 +87,7 @@
             </td>
             {% endif %}
 
-            {% if show_termination_action|default(True) %}
+            {% if _show_actions_col %}
                 <td>
                     {% if animal.is_active %}
                         {% if show_single_housing_action|default(False) %}
@@ -99,21 +100,35 @@
                             <i class="fas fa-house"></i>
                         </button>
                         {% endif %}
+                        {% if show_termination_action|default(True) %}
                         <button type="button" hx-get="{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}" hx-target="#modalBody"
                                 class="btn btn-secondary btn-sm shadow"
                                 data-bs-toggle="tooltip"
                                 title="Terminate animal">
                             <i class="fas fa-crosshairs fa-sm"></i>
                         </button>
+                        {% endif %}
+                    {% endif %}
+                    {% if remove_from_study_id|default(None) %}
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm shadow"
+                            hx-post="{{ url_for('studies.remove_study_animal', study_id=remove_from_study_id, animal_id=animal.id) }}"
+                            hx-confirm="Remove {{ animal.display_id }} from this study?"
+                            data-bs-toggle="tooltip"
+                            title="Remove from study">
+                        <span class="fa-icon-badge">
+                            <i class="fas fa-clipboard">&nbsp;&minus;</i>
+                        </span>
+                    </button>
                     {% endif %}
                 </td>
-            {%  endif %}
+            {% endif %}
         </tr>
         {% else %}
         <tr>
             {% set empty_cols = 6
                 + (1 if show_study_column|default(True) else 0)
-                + (1 if show_termination_action|default(True) else 0)
+                + (1 if _show_actions_col else 0)
                 + (1 if show_select_column|default(False) else 0) %}
             <td colspan="{{ empty_cols }}" class="text-center py-5 text-muted">No animals found in this category.</td>
         </tr>

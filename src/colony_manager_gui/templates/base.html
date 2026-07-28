@@ -33,6 +33,20 @@
 
         [x-cloak] { display: none !important; }
 
+        /* Icon + small corner badge (e.g. clipboard with a minus) */
+        .fa-icon-badge {
+            position: relative;
+            display: inline-block;
+        }
+        .fa-icon-badge .fa-badge {
+            position: absolute;
+            right: -0.5em;
+            bottom: -0.15em;
+            font-size: 0.85em;
+            font-weight: 700;
+            line-height: 1;
+        }
+
         /* Data-file accordion polish */
         .df-row {
             transition: background-color 0.12s ease;

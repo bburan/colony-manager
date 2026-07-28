@@ -8,7 +8,7 @@ from colony_manager.models import Study, Animal, AnimalEvent
 from .. import db
 from ..forms.studies import AddToStudyForm, StudyForm
 from ..forms.common import NoteForm, QuickAddToStudyForm
-from .util import flash_form_errors, get_or_404, render_modal
+from .util import flash_form_errors, get_or_404, is_htmx, render_modal
 
 studies_bp = Blueprint('studies', __name__)
 
@@ -452,10 +452,13 @@ def remove_study_animal(study_id, animal_id) -> Response | str:
     if animal in study.animals:
         study.animals.remove(animal)
         db.session.commit()
-        flash(f'Animal {animal.custom_id} removed from study.', 'success')
+        flash(f'Animal {animal.display_id} removed from study.', 'success')
     else:
-        flash(f'Animal {animal.custom_id} not found in study.', 'danger')
-    return redirect(request.referrer or url_for('studies.view_study', study_id=study.id))
+        flash(f'Animal {animal.display_id} not found in study.', 'danger')
+    redirect_url = request.referrer or url_for('studies.view_study', study_id=study.id)
+    if is_htmx():
+        return '', 200, {'HX-Redirect': redirect_url}
+    return redirect(redirect_url)
 
 
 @studies_bp.route('/bulk_assign', methods=['POST'])

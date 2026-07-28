@@ -8,7 +8,7 @@ Studies
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Studies</h2>
-        <button class="btn btn-sm" hx-get="{{ url_for('studies.create_study_modal') }}" hx-target="#modalBody"><i class="fas fa-folder"> +</i></button>
+        <button class="btn btn-sm" hx-get="{{ url_for('studies.create_study_modal') }}" hx-target="#modalBody"><i class="fas fa-clipboard"> +</i></button>
     </div>
 
     <div class="list-group list-group-flush border-top">
@@ -32,7 +32,7 @@ Studies
         </div>
         {% else %}
         <div class="p-5 text-center text-muted">
-            <i class="fas fa-folder-open d-block mb-3 fs-3 opacity-25"></i>
+            <i class="fas fa-clipboard d-block mb-3 fs-3 opacity-25"></i>
             <p class="small text-uppercase fw-bold mb-0">No studies found</p>
         </div>
         {% endfor %}

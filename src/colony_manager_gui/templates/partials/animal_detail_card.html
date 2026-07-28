@@ -33,23 +33,4 @@
             {% endfor %}
         </div>
     </dd>
-    <dt class="col-4 d-flex align-items-center">
-        <span>Studies</span>
-        <button class="btn btn-sm ms-auto"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                title="Enroll in study"
-                hx-get="{{ url_for('animals.add_study_modal', animal_id=animal.id) }}"
-                hx-target="#modalBody"><i class="fas fa-plus"></i></button>
-    </dt>
-    <dd class="col-8">
-        <div class="d-flex flex-wrap gap-1">
-            {% for study in animal.studies %}
-                <a href="{{ url_for('studies.view_study', study_id=study.id) }}"
-                   class="badge rounded-pill bg-primary text-decoration-none">{{ study.name }}</a>
-            {% else %}
-                <span class="text-muted small">—</span>
-            {% endfor %}
-        </div>
-    </dd>
 </dl>

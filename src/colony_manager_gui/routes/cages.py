@@ -35,7 +35,7 @@ def list_cages() -> Response | str:
         'notes_filter': request.args.get('notes_filter', 'all'),
         'tag_id': request.args.get('tag_id', 'all'),
         'procedure_id': request.args.get('procedure_id', 'all'),
-        'age_unit': request.args.get('age_unit', 'day'),
+        'age_unit': request.args.get('age_unit', session.get('age_unit', 'day')),
         'species_id': int(session.get('selected_species', -1)),
     }
 

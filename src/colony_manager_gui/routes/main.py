@@ -499,6 +499,17 @@ def set_species(species_id) -> Response | str:
     session['selected_species'] = species_id
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
+
+@main_bp.route('/set-age-unit/<unit>', methods=['POST'])
+def set_age_unit(unit) -> Response | str:
+    form = CSRFOnlyForm()
+    if not form.validate_on_submit():
+        abort(400)
+    if unit not in ('day', 'week', 'month'):
+        abort(400)
+    session['age_unit'] = unit
+    return redirect(request.referrer or url_for('main.view_dashboard'))
+
 def _save_datatype_children(dt):
     """Persist DataLocation rows from request.form.
 

@@ -512,6 +512,18 @@ class Litter(VersionedModel):
     def age_in_days(self):
         return (date.today() - self.dob).days
 
+    @property
+    def age_in_weeks(self):
+        return self.age_in_days / 7
+
+    @property
+    def age_in_months(self):
+        return self.age_in_days / 30
+
+    def age_display(self, unit='day'):
+        age = getattr(self, f'age_in_{unit}s')
+        return f'{age:.1f} {unit}s'
+
 
 # ---------------------------------------------------------------------------
 # Feeding / weight tracking

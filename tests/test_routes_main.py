@@ -171,6 +171,22 @@ def test_set_species_writes_session(app, logged_in_client, db_session):
 
 
 # ---------------------------------------------------------------------------
+# Age unit selection in session
+# ---------------------------------------------------------------------------
+
+def test_set_age_unit_writes_session(logged_in_client):
+    response = logged_in_client.post('/set-age-unit/week', follow_redirects=False)
+    assert response.status_code == 302
+    with logged_in_client.session_transaction() as sess:
+        assert sess.get('age_unit') == 'week'
+
+
+def test_set_age_unit_rejects_invalid_unit(logged_in_client):
+    response = logged_in_client.post('/set-age-unit/fortnight', follow_redirects=False)
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # Calendar
 # ---------------------------------------------------------------------------
 

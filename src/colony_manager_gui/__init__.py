@@ -133,10 +133,14 @@ def create_app():
             selected_species = get_or_404(Species, species_id).name
         else:
             selected_species = 'All'
+        age_unit = session.get('age_unit', 'day')
+        if age_unit not in ('day', 'week', 'month'):
+            age_unit = 'day'
         return {
             'datetime': datetime,
             'species': db.session.scalars(select(Species)).all(),
             'selected_species': selected_species,
+            'age_unit': age_unit,
             'csrf_only_form': CSRFOnlyForm(),
         }
 

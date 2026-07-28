@@ -12,7 +12,7 @@
     <dt class="col-4">Birth</dt>
     <dd class="col-8">{{ animal.dob.strftime('%B %d, %Y') }}</dd>
     <dt class="col-4">Age</dt>
-    <dd class="col-8">{{ animal.age_display('week') }}</dd>
+    <dd class="col-8">{{ animal.age_display(age_unit|default('day')) }}</dd>
     <dt class="col-4">Source</dt>
     <dd class="col-8">{{ animal.source.name }}</dd>
     {% if not animal.is_active %}

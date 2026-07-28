@@ -56,6 +56,16 @@ def test_litter_age_in_days(db_session):
     assert litter.age_in_days == 21
 
 
+def test_litter_age_display_units(db_session):
+    pair = make_breeding_pair(db_session)
+    litter = make_litter(
+        db_session, breeding_pair=pair,
+        dob=date.today() - timedelta(days=21),
+    )
+    assert litter.age_display('day') == '21.0 days'
+    assert litter.age_display('week') == '3.0 weeks'
+
+
 def test_animal_source_display_uses_breeding_pair_when_bred_in_house(db_session):
     """``source_display`` prefers the breeding pair over any external source.
 

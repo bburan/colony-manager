@@ -53,7 +53,7 @@ def list_animals() -> Response | str:
         'procedure_id': request.args.get('procedure_id', 'all'),
         'tag_id': request.args.get('tag_id', 'all'),
         'event_tag_id': request.args.get('event_tag_id', 'all'),
-        'age_unit': request.args.get('age_unit', 'day'),
+        'age_unit': request.args.get('age_unit', session.get('age_unit', 'day')),
         'search_query': request.args.get('search_query', ''),
         'species_id': int(session.get('selected_species', -1)),
     }

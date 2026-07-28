@@ -96,7 +96,7 @@ Dashboard
                 <ul class="list-group list-group-flush small">
                     {% for litter in upcoming_litters %}
                     <li class="list-group-item px-0 py-1">
-                        {{ litter.pup_count }} pups {{  litter.age_in_days }} days old from {{ litter.breeding_pair.custom_id }}
+                        {{ litter.pup_count }} pups {{ litter.age_display(age_unit|default('day')) }} old from {{ litter.breeding_pair.custom_id }}
                         <a class="stretched-link" href="{{ url_for('breeding.view_breeding_pair', breeding_pair_id=litter.breeding_pair.id) }}"></a>
                     </li>
                     {% else %}

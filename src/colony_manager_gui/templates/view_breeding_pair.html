@@ -46,7 +46,7 @@ Breeding Pair {{ pair.custom_id }}
                             <tr>
                                 <td>{{ litter.dob.strftime('%B %d, %Y') }}</td>
                                 <td>{{ litter.pup_count }}</td>
-                                <td>{{ litter.age_in_days }}</td>
+                                <td>{{ litter.age_display(age_unit|default('day')) }}</td>
                                 <td>{{ macros.format_date(litter.wean_date) }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm">

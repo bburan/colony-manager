@@ -170,6 +170,18 @@ def test_edit_note_modal_returns_404_for_unknown_id(logged_in_client):
     assert response.status_code == 404
 
 
+def test_edit_cage_details_modal_renders(logged_in_client, db_session):
+    cage = make_cage(db_session, custom_id='ID-1')
+    response = logged_in_client.get(f'/cages/{cage.id}/edit_details_modal')
+    assert response.status_code == 200
+    assert b'ID-1' in response.data
+
+
+def test_edit_cage_details_modal_returns_404_for_unknown_id(logged_in_client):
+    response = logged_in_client.get('/cages/99999/edit_details_modal')
+    assert response.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # Create (exercises the form path)
 # ---------------------------------------------------------------------------
@@ -209,6 +221,47 @@ def test_update_cage_note(logged_in_client, db_session):
     assert response.status_code == 302
     db_session.refresh(cage)
     assert cage.notes == 'new note'
+
+
+def test_update_cage_details_persists_id_and_species(logged_in_client, db_session):
+    cage = make_cage(db_session, custom_id='ID-2')
+    new_species = make_species(db_session)
+    response = logged_in_client.post(
+        f'/cages/{cage.id}/update_details',
+        data={'custom_id': 'ID-2-FIXED', 'species': str(new_species.id)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(cage)
+    assert cage.custom_id == 'ID-2-FIXED'
+    assert cage.species_id == new_species.id
+
+
+def test_update_cage_details_allows_resubmitting_same_id(logged_in_client, db_session):
+    """Submitting the modal without changing the ID shouldn't trip the
+    uniqueness check against the cage's own current row."""
+    cage = make_cage(db_session, custom_id='ID-3')
+    response = logged_in_client.post(
+        f'/cages/{cage.id}/update_details',
+        data={'custom_id': 'ID-3', 'species': str(cage.species_id)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(cage)
+    assert cage.custom_id == 'ID-3'
+
+
+def test_update_cage_details_rejects_duplicate_id(logged_in_client, db_session):
+    make_cage(db_session, custom_id='ID-4')
+    other = make_cage(db_session, custom_id='ID-5')
+    response = logged_in_client.post(
+        f'/cages/{other.id}/update_details',
+        data={'custom_id': 'ID-4', 'species': str(other.species_id)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(other)
+    assert other.custom_id == 'ID-5'
 
 
 # ---------------------------------------------------------------------------

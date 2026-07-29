@@ -43,6 +43,34 @@ class CageForm(FlaskForm):
             raise ValidationError(f'Cage ID "{field.data}" already exists.')
 
 
+class CageDetailsForm(FlaskForm):
+    """Edits the cage's own stored fields (ID, species).
+
+    Sex and source, also shown on the cage detail page, aren't columns
+    on ``Cage`` — they're aggregated from the cage's animals — so
+    there's nothing here to edit for them.
+    """
+    custom_id = StringField(
+        'Cage ID (e.g., G001)',
+        validators=[DataRequired(), Length(min=4, max=10)],
+    )
+    species = QuerySelectField(
+        'Species', query_factory=species_factory, get_label='name',
+        allow_blank=False, validators=[DataRequired()],
+    )
+
+    def __init__(self, *args, obj=None, **kwargs):
+        super().__init__(*args, obj=obj, **kwargs)
+        self.initial_custom_id = obj.custom_id if obj is not None else None
+
+    def validate_custom_id(self, field):
+        if self.initial_custom_id != field.data:
+            if db.session.scalars(
+                select(Cage).where(Cage.custom_id == field.data)
+            ).first():
+                raise ValidationError(f'Cage ID "{field.data}" already exists.')
+
+
 class SingleHousingForm(FlaskForm):
     cage_id = StringField(
         'New Cage ID',

@@ -14,11 +14,18 @@
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Details</h2>
+                <button class="btn btn-sm"
+                        data-bs-toggle="tooltip"
+                        title="Edit cage details"
+                        hx-get="{{ url_for('cages.edit_cage_details_modal', cage_id=cage.id) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
             </div>
             <div class="card-body">
                 <dl class="row mb-0 small">
+                    <dt class="col-sm-3 text-muted fw-normal">Cage ID</dt>
+                    <dd class="col-sm-9">{{ cage.custom_id }}</dd>
+
                     <dt class="col-sm-3 text-muted fw-normal">Species</dt>
                     <dd class="col-sm-9">{{ cage.species.name }}</dd>
 

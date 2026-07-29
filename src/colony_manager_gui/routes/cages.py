@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 from colony_manager.models import Cage, Animal
 from .. import db
-from ..forms.cages import CageForm
+from ..forms.cages import CageForm, CageDetailsForm
 from ..forms.common import NoteForm, QuickAddToStudyForm, TerminationForm
 from .util import flash_form_errors, get_or_404, render_modal
 from ..services.cage_queries import get_filtered_cages, get_cage_filter_options
@@ -101,6 +101,19 @@ def update_cage(cage_id) -> Response | str:
     return redirect(request.referrer or url_for('cages.view_cage', cage_id=cage.id))
 
 
+@cages_bp.route('/<int:cage_id>/update_details', methods=['POST'])
+def update_cage_details(cage_id) -> Response | str:
+    cage = get_or_404(Cage, cage_id)
+    form = CageDetailsForm(obj=cage)
+    if form.validate_on_submit():
+        form.populate_obj(cage)
+        db.session.commit()
+        flash(f'Cage {cage.custom_id} updated.', 'success')
+    else:
+        flash_form_errors(form, title='Could not update cage')
+    return redirect(request.referrer or url_for('cages.view_cage', cage_id=cage.id))
+
+
 @cages_bp.route('/<int:cage_id>/update_note', methods=['POST'])
 def update_cage_note(cage_id) -> Response | str:
     cage = get_or_404(Cage, cage_id)
@@ -119,6 +132,14 @@ def update_cage_note(cage_id) -> Response | str:
 def create_cage_modal() -> Response | str:
     return render_modal(CageForm(), label='Add Cage',
                         submit_url=url_for('cages.create_cage'))
+
+
+@cages_bp.route('/<int:cage_id>/edit_details_modal')
+def edit_cage_details_modal(cage_id) -> Response | str:
+    cage = get_or_404(Cage, cage_id)
+    return render_modal(CageDetailsForm(obj=cage), item=cage,
+                        label=f'Edit {cage.custom_id}',
+                        submit_url=url_for('cages.update_cage_details', cage_id=cage.id))
 
 
 @cages_bp.route('/<int:cage_id>/edit_note_modal')

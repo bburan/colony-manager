@@ -333,6 +333,72 @@ function clearTerminationFieldsOnUncheck(event) {
 }
 document.addEventListener('change', clearTerminationFieldsOnUncheck);
 
+// Navbar "jump to" search (base.html #globalSearchWrapper). The results
+// list is real <a href> elements swapped in by htmx
+// (partials/global_search_results.html) — this just adds keyboard
+// navigation and the '/' shortcut on top of that.
+(function () {
+    const input = document.getElementById('globalSearchInput');
+    const resultsBox = document.getElementById('globalSearchResults');
+    if (!input || !resultsBox) return;
+
+    function resultItems() {
+        return Array.from(resultsBox.querySelectorAll('.global-search-result'));
+    }
+
+    function setActiveResult(el) {
+        resultItems().forEach(i => i.classList.remove('active'));
+        if (el) el.classList.add('active');
+    }
+
+    input.addEventListener('keydown', function (event) {
+        const items = resultItems();
+        if (event.key === 'Escape') {
+            input.value = '';
+            resultsBox.innerHTML = '';
+            input.blur();
+            return;
+        }
+        if (!items.length) return;
+        const current = resultsBox.querySelector('.global-search-result.active');
+        const idx = current ? items.indexOf(current) : -1;
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActiveResult(items[(idx + 1) % items.length]);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActiveResult(items[(idx - 1 + items.length) % items.length]);
+        } else if (event.key === 'Enter') {
+            event.preventDefault();
+            const target = current || items[0];
+            if (target) window.location.href = target.href;
+        }
+    });
+
+    // Clicking a result navigates via its href; clicking anywhere else
+    // closes the dropdown.
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('#globalSearchWrapper')) {
+            resultsBox.innerHTML = '';
+        }
+    });
+
+    // '/' jumps into the search box from anywhere, unless the user is
+    // already typing in some other field.
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+        const active = document.activeElement;
+        const isTyping = active && (
+            active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' ||
+            active.tagName === 'SELECT' || active.isContentEditable
+        );
+        if (isTyping) return;
+        event.preventDefault();
+        input.focus();
+        input.select();
+    });
+})();
+
 function addField(fieldsetName) {
     const container = document.getElementById(`${fieldsetName}-container`);
     const fieldsets = container.getElementsByClassName(`${fieldsetName}-group`);

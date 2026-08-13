@@ -142,6 +142,22 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="appNav">
+                <div class="position-relative me-lg-3 my-2 my-lg-0" id="globalSearchWrapper" style="max-width: 260px;">
+                    <input type="search"
+                           id="globalSearchInput"
+                           name="q"
+                           class="form-control form-control-sm"
+                           placeholder="Jump to&hellip; (/)"
+                           title="Jump to an animal, cage, study, or ear. Add a hint to disambiguate: &quot;G020-1 cage&quot;, &quot;G020-1 ear&quot;, &quot;G020-1 left&quot;."
+                           autocomplete="off"
+                           hx-get="{{ url_for('main.global_search_results') }}"
+                           hx-trigger="input changed delay:200ms, focus"
+                           hx-target="#globalSearchResults"
+                           hx-swap="innerHTML">
+                    <div id="globalSearchResults"
+                         class="list-group position-absolute w-100 bg-body rounded mt-1 shadow-sm"
+                         style="z-index: 1050; max-height: 320px; overflow-y: auto;"></div>
+                </div>
                 <ul class="navbar-nav mb-2 ms-auto">
                     {% set nav_items = [
                         ('main.view_dashboard', 'Dashboard'),

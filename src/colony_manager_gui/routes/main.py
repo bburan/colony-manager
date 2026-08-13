@@ -25,8 +25,19 @@ from ..jobs import (
     recent_jobs, parse_summary,
 )
 from .. import queries
+from ..services import global_search
 
 main_bp = Blueprint('main', __name__)
+
+# Maps a global_search.SearchResult.kind to the (endpoint, url kwarg name)
+# used to build its link. Add an entry here when global_search.search()
+# gains a new entity type.
+_SEARCH_ROUTES = {
+    'animal': ('animals.view_animal', 'animal_id'),
+    'cage': ('cages.view_cage', 'cage_id'),
+    'study': ('studies.view_study', 'study_id'),
+    'ear': ('histology.view_ear', 'ear_id'),
+}
 
 
 @main_bp.before_request
@@ -50,6 +61,23 @@ SETTINGS_MAP = {
     'ear_tag':              {'model': models.EarTag,              'form': create_nested_form(models.EarTag)},
     'immunolabeling_panel': {'model': models.ImmunolabelingPanel, 'form': SimpleAddWithDescriptionForm},
 }
+
+@main_bp.route('/search')
+def global_search_results() -> Response | str:
+    """HTMX typeahead endpoint for the navbar 'jump to' search box."""
+    q = request.args.get('q', '')
+    matches = global_search.search(db.session, q)
+    results = [
+        {
+            'kind': m.kind,
+            'label': m.label,
+            'sublabel': m.sublabel,
+            'url': url_for(_SEARCH_ROUTES[m.kind][0], **{_SEARCH_ROUTES[m.kind][1]: m.id}),
+        }
+        for m in matches
+    ]
+    return render_template('partials/global_search_results.html', results=results, q=q)
+
 
 @main_bp.route('/')
 def view_dashboard() -> Response | str:

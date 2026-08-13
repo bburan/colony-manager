@@ -12,12 +12,55 @@ from datetime import date, timedelta
 from sqlalchemy import select
 
 from colony_manager.models import (
-    Animal, AnimalEventDataType, DataType, Feed, Species, TerminationReason,
+    Animal, AnimalEventDataType, DataType, Feed, Species, Study,
+    TerminationReason,
 )
 from .factories import (
     make_animal, make_cage, make_confocal_image, make_confocal_image_data,
     make_ear, make_event, make_procedure, make_species,
 )
+
+
+# ---------------------------------------------------------------------------
+# Navbar "jump to" search
+# ---------------------------------------------------------------------------
+
+def test_global_search_renders_links_for_each_entity_type(logged_in_client, db_session):
+    """Exercises main.py's kind -> (endpoint, url kwarg) mapping end to end
+    — the service layer already covers the match logic itself
+    (test_services_global_search.py); this just confirms url_for() is
+    wired up correctly per entity kind and lands on a 200.
+    """
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='NAV-SEARCH-1')
+    cage = make_cage(db_session, custom_id='NAV-SEARCH-CAGE')
+    study = Study(name='NAV-SEARCH Study')
+    db_session.add(study)
+    db_session.commit()
+    ear = make_ear(db_session, animal=animal, side='Left')
+
+    response = logged_in_client.get('/search', query_string={'q': 'nav-search'})
+    assert response.status_code == 200
+    body = response.data.decode()
+
+    assert f'/animals/{animal.id}' in body
+    assert f'/cages/{cage.id}' in body
+    assert f'/studies/{study.id}' in body
+    assert f'/histology/ears/{ear.id}' in body
+
+
+def test_global_search_empty_query_returns_no_results(logged_in_client, db_session):
+    make_animal(db_session, custom_id='NAV-SEARCH-2')
+    response = logged_in_client.get('/search')
+    assert response.status_code == 200
+    assert b'global-search-result' not in response.data
+
+
+def test_global_search_no_matches_shows_empty_state(logged_in_client, db_session):
+    make_animal(db_session, custom_id='NAV-SEARCH-3')
+    response = logged_in_client.get('/search', query_string={'q': 'no-such-thing-at-all'})
+    assert response.status_code == 200
+    assert b'No matches for' in response.data
 
 
 # ---------------------------------------------------------------------------

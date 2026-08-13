@@ -1,0 +1,30 @@
+{# Typeahead results — swapped into #globalSearchResults as the user
+   types in the navbar 'jump to' box (main.global_search_results).
+
+   Args:
+     results (list of dict: kind, label, sublabel, url)
+     q (str) — the raw query, so we can tell "no query yet" apart from
+       "query with no matches".
+
+   Each row is a real <a href> (full navigation, not htmx) so the
+   keyboard/click handling in app.js just needs to read .href. The
+   first result gets the 'active' class so Enter works without first
+   pressing an arrow key.
+#}
+{% set kind_icons = {
+    'animal': 'fa-paw',
+    'cage': 'fa-house',
+    'study': 'fa-flask',
+    'ear': 'fa-microscope',
+} %}
+{% if results %}
+{% for r in results %}
+<a href="{{ r.url }}"
+   class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center global-search-result{{ ' active' if loop.first }}">
+    <span><i class="fas {{ kind_icons.get(r.kind, 'fa-circle') }} me-2 text-muted"></i>{{ r.label }}</span>
+    {% if r.sublabel %}<span class="badge bg-secondary">{{ r.sublabel }}</span>{% endif %}
+</a>
+{% endfor %}
+{% elif q %}
+<div class="list-group-item small text-muted py-2">No matches for "{{ q }}"</div>
+{% endif %}

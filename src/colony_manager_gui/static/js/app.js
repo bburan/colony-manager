@@ -385,6 +385,8 @@ document.addEventListener('change', clearTerminationFieldsOnUncheck);
 
     // '/' jumps into the search box from anywhere, unless the user is
     // already typing in some other field.
+    const navCollapse = document.getElementById('appNav');
+    const navToggler = document.querySelector('.navbar-toggler');
     document.addEventListener('keydown', function (event) {
         if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
         const active = document.activeElement;
@@ -394,8 +396,26 @@ document.addEventListener('change', clearTerminationFieldsOnUncheck);
         );
         if (isTyping) return;
         event.preventDefault();
-        input.focus();
-        input.select();
+
+        // Below the navbar's collapse breakpoint the search box lives
+        // inside #appNav, which is hidden until the hamburger toggler is
+        // used — focus() on a hidden input is silently ignored, so open
+        // it first. The toggler itself is only visible in that collapsed
+        // mode (Bootstrap hides it via CSS at the expand breakpoint), so
+        // its visibility is what tells us which mode we're in.
+        const isCollapsedMode = navToggler && getComputedStyle(navToggler).display !== 'none';
+        if (isCollapsedMode && navCollapse && !navCollapse.classList.contains('show')) {
+            const collapseInstance = bootstrap.Collapse.getOrCreateInstance(navCollapse, { toggle: false });
+            navCollapse.addEventListener('shown.bs.collapse', function focusOnce() {
+                navCollapse.removeEventListener('shown.bs.collapse', focusOnce);
+                input.focus();
+                input.select();
+            });
+            collapseInstance.show();
+        } else {
+            input.focus();
+            input.select();
+        }
     });
 })();
 

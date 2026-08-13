@@ -142,7 +142,7 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="appNav">
-                <div class="position-relative me-lg-3 my-2 my-lg-0" id="globalSearchWrapper" style="max-width: 260px;">
+                <div class="position-relative me-lg-3 my-2 my-lg-0" id="globalSearchWrapper" style="min-width: 160px; max-width: 260px;">
                     <input type="search"
                            id="globalSearchInput"
                            name="q"
@@ -158,7 +158,7 @@
                          class="list-group position-absolute w-100 bg-body rounded mt-1 shadow-sm"
                          style="z-index: 1050; max-height: 320px; overflow-y: auto;"></div>
                 </div>
-                <ul class="navbar-nav mb-2 ms-auto">
+                <ul class="navbar-nav mb-2 mb-lg-0 ms-auto">
                     {% set nav_items = [
                         ('main.view_dashboard', 'Dashboard'),
                         ('main.view_calendar', 'Calendar'),

@@ -54,13 +54,55 @@ class AnimalForm(AnimalCustomIDForm):
     termination_date = DateField('Termination date', validators=[Optional()])
     termination_reason = QuerySelectField(
         'Termination reason', query_factory=termination_reason_factory,
-        get_label='name', validators=[Optional()],
+        get_label='name', validators=[Optional()], allow_blank=True,
     )
     tags = QuerySelectMultipleField(
         'Tags',
         query_factory=lambda: models.AnimalTag.get_ordered(db.session),
         get_label='display_name',
     )
+
+    def __init__(self, *args, obj=None, **kwargs):
+        super().__init__(*args, obj=obj, **kwargs)
+        self.initial_termination_date = obj.termination_date if obj is not None else None
+        self.initial_termination_reason_id = (
+            obj.termination_reason_id if obj is not None else None
+        )
+
+    def validate_terminated(self, field):
+        # The JS in app.js auto-checks 'Terminated' when the user fills in
+        # termination_date/termination_reason, but that's a UX nudge, not
+        # something we can rely on (JS disabled, form submitted via curl,
+        # etc). Reject the request outright rather than silently saving a
+        # *new* date/reason with terminated left False. Compare against the
+        # value the animal already had, not just "is it non-null" — since
+        # populate_obj() below clears both fields whenever 'terminated'
+        # ends up False, submitting the form with an *unchanged* date/reason
+        # while unchecking the box is just the normal un-terminate action,
+        # not a mistake, and must not be blocked.
+        if field.data:
+            return
+        date_changed = (
+            self.termination_date.data is not None
+            and self.termination_date.data != self.initial_termination_date
+        )
+        reason_changed = (
+            self.termination_reason.data is not None
+            and self.termination_reason.data.id != self.initial_termination_reason_id
+        )
+        if date_changed or reason_changed:
+            raise ValidationError(
+                'Check "Terminated" to record a termination date or reason.'
+            )
+
+    def populate_obj(self, obj):
+        super().populate_obj(obj)
+        # Un-terminating (unchecking the box) clears any termination
+        # date/reason rather than leaving them as stale leftovers — an
+        # active animal with a termination date on record is confusing.
+        if not self.terminated.data:
+            obj.termination_date = None
+            obj.termination_reason = None
 
 
 class AnimalEventForm(FlaskForm):

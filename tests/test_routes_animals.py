@@ -248,21 +248,28 @@ def test_terminate_animal_without_date_via_route(logged_in_client, db_session):
 
 
 def test_unterminate_animal_via_edit_form(logged_in_client, db_session):
-    """Unchecking 'Terminated' in the edit-animal form re-activates the animal.
+    """Unchecking 'Terminated' in the edit-animal form re-activates the
+    animal and clears its termination_date/reason.
 
     Regression: before the terminated flag was added, clearing
     termination_date was enough to un-terminate.  Now that is_active is
-    derived from the boolean flag, the flag must be cleared too.
+    derived from the boolean flag, the flag must be cleared too — and,
+    since an active animal with a termination date on record is
+    confusing, the date/reason are cleared along with it.
     """
     species = make_species(db_session)
     cage = make_cage(db_session, species=species)
+    reason = make_termination_reason(db_session)
     animal = make_animal(db_session, species=species, custom_id='UT-1')
-    animal.terminate(termination_date=date.today())
+    animal.terminate(termination_date=date.today(), termination_reason=reason)
     db_session.commit()
     assert animal.is_active is False
 
     # POST the edit form without the 'terminated' checkbox — an unchecked
     # BooleanField is not included in the POST body, so WTForms sets it False.
+    # 'termination_date'/'termination_reason' are also omitted here, but a
+    # real browser would resubmit their pre-filled values unchanged — either
+    # way populate_obj() clears them once 'terminated' is False.
     response = logged_in_client.post(
         f'/animals/{animal.id}/update',
         data={
@@ -279,6 +286,131 @@ def test_unterminate_animal_via_edit_form(logged_in_client, db_session):
     refreshed = db_session.get(Animal, animal.id)
     assert refreshed.terminated is False
     assert refreshed.is_active is True
+    assert refreshed.termination_date is None
+    assert refreshed.termination_reason_id is None
+
+
+def test_unterminate_animal_via_edit_form_resubmitting_unchanged_date(
+    logged_in_client, db_session,
+):
+    """Same as test_unterminate_animal_via_edit_form, but the POST includes
+    the animal's existing (unchanged) termination_date/reason explicitly —
+    what a real browser actually sends for pre-filled fields the user never
+    touched, rather than omitting the keys outright. Must not be mistaken
+    for a new/edited date and rejected by validate_terminated.
+    """
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    reason = make_termination_reason(db_session)
+    animal = make_animal(db_session, species=species, custom_id='UT-2')
+    animal.terminate(termination_date=date.today(), termination_reason=reason)
+    db_session.commit()
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'cage': str(cage.id),
+            'species': str(species.id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            'termination_date': date.today().isoformat(),
+            'termination_reason': str(reason.id),
+            # 'terminated' omitted — checkbox unchecked
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is False
+    assert refreshed.termination_date is None
+    assert refreshed.termination_reason_id is None
+
+
+def test_update_animal_rejects_termination_date_without_flag(logged_in_client, db_session):
+    """A termination_date/reason submitted without the 'Terminated' checkbox
+    is rejected rather than silently persisted.
+
+    app.js normally auto-checks the box client-side when a date/reason is
+    entered, but the server can't rely on JS having run (disabled JS, a
+    raw POST, etc), so this must also be enforced server-side.
+    """
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    animal = make_animal(db_session, species=species, cage=cage, custom_id='NT-1')
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'cage': str(cage.id),
+            'species': str(species.id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            'termination_date': date.today().isoformat(),
+            # 'terminated' omitted — checkbox unchecked
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is False
+    assert refreshed.termination_date is None
+
+
+def test_update_animal_rejects_termination_reason_without_flag(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    animal = make_animal(db_session, species=species, cage=cage, custom_id='NT-2')
+    reason = make_termination_reason(db_session)
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'cage': str(cage.id),
+            'species': str(species.id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            'termination_reason': str(reason.id),
+            # 'terminated' omitted — checkbox unchecked
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is False
+    assert refreshed.termination_reason_id is None
+
+
+def test_update_animal_allows_termination_date_with_flag(logged_in_client, db_session):
+    """Sanity check: the guard doesn't block the legitimate case of
+    checking 'Terminated' and setting a date/reason in the same edit.
+    """
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    animal = make_animal(db_session, species=species, cage=cage, custom_id='NT-3')
+    reason = make_termination_reason(db_session)
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'cage': str(cage.id),
+            'species': str(species.id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            'terminated': 'y',
+            'termination_date': date.today().isoformat(),
+            'termination_reason': str(reason.id),
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    refreshed = db_session.get(Animal, animal.id)
+    assert refreshed.terminated is True
+    assert refreshed.termination_date == date.today()
+    assert refreshed.termination_reason_id == reason.id
 
 
 # ---------------------------------------------------------------------------

@@ -293,6 +293,46 @@ function markDirty(input) {
     }
 }
 
+// The animal edit form exposes 'terminated' as its own checkbox, separate
+// from 'termination_date'/'termination_reason' (the flag is the source of
+// truth for is_active; historical animals may be terminated with no known
+// date). Filling in a date or reason without also ticking the checkbox is
+// an easy mistake, so nudge it on for the user — this never un-checks it,
+// so explicitly clearing 'Terminated' to re-activate an animal still works.
+function autoCheckTerminated(event) {
+    const el = event.target;
+    if (el.name !== 'termination_date' && el.name !== 'termination_reason') return;
+    // QuerySelectField's blank option is valued "__None" (its allow_blank
+    // default, see forms/animals.py), not "" — treat it as empty too.
+    if (!el.value || el.value === '__None') return;
+    const form = el.form;
+    if (!form) return;
+    const terminatedCheckbox = form.querySelector('[name="terminated"]');
+    if (terminatedCheckbox && !terminatedCheckbox.checked) {
+        terminatedCheckbox.checked = true;
+    }
+}
+document.addEventListener('input', autoCheckTerminated);
+document.addEventListener('change', autoCheckTerminated);
+
+// The inverse: unchecking 'Terminated' clears termination_date/reason
+// (the server does this too, in AnimalForm.populate_obj — this just
+// keeps the form's display in sync so the user isn't left looking at a
+// date/reason that's about to disappear on save).
+function clearTerminationFieldsOnUncheck(event) {
+    const el = event.target;
+    if (el.name !== 'terminated' || el.checked) return;
+    const form = el.form;
+    if (!form) return;
+    const dateInput = form.querySelector('[name="termination_date"]');
+    const reasonSelect = form.querySelector('[name="termination_reason"]');
+    if (dateInput) dateInput.value = '';
+    // QuerySelectField's blank option is valued "__None" (its allow_blank
+    // default), not "" — see forms/animals.py's termination_reason field.
+    if (reasonSelect) reasonSelect.value = '__None';
+}
+document.addEventListener('change', clearTerminationFieldsOnUncheck);
+
 function addField(fieldsetName) {
     const container = document.getElementById(`${fieldsetName}-container`);
     const fieldsets = container.getElementsByClassName(`${fieldsetName}-group`);

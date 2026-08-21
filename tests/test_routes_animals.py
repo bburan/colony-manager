@@ -151,6 +151,57 @@ def test_view_animal_returns_404_for_unknown(logged_in_client):
     assert response.status_code == 404
 
 
+def test_view_animal_events_default_to_most_recent_first(logged_in_client, db_session):
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='VW-SORT-1')
+    target = make_procedure_target(db_session)
+    older = make_procedure(db_session, name='Older Procedure')
+    newer = make_procedure(db_session, name='Newer Procedure')
+    make_event(db_session, animal=animal, procedure=older, procedure_target=target,
+               scheduled_date=date.today() - timedelta(days=10),
+               completion_date=date.today() - timedelta(days=10))
+    make_event(db_session, animal=animal, procedure=newer, procedure_target=target,
+               scheduled_date=date.today() - timedelta(days=1),
+               completion_date=date.today() - timedelta(days=1))
+
+    response = logged_in_client.get(f'/animals/{animal.id}')
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert body.index('Newer Procedure') < body.index('Older Procedure')
+
+
+def test_view_animal_events_respect_ascending_session_pref(logged_in_client, db_session):
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='VW-SORT-2')
+    target = make_procedure_target(db_session)
+    older = make_procedure(db_session, name='Older Procedure')
+    newer = make_procedure(db_session, name='Newer Procedure')
+    make_event(db_session, animal=animal, procedure=older, procedure_target=target,
+               scheduled_date=date.today() - timedelta(days=10),
+               completion_date=date.today() - timedelta(days=10))
+    make_event(db_session, animal=animal, procedure=newer, procedure_target=target,
+               scheduled_date=date.today() - timedelta(days=1),
+               completion_date=date.today() - timedelta(days=1))
+
+    logged_in_client.post('/set-event-sort-dir/asc', follow_redirects=False)
+    response = logged_in_client.get(f'/animals/{animal.id}')
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert body.index('Older Procedure') < body.index('Newer Procedure')
+
+
+def test_set_event_sort_dir_writes_session(logged_in_client):
+    response = logged_in_client.post('/set-event-sort-dir/asc', follow_redirects=False)
+    assert response.status_code == 302
+    with logged_in_client.session_transaction() as sess:
+        assert sess.get('event_sort_dir') == 'asc'
+
+
+def test_set_event_sort_dir_rejects_invalid_direction(logged_in_client):
+    response = logged_in_client.post('/set-event-sort-dir/sideways', follow_redirects=False)
+    assert response.status_code == 400
+
+
 # ---------------------------------------------------------------------------
 # Create / update / delete / terminate
 # ---------------------------------------------------------------------------

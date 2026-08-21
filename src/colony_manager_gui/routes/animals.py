@@ -99,6 +99,16 @@ def view_animal(animal_id) -> Response | str:
     # Files accordion: sort the already-loaded data_files list.
     animal_data_files = sorted(animal.data_files, key=lambda f: f.name)
 
+    # Events accordion: events_by_date is grouped oldest-first; flip it
+    # when the persisted preference asks for most-recent-first (the
+    # default), mirroring the age_unit/selected_species session prefs.
+    event_sort_dir = session.get('event_sort_dir', 'desc')
+    if event_sort_dir not in ('asc', 'desc'):
+        event_sort_dir = 'desc'
+    events_by_date = animal.events_by_date
+    if event_sort_dir == 'desc':
+        events_by_date = dict(reversed(events_by_date.items()))
+
     # Unassigned candidate event files (events accordion). Pre-filter to the
     # animal_event subset and eager-load each file's events so the
     # per-file ``f.events`` check doesn't issue its own query.
@@ -121,6 +131,8 @@ def view_animal(animal_id) -> Response | str:
         feeds=feed,
         animal_data_files=animal_data_files,
         unassigned_files=unassigned_files,
+        events_by_date=events_by_date,
+        event_sort_dir=event_sort_dir,
     )
 
 @animals_bp.route('/create', methods=['POST'])

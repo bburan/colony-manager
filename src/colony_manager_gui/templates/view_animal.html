@@ -172,6 +172,16 @@
                      aria-labelledby="headingEvents">
                     <div class="accordion-body">
                         <div class="d-flex justify-content-end mb-2 gap-2">
+                            <form method="post" class="m-0"
+                                  action="{{ url_for('main.set_event_sort_dir', direction='asc' if event_sort_dir == 'desc' else 'desc') }}">
+                                {{ csrf_only_form.hidden_tag() }}
+                                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        title="{{ 'Showing most recent first' if event_sort_dir == 'desc' else 'Showing oldest first' }}">
+                                    <i class="fas fa-arrow-{{ 'down' if event_sort_dir == 'desc' else 'up' }}"></i> Date
+                                </button>
+                            </form>
                             <button class="btn btn-sm btn-outline-primary"
                                     data-bs-toggle="tooltip"
                                     data-bs-placement="top"
@@ -187,7 +197,7 @@
                                 <i class="fas fa-calendar"></i> Add Event
                             </button>
                         </div>
-                        {{ macros.render_event_list(animal.events_by_date) }}
+                        {{ macros.render_event_list(events_by_date) }}
 
                         {% if unassigned_files %}
                             {{ macros.render_data_files(animal, unassigned_files) }}

@@ -538,6 +538,17 @@ def set_age_unit(unit) -> Response | str:
     session['age_unit'] = unit
     return redirect(request.referrer or url_for('main.view_dashboard'))
 
+
+@main_bp.route('/set-event-sort-dir/<direction>', methods=['POST'])
+def set_event_sort_dir(direction) -> Response | str:
+    form = CSRFOnlyForm()
+    if not form.validate_on_submit():
+        abort(400)
+    if direction not in ('asc', 'desc'):
+        abort(400)
+    session['event_sort_dir'] = direction
+    return redirect(request.referrer or url_for('main.view_dashboard'))
+
 def _save_datatype_children(dt):
     """Persist DataLocation rows from request.form.
 

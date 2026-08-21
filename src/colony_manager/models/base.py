@@ -131,6 +131,19 @@ class NestedMixin:
             return f'{self.parent.display_name} > {self.name}'
         return self.name
 
+    @property
+    def path(self):
+        """Return the chain of ancestors from root to self (inclusive),
+        so callers can render/link each level of ``display_name``
+        individually rather than only the leaf."""
+        chain = []
+        node = self
+        while node:
+            chain.append(node)
+            node = node.parent
+        chain.reverse()
+        return chain
+
     @classmethod
     def get_ordered(cls, session):
         """Return all rows depth-first, children sorted by name within each level."""

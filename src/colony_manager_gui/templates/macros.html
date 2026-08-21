@@ -157,6 +157,18 @@
     '': '',
     } %}
 
+{# Renders a hierarchical node's display_name (e.g. "Noise Exposure >
+   100 dB SPL") as one link per ancestor level, each scoped to the
+   Animal List filtered to that level (inclusive of its descendants).
+   ``param_name`` is the animals.list_animals query param to set
+   (procedure_id / tag_id / event_tag_id). #}
+{% macro render_nested_path(node, param_name, link_class='text-decoration-none', sep_class='text-muted', link_attrs='') %}
+{%- for anc in node.path -%}
+<a href="{{ url_for('animals.list_animals', status_filter='all', **{param_name: anc.id}) }}"
+   class="{{ link_class }}" {{ link_attrs }}>{{ anc.name }}</a>{% if not loop.last %}<span class="{{ sep_class }}"> &gt; </span>{% endif %}
+{%- endfor -%}
+{% endmacro %}
+
 {% macro render_event_list(events_by_date) %}
 <div class="small">
     {% for date, events in events_by_date.items() %}
@@ -168,7 +180,7 @@
                 <div class="d-flex align-items-start gap-1 py-1 px-2 rounded mb-1 {{ class_map[event.status] }}">
                     <div class="flex-grow-1" style="min-width: 0;">
                         <div class="d-flex align-items-center flex-wrap gap-1">
-                            <span class="fw-semibold">{{ event.procedure.display_name }}</span>
+                            <span class="fw-semibold">{{ render_nested_path(event.procedure, 'procedure_id') }}</span>
                             <span class="text-muted">·</span>
                             <span class="text-muted">{{ event.procedure_target.name }}</span>
                             {% if event.completion_time %}
@@ -181,7 +193,7 @@
                                   style="font-size: 0.7em;">{{ 'L' if event.side == 'Left' else 'R' }}</span>
                             {% endif %}
                             {% for tag in event.tags %}
-                                <span class="badge bg-secondary bg-opacity-25 text-dark fw-normal" style="font-size: 0.75em;">{{ tag.display_name }}</span>
+                                <span class="badge bg-secondary bg-opacity-25 text-dark fw-normal" style="font-size: 0.75em;">{{ render_nested_path(tag, 'event_tag_id', link_class='text-dark text-decoration-none', sep_class='text-dark text-opacity-50') }}</span>
                             {% endfor %}
                         </div>
                         {% if event.notes %}

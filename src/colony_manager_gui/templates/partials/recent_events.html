@@ -6,6 +6,7 @@
      events_by_animal (list of dicts: {'animal': Animal, 'events': [AnimalEvent]})
        Events within each group are sorted completion_date desc.
 #}
+{% import 'macros.html' as macros %}
 {% if events_by_animal %}
 <ul class="list-group list-group-flush small">
     {% for group in events_by_animal %}
@@ -46,7 +47,7 @@
                             {{ event.completion_date.strftime('%b %d') }}
                         </span>
                         <span class="text-truncate flex-grow-1" style="min-width: 0;">
-                            {{ event.procedure.display_name }}
+                            {{ macros.render_nested_path(event.procedure, 'procedure_id', link_attrs='@click.stop') }}
                             {% if event.procedure_target %}
                             <span class="text-muted">· {{ event.procedure_target.name }}</span>
                             {% endif %}

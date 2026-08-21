@@ -1,3 +1,4 @@
+{% import 'macros.html' as macros %}
 <dl class="row">
     <dt class="col-4">Cage</dt>
     <dd class="col-8">
@@ -25,9 +26,9 @@
     <dd class="col-8">
         <div class="d-flex flex-wrap gap-1">
             {% for tag in animal.tags %}
-                <a href="{{ url_for('animals.list_animals', tag_id=tag.id, status_filter='all') }}"
-                   class="badge rounded-pill bg-secondary text-decoration-none"
-                   title="{{ tag.display_name }}">{{ tag.display_name }}</a>
+                <span class="badge rounded-pill bg-secondary" title="{{ tag.display_name }}">
+                    {{ macros.render_nested_path(tag, 'tag_id', link_class='text-white text-decoration-none', sep_class='text-white-50') }}
+                </span>
             {% else %}
                 <span class="text-muted small">—</span>
             {% endfor %}

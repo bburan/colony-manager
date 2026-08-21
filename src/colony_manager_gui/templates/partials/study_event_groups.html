@@ -37,7 +37,8 @@
                                 aria-expanded="false"
                                 aria-controls="{{ gid }}-body">
                             <span class="me-3 fw-semibold">
-                                {{ group.root_procedure.display_name }}
+                                <a href="{{ url_for('animals.list_animals', procedure_id=group.root_procedure.id, status_filter='all') }}"
+                                   class="text-decoration-none" onclick="event.stopPropagation()">{{ group.root_procedure.display_name }}</a>
                                 {% if group.target %}
                                     <small class="text-muted">▸ {{ group.target.name }}</small>
                                 {% endif %}

@@ -1,3 +1,5 @@
+import re
+
 from flask import abort, flash, render_template, request, redirect, url_for
 from markupsafe import Markup, escape
 from sqlalchemy import func, select
@@ -83,6 +85,48 @@ def get_or_404(model, ident, description=None):
 
 def is_htmx():
     return bool(request.headers.get('HX-Request'))
+
+
+_TARGET_AGE_UNITS = {
+    'd': 'day', 'day': 'day', 'days': 'day',
+    'w': 'week', 'wk': 'week', 'wks': 'week', 'week': 'week', 'weeks': 'week',
+    'm': 'month', 'mo': 'month', 'mon': 'month',
+    'month': 'month', 'months': 'month',
+}
+
+_TARGET_AGE_RE = re.compile(r'^\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]+)\s*$')
+
+
+def parse_target_age(raw):
+    """Parse a ``target_age`` filter string like ``8w`` / ``8 weeks``.
+
+    Returns ``(value, unit, error)``. On success ``error`` is None and
+    ``value``/``unit`` are the numeric age and its normalized unit
+    (``day``/``week``/``month``). On failure ``value``/``unit`` are None and
+    ``error`` is a human-readable message. A blank string is not an error —
+    it just hides the target-date column — and returns ``(None, None, None)``.
+
+    A bare number with no unit (e.g. ``8``) is an error: the unit is
+    required so the calculation isn't silently guessed.
+    """
+    if raw is None or not raw.strip():
+        return None, None, None
+    match = _TARGET_AGE_RE.match(raw)
+    if not match:
+        return None, None, (
+            f"Could not parse target age '{raw.strip()}'. "
+            "Include a unit, e.g. '8w' or '8 weeks'."
+        )
+    number, unit_text = match.groups()
+    unit = _TARGET_AGE_UNITS.get(unit_text.lower())
+    if unit is None:
+        return None, None, (
+            f"Unknown age unit '{unit_text}'. Use days, weeks, or months."
+        )
+    value = float(number)
+    if value <= 0:
+        return None, None, 'Target age must be greater than zero.'
+    return value, unit, None
 
 
 def render_error_alert(message=None, form=None, alert_class='py-2 small', oob_id=None):

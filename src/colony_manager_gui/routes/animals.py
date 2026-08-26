@@ -23,7 +23,10 @@ from ..forms.cages import SingleHousingForm
 from ..forms.common import (
     NoteForm, QuickAddToStudyForm, TerminationForm, mark_disabled, mark_readonly,
 )
-from .util import flash_form_errors, get_or_404, is_htmx, paginate, render_modal
+from .util import (
+    flash_form_errors, get_or_404, is_htmx, paginate, parse_target_age,
+    render_modal,
+)
 from ..services.data_linking import (
     parsed_animal_sides, resync_event_files, auto_create_animal_event,
 )
@@ -53,7 +56,7 @@ def list_animals() -> Response | str:
         'procedure_id': request.args.get('procedure_id', 'all'),
         'tag_id': request.args.get('tag_id', 'all'),
         'event_tag_id': request.args.get('event_tag_id', 'all'),
-        'age_unit': request.args.get('age_unit', session.get('age_unit', 'day')),
+        'target_age': request.args.get('target_age', ''),
         'search_query': request.args.get('search_query', ''),
         'species_id': int(session.get('selected_species', -1)),
     }
@@ -61,10 +64,16 @@ def list_animals() -> Response | str:
     animals = get_filtered_animals(db.session, filters)
     options = get_animal_filter_options(db.session)
 
+    target_age, target_age_unit, target_age_error = parse_target_age(
+        filters['target_age'])
+
     return render_template(
         'animals.html',
         animals=animals,
         filters=filters,
+        target_age=target_age,
+        target_age_unit=target_age_unit,
+        target_age_error=target_age_error,
         **options,
     )
 
@@ -167,13 +176,23 @@ def update_animal(animal_id) -> Response | str:
 @animals_bp.route('/<int:animal_id>/delete', methods=['POST'])
 def delete_animal(animal_id) -> Response | str:
     animal = get_or_404(Animal, animal_id)
-    if animal.breeding_pair_male or animal.breeding_pair_female:
-        flash(f'Cannot delete animal {animal.display_id} because it is part of a breeding pair.', 'danger')
-        return redirect(request.referrer or url_for('animals.list_animals'))
+    display_id = animal.display_id
+    redirect_url = request.referrer or url_for('animals.list_animals')
+    if not animal.is_deletable:
+        flash(
+            f'Cannot delete {display_id}: only animals with no ID, no events, '
+            'and no breeding-pair membership can be removed.',
+            'danger',
+        )
+        if is_htmx():
+            return '', 200, {'HX-Redirect': redirect_url}
+        return redirect(redirect_url)
     db.session.delete(animal)
     db.session.commit()
-    flash(f'Animal {animal.display_id} has been deleted.', 'success')
-    return redirect(request.referrer or url_for('animals.list_animals'))
+    flash(f'Animal {display_id} has been deleted.', 'success')
+    if is_htmx():
+        return '', 200, {'HX-Redirect': redirect_url}
+    return redirect(redirect_url)
 
 
 @animals_bp.route('/<int:animal_id>/terminate', methods=['POST'])

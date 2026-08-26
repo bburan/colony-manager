@@ -49,6 +49,7 @@
             <div class="card-body">
             {% set show_cage_column = False %}
             {% set show_single_housing_action = True %}
+            {% set show_delete_action = True %}
             {# ``animals`` is sorted in the route (None custom_ids last)
                so we don't have to do None-safe sorting in Jinja. #}
             {% include 'partials/animal_table.html' %}

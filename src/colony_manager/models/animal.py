@@ -24,6 +24,12 @@ from .base import (
 )
 
 
+# Days-per-unit used to translate a target age (expressed in the age-display
+# unit the UI is set to) into a calendar offset from an animal's dob. Mirrors
+# the divisors in ``Animal.age_in_weeks`` / ``age_in_months``.
+_AGE_UNIT_DAYS = {'day': 1, 'week': 7, 'month': 30}
+
+
 # ---------------------------------------------------------------------------
 # Lookup / reference tables
 # ---------------------------------------------------------------------------
@@ -148,6 +154,29 @@ class Cage(VersionedModel):
             return f'{ages[0]:.1f} {unit}s'
         return f'{ages[0]:.1f} to {ages[-1]:.1f} {unit}s'
 
+    def target_age_display(self, target_age, unit='day'):
+        """Calendar date(s) on which this cage's animals hit ``target_age``.
+
+        Terminated animals are excluded — a target-age projection for an
+        animal that is no longer alive is meaningless — as are animals that
+        have already passed the target age (no upcoming date to report).
+        Living animals with different dobs reach the same age on different
+        days, so the result collapses to a single date for a same-age cage
+        and an ``earliest to latest`` range otherwise. Returns ``N/A`` when
+        no living animal has the target age still ahead of it.
+        """
+        today = date.today()
+        dates = sorted({
+            target for a in self.animals if a.is_active
+            for target in (a.target_age_date(target_age, unit),)
+            if target >= today
+        })
+        if not dates:
+            return 'N/A'
+        elif len(dates) == 1:
+            return dates[0].strftime('%Y-%m-%d')
+        return f"{dates[0]:%Y-%m-%d} to {dates[-1]:%Y-%m-%d}"
+
     @property
     def source_display(self):
         sources = {a.source_display for a in self.animals}
@@ -247,9 +276,45 @@ class Animal(VersionedModel):
     def age_in_months(self):
         return self.age_in_days / 30
 
+    def target_age_date(self, target_age, unit='day'):
+        """Date this animal will be (or was) ``target_age`` ``unit``s old."""
+        offset_days = float(target_age) * _AGE_UNIT_DAYS[unit]
+        return self.dob + timedelta(days=round(offset_days))
+
+    def target_age_date_display(self, target_age, unit='day'):
+        """Formatted target-age date, or None when it shouldn't be shown.
+
+        Returns None for a terminated animal (the projection is
+        meaningless) or when the target age is already in the past (the
+        animal has passed it, so there's no upcoming date to report).
+        """
+        if not self.is_active:
+            return None
+        target = self.target_age_date(target_age, unit)
+        if target < date.today():
+            return None
+        return target.strftime('%Y-%m-%d')
+
     @property
     def is_active(self):
         return not self.terminated
+
+    @property
+    def is_deletable(self):
+        """Whether this animal can be permanently deleted from the UI.
+
+        Guards against removing anything with real history: only an animal
+        added by accident should be removable — one with no assigned ID, no
+        events, and no breeding-pair membership. Terminated animals carry
+        their own records (ears, termination date) and are excluded too.
+        """
+        return (
+            self.is_active
+            and not self.custom_id
+            and self.events_count == 0
+            and not self.breeding_pair_male
+            and not self.breeding_pair_female
+        )
 
     @property
     def sex_symbol(self):
@@ -319,6 +384,20 @@ class Animal(VersionedModel):
         return new_ears
 
     def age_display(self, unit='day'):
+        """Human-readable age in ``unit``s.
+
+        For a terminated (euthanized) animal this reports the age *at
+        euthanasia* rather than a chronological age that keeps growing past
+        death, flagged with a trailing ``(t)``. If the animal is terminated
+        but the euthanasia date was never recorded, the age is unknowable,
+        so it renders as ``Unknown (t)``.
+        """
+        if self.terminated:
+            if self.termination_date is None:
+                return 'Unknown (t)'
+            age_days = (self.termination_date - self.dob).days
+            age = age_days / _AGE_UNIT_DAYS[unit]
+            return f'{age:.1f} {unit}s (t)'
         age = getattr(self, f'age_in_{unit}s')
         return f'{age:.1f} {unit}s'
 

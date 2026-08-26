@@ -39,6 +39,77 @@ def test_list_animals_with_seeded(logged_in_client, db_session):
     assert b'LST-1' in response.data
 
 
+def test_list_animals_target_age_column(logged_in_client, db_session):
+    species = make_species(db_session)
+    dob = date.today()
+    make_animal(db_session, species=species, custom_id='TGT-1', dob=dob)
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    response = logged_in_client.get(
+        '/animals/?target_age=8w&status_filter=all')
+    assert response.status_code == 200
+    assert b'Date of target age' in response.data
+    assert expected in response.data
+
+
+def test_list_animals_target_age_missing_unit_errors(logged_in_client, db_session):
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='TGT-ERR',
+                dob=date.today())
+    response = logged_in_client.get('/animals/?target_age=8&status_filter=all')
+    assert response.status_code == 200
+    assert b'Include a unit' in response.data
+    assert b'Date of target age' not in response.data
+
+
+def test_list_animals_target_age_blank_for_terminated(logged_in_client, db_session):
+    species = make_species(db_session)
+    dob = date.today()
+    animal = make_animal(db_session, species=species, custom_id='TGT-DEAD', dob=dob)
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    would_be = (dob + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    response = logged_in_client.get(
+        '/animals/?target_age=8w&status_filter=all')
+    assert response.status_code == 200
+    # Column is present but the terminated animal shows no projected date.
+    assert b'Date of target age' in response.data
+    assert would_be not in response.data
+
+
+def test_list_animals_target_age_past_not_shown(logged_in_client, db_session):
+    species = make_species(db_session)
+    dob = date.today() - timedelta(days=400)
+    make_animal(db_session, species=species, custom_id='TGT-PAST', dob=dob)
+    already = (dob + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    response = logged_in_client.get(
+        '/animals/?target_age=8w&status_filter=all')
+    assert response.status_code == 200
+    # Column shows, but a target age already in the past is not rendered.
+    assert b'Date of target age' in response.data
+    assert already not in response.data
+
+
+def test_list_animals_blank_target_age_hides_column(logged_in_client, db_session):
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='TGT-2', dob=date.today())
+    response = logged_in_client.get('/animals/?status_filter=all')
+    assert response.status_code == 200
+    assert b'Date of target age' not in response.data
+
+
+def test_list_animals_terminated_age_shows_euthanasia_indicator(logged_in_client, db_session):
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='EUTH-1',
+                         dob=date.today() - timedelta(days=100))
+    animal.terminate(termination_date=date.today() - timedelta(days=30))
+    db_session.commit()
+    response = logged_in_client.get('/animals/?status_filter=all')
+    assert response.status_code == 200
+    # Age at euthanasia (70 days), flagged with the (t) indicator.
+    # Default age unit is days (navbar/session-driven, unset in tests).
+    assert b'70.0 days (t)' in response.data
+
+
 def test_list_animals_search_filter(logged_in_client, db_session):
     species = make_species(db_session)
     make_animal(db_session, species=species, custom_id='FIND-ME')
@@ -233,7 +304,10 @@ def test_update_animal_returns_404_for_unknown(logged_in_client):
 
 
 def test_delete_animal(logged_in_client, db_session):
-    animal = make_animal(db_session, custom_id='DEL-1')
+    # Deletable = no ID and no events (an accidental add).
+    animal = make_animal(db_session)
+    animal.custom_id = None
+    db_session.commit()
     animal_id = animal.id
     response = logged_in_client.post(
         f'/animals/{animal_id}/delete', follow_redirects=False,
@@ -243,12 +317,41 @@ def test_delete_animal(logged_in_client, db_session):
     assert db_session.get(Animal, animal_id) is None
 
 
+def test_delete_animal_with_custom_id_refused(logged_in_client, db_session):
+    animal = make_animal(db_session, custom_id='HAS-ID')
+    animal_id = animal.id
+    response = logged_in_client.post(
+        f'/animals/{animal_id}/delete', follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Animal, animal_id) is not None
+
+
+def test_delete_animal_with_events_refused(logged_in_client, db_session):
+    animal = make_animal(db_session)
+    animal.custom_id = None
+    db_session.commit()
+    make_event(db_session, animal=animal)
+    animal_id = animal.id
+    response = logged_in_client.post(
+        f'/animals/{animal_id}/delete', follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    assert db_session.get(Animal, animal_id) is not None
+
+
 def test_delete_animal_in_breeding_pair_refused(logged_in_client, db_session):
     """The route reads animal.breeding_pair_male / breeding_pair_female
-    (backrefs added in BreedingPair) to refuse deletion of sires/dams.
+    (backrefs added in BreedingPair) to refuse deletion of sires/dams even
+    when the animal has no ID or events of its own.
     """
     pair = make_breeding_pair(db_session)
-    male_id = pair.male_animal_id
+    male = db_session.get(Animal, pair.male_animal_id)
+    male.custom_id = None  # isolate the breeding-pair guard
+    db_session.commit()
+    male_id = male.id
     response = logged_in_client.post(
         f'/animals/{male_id}/delete', follow_redirects=False,
     )

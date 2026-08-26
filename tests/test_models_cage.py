@@ -131,6 +131,82 @@ def test_age_display_empty_cage(db_session):
 
 
 # ---------------------------------------------------------------------------
+# Target-age date
+# ---------------------------------------------------------------------------
+
+def test_target_age_display_single_date(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    dob = date.today()
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    # Same dob -> both hit 8 weeks on the same (future) day, so no range.
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d')
+    assert cage.target_age_display(8, 'week') == expected
+
+
+def test_target_age_display_range(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    dob_young = date.today()
+    dob_old = date.today() - timedelta(days=10)
+    make_animal(db_session, cage=cage, species=species, dob=dob_young)
+    make_animal(db_session, cage=cage, species=species, dob=dob_old)
+    # Different dobs -> earliest-to-latest range, both offset by 56 days.
+    earliest = (dob_old + timedelta(days=56)).strftime('%Y-%m-%d')
+    latest = (dob_young + timedelta(days=56)).strftime('%Y-%m-%d')
+    assert cage.target_age_display(8, 'week') == f'{earliest} to {latest}'
+
+
+def test_target_age_display_excludes_terminated(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    dob = date.today()
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    dead = make_animal(db_session, cage=cage, species=species,
+                       dob=date.today() - timedelta(days=10))
+    dead.terminate(termination_date=date.today())
+    db_session.commit()
+    # Only the living animal counts -> single date, not a range.
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d')
+    assert cage.target_age_display(8, 'week') == expected
+
+
+def test_target_age_display_excludes_past(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    dob = date.today()
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    # This animal already passed 8 weeks -> excluded from the projection.
+    make_animal(db_session, cage=cage, species=species,
+                dob=date.today() - timedelta(days=400))
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d')
+    assert cage.target_age_display(8, 'week') == expected
+
+
+def test_target_age_display_all_past_is_na(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    make_animal(db_session, cage=cage, species=species,
+                dob=date.today() - timedelta(days=400))
+    assert cage.target_age_display(8, 'week') == 'N/A'
+
+
+def test_target_age_display_all_terminated_is_na(db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species)
+    dead = make_animal(db_session, cage=cage, species=species, dob=date.today())
+    dead.terminate(termination_date=date.today())
+    db_session.commit()
+    assert cage.target_age_display(8, 'week') == 'N/A'
+
+
+def test_target_age_display_empty_cage(db_session):
+    cage = make_cage(db_session)
+    assert cage.target_age_display(8, 'week') == 'N/A'
+
+
+# ---------------------------------------------------------------------------
 # Property aggregation on a freshly-loaded cage
 # ---------------------------------------------------------------------------
 

@@ -4,7 +4,7 @@ from colony_manager.models import Cage, Animal
 from .. import db
 from ..forms.cages import CageForm, CageDetailsForm
 from ..forms.common import NoteForm, QuickAddToStudyForm, TerminationForm
-from .util import flash_form_errors, get_or_404, render_modal
+from .util import flash_form_errors, get_or_404, parse_target_age, render_modal
 from ..services.cage_queries import get_filtered_cages, get_cage_filter_options
 
 cages_bp = Blueprint('cages', __name__)
@@ -35,15 +35,20 @@ def list_cages() -> Response | str:
         'notes_filter': request.args.get('notes_filter', 'all'),
         'tag_id': request.args.get('tag_id', 'all'),
         'procedure_id': request.args.get('procedure_id', 'all'),
-        'age_unit': request.args.get('age_unit', session.get('age_unit', 'day')),
+        'target_age': request.args.get('target_age', ''),
         'species_id': int(session.get('selected_species', -1)),
     }
 
     cages = get_filtered_cages(db.session, filters)
     options = get_cage_filter_options(db.session)
 
+    target_age, target_age_unit, target_age_error = parse_target_age(
+        filters['target_age'])
+
     return render_template(
-        'cages.html', cages=cages, filters=filters, **options,
+        'cages.html', cages=cages, filters=filters,
+        target_age=target_age, target_age_unit=target_age_unit,
+        target_age_error=target_age_error, **options,
     )
 
 

@@ -17,8 +17,8 @@ from sqlalchemy import select
 from colony_manager.models import Animal, AnimalTag, Ear, WeightLog
 
 from .factories import (
-    make_animal, make_cage, make_source, make_species,
-    make_termination_reason,
+    make_animal, make_breeding_pair, make_cage, make_event, make_source,
+    make_species, make_termination_reason,
 )
 
 
@@ -130,6 +130,65 @@ def test_age_display_units(db_session):
     assert animal.age_display('week') == '2.0 weeks'
 
 
+def test_age_display_terminated_shows_age_at_euthanasia(db_session):
+    # Born 100 days ago, euthanized 30 days ago -> 70 days old at death,
+    # not the 100 chronological days a living animal would show.
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=100))
+    animal.terminate(termination_date=date.today() - timedelta(days=30))
+    db_session.commit()
+
+    assert animal.age_display('day') == '70.0 days (t)'
+    assert animal.age_display('week') == '10.0 weeks (t)'
+
+
+def test_age_display_terminated_without_date_is_unknown(db_session):
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=100))
+    animal.terminate()  # no termination_date recorded
+    db_session.commit()
+
+    assert animal.age_display('day') == 'Unknown (t)'
+    assert animal.age_display('month') == 'Unknown (t)'
+
+
+def test_target_age_date_units(db_session):
+    dob = date(2026, 1, 1)
+    animal = make_animal(db_session, dob=dob)
+
+    assert animal.target_age_date(56, 'day') == dob + timedelta(days=56)
+    # 8 weeks and 56 days land on the same calendar date.
+    assert animal.target_age_date(8, 'week') == dob + timedelta(days=56)
+    assert animal.target_age_date(2, 'month') == dob + timedelta(days=60)
+
+
+def test_target_age_date_accepts_string_and_fractional(db_session):
+    dob = date(2026, 1, 1)
+    animal = make_animal(db_session, dob=dob)
+
+    # The raw query-string value arrives as a str; fractional weeks round
+    # to the nearest whole day (1.5 weeks == 10.5 days -> 10 days).
+    assert animal.target_age_date('1.5', 'week') == dob + timedelta(days=10)
+
+
+def test_target_age_date_display_future(db_session):
+    dob = date.today()
+    animal = make_animal(db_session, dob=dob)
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d')
+    assert animal.target_age_date_display(8, 'week') == expected
+
+
+def test_target_age_date_display_past_returns_none(db_session):
+    # Target age already behind this animal -> nothing upcoming to show.
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=400))
+    assert animal.target_age_date_display(8, 'week') is None
+
+
+def test_target_age_date_display_terminated_returns_none(db_session):
+    animal = make_animal(db_session, dob=date.today())
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    assert animal.target_age_date_display(8, 'week') is None
+
+
 def test_is_active_true_until_terminated(db_session):
     animal = make_animal(db_session)
     assert animal.is_active is True
@@ -137,6 +196,44 @@ def test_is_active_true_until_terminated(db_session):
     animal.terminate(termination_date=date.today())
     db_session.commit()
     assert animal.is_active is False
+
+
+def _empty_animal(db_session):
+    """An animal with no assigned ID and no events — i.e. an accidental add."""
+    animal = make_animal(db_session)
+    animal.custom_id = None
+    db_session.commit()
+    return animal
+
+
+def test_is_deletable_true_for_empty_animal(db_session):
+    assert _empty_animal(db_session).is_deletable is True
+
+
+def test_is_deletable_false_with_custom_id(db_session):
+    animal = make_animal(db_session, custom_id='HAS-ID')
+    assert animal.is_deletable is False
+
+
+def test_is_deletable_false_with_events(db_session):
+    animal = _empty_animal(db_session)
+    make_event(db_session, animal=animal)
+    assert animal.is_deletable is False
+
+
+def test_is_deletable_false_when_terminated(db_session):
+    animal = _empty_animal(db_session)
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    assert animal.is_deletable is False
+
+
+def test_is_deletable_false_for_breeding_pair_member(db_session):
+    pair = make_breeding_pair(db_session)
+    male = db_session.get(Animal, pair.male_animal_id)
+    male.custom_id = None
+    db_session.commit()
+    assert male.is_deletable is False
 
 
 @pytest.mark.parametrize('sex,symbol', [

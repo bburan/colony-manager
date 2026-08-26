@@ -10,7 +10,6 @@ Animal Overview
         'status_filter': [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')],
         'sex_filter': [('all', 'All'), ('male', 'M'), ('female', 'F')],
         'event_filter': [('all', 'All'), ('no_events', 'No Events'), ('has_events', 'Has Event'), ('due_overdue', 'Due/Overdue'), ('overdue', 'Overdue')],
-        'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
         } %}
 
 {% block content %}
@@ -20,7 +19,7 @@ Animal Overview
            that selecting a dropdown / submitting the search box doesn't drop
            the button-group selections. #}
         {% for name, value in filters.items() %}
-            {% if name not in ('search_query', 'procedure_id', 'tag_id', 'event_tag_id', 'study_filter') %}
+            {% if name not in ('search_query', 'procedure_id', 'tag_id', 'event_tag_id', 'study_filter', 'target_age') %}
                 <input type="hidden" name="{{ name }}" value="{{ value }}">
             {% endif %}
         {% endfor %}
@@ -57,7 +56,7 @@ Animal Overview
                 {{ macros.filter_dropdown('study_filter', 'Study', filters, studies, label_attr='name') }}
                 {{ macros.filter_button_group('sort_by', 'Sort', filters, filter_options['sort_by']) }}
                 {{ macros.sort_direction_toggle(filters) }}
-                {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
+                {{ macros.filter_text_input('target_age', 'Target Age', filters, placeholder='e.g. 8w', error=target_age_error) }}
             </div>
         </div>
     </form>
@@ -97,7 +96,6 @@ Animal Overview
     <div class="card-body">
         {% set show_cage_column = True %}
         {% set show_select_column = True %}
-        {% set age_unit = filters['age_unit'] %}
         {% include 'partials/animal_table.html' %}
     </div>
 </div>

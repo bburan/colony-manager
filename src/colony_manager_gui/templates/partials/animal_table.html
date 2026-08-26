@@ -1,4 +1,4 @@
-{% set _show_actions_col = show_termination_action|default(True) or remove_from_study_id|default(None) %}
+{% set _show_actions_col = show_termination_action|default(True) or remove_from_study_id|default(None) or show_delete_action|default(False) %}
 <table class="table table-hover small">
     <thead class="bg-light text-secondary text-uppercase fw-bold">
         <tr>
@@ -13,6 +13,9 @@
             <th>Species</th>
             <th>Sex</th>
             <th>Age</th>
+            {% if target_age|default(None) %}
+            <th>Date of target age</th>
+            {% endif %}
             <th>Events</th>
             {% if show_study_column|default(True) %}<th>Studies</th>{% endif %}
             {% if _show_actions_col %}<th></th>{% endif %}
@@ -49,6 +52,16 @@
             <td>{{ animal.species.name }}</td>
             <td>{{ animal.sex_symbol }}</td>
             <td>{{ animal.age_display(age_unit|default('day')) }}</td>
+            {% if target_age|default(None) %}
+            {% set target_date = animal.target_age_date_display(target_age, target_age_unit) %}
+            <td>
+                {%- if target_date -%}
+                    {{ target_date }}
+                {%- else -%}
+                    <span class="text-muted">&mdash;</span>
+                {%- endif -%}
+            </td>
+            {% endif %}
             <td>
                 {% if animal.event_overdue %}
                     {% set btn_class = "btn-danger" %}
@@ -108,6 +121,16 @@
                             <i class="fas fa-crosshairs fa-sm"></i>
                         </button>
                         {% endif %}
+                        {% if show_delete_action|default(False) and animal.is_deletable %}
+                        <button type="button"
+                                hx-post="{{ url_for('animals.delete_animal', animal_id=animal.id) }}"
+                                hx-confirm="Delete this animal? It has no ID or events; the empty record is removed permanently."
+                                class="btn btn-outline-danger btn-sm shadow"
+                                data-bs-toggle="tooltip"
+                                title="Delete animal (no ID or events)">
+                            <i class="fas fa-trash fa-sm"></i>
+                        </button>
+                        {% endif %}
                     {% endif %}
                     {% if remove_from_study_id|default(None) %}
                     <button type="button"
@@ -127,6 +150,7 @@
         {% else %}
         <tr>
             {% set empty_cols = 6
+                + (1 if target_age|default(None) else 0)
                 + (1 if show_study_column|default(True) else 0)
                 + (1 if _show_actions_col else 0)
                 + (1 if show_select_column|default(False) else 0) %}

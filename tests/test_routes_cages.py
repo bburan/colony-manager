@@ -35,6 +35,70 @@ def test_list_cages_with_seeded_data(logged_in_client, db_session):
     assert b'G001' in response.data
 
 
+def test_list_cages_target_age_column(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='TARGET')
+    dob = date.today()
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    response = logged_in_client.get('/cages/?target_age=8w&status_filter=all')
+    assert response.status_code == 200
+    assert b'Date of target age' in response.data
+    assert expected in response.data
+
+
+def test_list_cages_target_age_range(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='RANGE')
+    dob_young = date.today()
+    dob_old = date.today() - timedelta(days=10)
+    make_animal(db_session, cage=cage, species=species, dob=dob_young)
+    make_animal(db_session, cage=cage, species=species, dob=dob_old)
+    earliest = (dob_old + timedelta(days=56)).strftime('%Y-%m-%d')
+    latest = (dob_young + timedelta(days=56)).strftime('%Y-%m-%d')
+    response = logged_in_client.get('/cages/?target_age=8+weeks&status_filter=all')
+    assert response.status_code == 200
+    assert f'{earliest} to {latest}'.encode() in response.data
+
+
+def test_list_cages_target_age_excludes_terminated(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='TERM')
+    dob = date.today()
+    make_animal(db_session, cage=cage, species=species, dob=dob)
+    dead = make_animal(db_session, cage=cage, species=species,
+                       dob=date.today() - timedelta(days=10))
+    dead.terminate(termination_date=date.today())
+    db_session.commit()
+    expected = (dob + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    dead_date = (date.today() - timedelta(days=10) + timedelta(days=56)).strftime('%Y-%m-%d').encode()
+    response = logged_in_client.get('/cages/?target_age=8w&status_filter=all')
+    assert response.status_code == 200
+    # Only the living animal contributes -> single date, not a range.
+    assert expected in response.data
+    assert dead_date not in response.data
+
+
+def test_list_cages_target_age_missing_unit_errors(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='NOUNIT')
+    make_animal(db_session, cage=cage, species=species, dob=date.today())
+    response = logged_in_client.get('/cages/?target_age=8&status_filter=all')
+    assert response.status_code == 200
+    assert b'Include a unit' in response.data
+    # No column rendered on an invalid target age.
+    assert b'Date of target age' not in response.data
+
+
+def test_list_cages_blank_target_age_hides_column(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='NOCOL')
+    make_animal(db_session, cage=cage, species=species, dob=date.today())
+    response = logged_in_client.get('/cages/?status_filter=all')
+    assert response.status_code == 200
+    assert b'Date of target age' not in response.data
+
+
 def test_list_cages_status_inactive_filter(logged_in_client, db_session):
     species = make_species(db_session)
     empty_cage = make_cage(db_session, species=species, custom_id='EMPTY')
@@ -148,6 +212,28 @@ def test_view_cage_renders_with_all_animals_unassigned(logged_in_client, db_sess
 
     response = logged_in_client.get(f'/cages/{cage.id}')
     assert response.status_code == 200
+
+
+def test_view_cage_shows_delete_button_for_deletable_animal(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='DELBTN')
+    animal = make_animal(db_session, cage=cage, species=species)
+    animal.custom_id = None  # no ID, no events -> deletable
+    db_session.commit()
+
+    response = logged_in_client.get(f'/cages/{cage.id}')
+    assert response.status_code == 200
+    assert f'/animals/{animal.id}/delete'.encode() in response.data
+
+
+def test_view_cage_hides_delete_button_for_animal_with_id(logged_in_client, db_session):
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='NODEL')
+    animal = make_animal(db_session, cage=cage, species=species, custom_id='KEEP-1')
+
+    response = logged_in_client.get(f'/cages/{cage.id}')
+    assert response.status_code == 200
+    assert f'/animals/{animal.id}/delete'.encode() not in response.data
 
 
 # ---------------------------------------------------------------------------

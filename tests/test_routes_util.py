@@ -10,7 +10,54 @@ from werkzeug.exceptions import NotFound
 import pytest
 
 from colony_manager.models import Animal, Cage, Species, Source
-from colony_manager_gui.routes.util import get_or_404, paginate, Pagination
+from colony_manager_gui.routes.util import (
+    get_or_404, paginate, parse_target_age, Pagination,
+)
+
+
+# ---------------------------------------------------------------------------
+# parse_target_age
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('raw,expected', [
+    ('8w', (8.0, 'week')),
+    ('8 w', (8.0, 'week')),
+    ('8 weeks', (8.0, 'week')),
+    ('8WEEKS', (8.0, 'week')),      # case-insensitive
+    ('  8week  ', (8.0, 'week')),   # surrounding whitespace
+    ('10d', (10.0, 'day')),
+    ('3 days', (3.0, 'day')),
+    ('2m', (2.0, 'month')),
+    ('2 months', (2.0, 'month')),
+    ('1.5 weeks', (1.5, 'week')),   # fractional
+])
+def test_parse_target_age_valid(raw, expected):
+    value, unit, error = parse_target_age(raw)
+    assert error is None
+    assert (value, unit) == expected
+
+
+@pytest.mark.parametrize('raw', ['', '   ', None])
+def test_parse_target_age_blank_is_not_an_error(raw):
+    assert parse_target_age(raw) == (None, None, None)
+
+
+def test_parse_target_age_missing_unit_is_error():
+    value, unit, error = parse_target_age('8')
+    assert value is None and unit is None
+    assert error is not None
+    assert 'unit' in error.lower()
+
+
+def test_parse_target_age_unknown_unit_is_error():
+    value, unit, error = parse_target_age('8 fortnights')
+    assert value is None and unit is None
+    assert 'Unknown age unit' in error
+
+
+def test_parse_target_age_non_positive_is_error():
+    _, _, error = parse_target_age('0 weeks')
+    assert error is not None
 
 
 # ---------------------------------------------------------------------------

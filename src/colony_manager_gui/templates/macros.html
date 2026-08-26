@@ -29,6 +29,27 @@
 </div>
 {% endmacro %}
 
+{# Free-form text filter input (e.g. "Target Age", which accepts strings
+   like "8w" or "8 weeks"). Submits its parent form on change so the page
+   reloads with the new value in the query string, matching the
+   dropdown/button-group behaviour. Renders ``error`` as inline validation
+   feedback when the value could not be parsed. #}
+{% macro filter_text_input(name, label, filters, placeholder='', error='', width='8rem') %}
+<div class="col-auto">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+        {{ label }}
+    </label>
+    <input type="text" name="{{ name }}" value="{{ filters[name] or '' }}"
+           class="form-control form-control-sm shadow-sm {{ 'is-invalid' if error }}"
+           style="max-width: {{ width }};"
+           placeholder="{{ placeholder }}"
+           onchange="this.form.submit()">
+    {% if error %}
+    <div class="invalid-feedback d-block" style="font-size: 0.7rem;">{{ error }}</div>
+    {% endif %}
+</div>
+{% endmacro %}
+
 {% macro filter_button_group(name, label, filters, options) %}
 <div class="col-auto">
     <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">

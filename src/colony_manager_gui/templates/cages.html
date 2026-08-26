@@ -12,14 +12,13 @@ Cages
         'occupancy_filter': [('all', 'All'), ('empty', 'Empty'), ('single', 'Single'), ('multi', 'Multi')],
         'notes_filter': [('all', 'All'), ('yes', 'Yes'), ('no', 'No')],
         'sort_by': [('custom_id', 'ID'), ('age', 'Age'), ('animal_count', '# Animals'), ('active_count', '# Active')],
-        'age_unit': [('day', 'D'), ('week', 'W'), ('month', 'M')],
         } %}
 
 {% block content %}
 <div class="card shadow-sm mb-4">
     <form action="{{ url_for('cages.list_cages') }}" method="GET">
         {% for name, value in filters.items() %}
-            {% if name not in ('source_id', 'tag_id', 'procedure_id') %}
+            {% if name not in ('source_id', 'tag_id', 'procedure_id', 'target_age') %}
                 <input type="hidden" name="{{ name }}" value="{{ value }}">
             {% endif %}
         {% endfor %}
@@ -47,7 +46,7 @@ Cages
                 {{ macros.filter_dropdown('procedure_id', 'Procedure', filters, procedures) }}
                 {{ macros.filter_button_group('sort_by', 'Sort By', filters, filter_options['sort_by']) }}
                 {{ macros.sort_direction_toggle(filters) }}
-                {{ macros.filter_button_group('age_unit', 'Age Unit', filters, filter_options['age_unit']) }}
+                {{ macros.filter_text_input('target_age', 'Target Age', filters, placeholder='e.g. 8w', error=target_age_error) }}
             </div>
         </div>
     </form>
@@ -70,6 +69,9 @@ Cages
                     <th rowspan=2>Species</th>
                     <th rowspan=2>Sex</th>
                     <th rowspan=2>Age</th>
+                    {% if target_age %}
+                    <th rowspan=2>Date of target age</th>
+                    {% endif %}
                     <th rowspan=1 colspan=2 class="text-center">Animals</th>
                     <th rowspan=2>Source</th>
                     <th rowspan=2>Notes</th>
@@ -85,14 +87,17 @@ Cages
                     <td><a href="{{ url_for('cages.view_cage', cage_id=cage.id) }}">{{ cage.custom_id }}</a></td>
                     <td>{{ cage.species.name }}</td>
                     <td>{{ cage.sex_symbol }}</td>
-                    <td>{{ cage.age_display(filters['age_unit']) }}</td>
+                    <td>{{ cage.age_display(age_unit) }}</td>
+                    {% if target_age %}
+                    <td>{{ cage.target_age_display(target_age, target_age_unit) }}</td>
+                    {% endif %}
                     <td>{{ cage.animals_count }}</td>
                     <td>{{ cage.active_animals_count }}</td>
                     <td>{{ cage.source_display }}</td>
                     <td>{{ cage.notes }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center text-muted small fst-italic py-4">No cages match the current filters.</td></tr>
+                <tr><td colspan="{{ 9 if target_age else 8 }}" class="text-center text-muted small fst-italic py-4">No cages match the current filters.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

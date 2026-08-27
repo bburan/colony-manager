@@ -251,10 +251,19 @@
                             <li class='dropdown-item'>{{ current_user.display_name }}</li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
+                                    <button type="button" class="dropdown-item"
+                                            hx-get="{{ url_for('auth.change_password') }}"
+                                            hx-target="#modalBody">
+                                        <i class="fas fa-key me-2"></i>Change Password
+                                    </button>
+                                </li>
+                                {% if current_user.is_admin() %}
+                                <li>
                                     <a class="dropdown-item" href="{{ url_for('auth.list_users') }}">
                                         <i class="fas fa-users-cog me-2"></i>User Management
                                     </a>
                                 </li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <a class="dropdown-item" href="{{ url_for('auth.logout_user') }}">

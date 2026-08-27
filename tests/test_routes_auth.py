@@ -158,3 +158,88 @@ def test_admin_routes_forbid_non_admin(client, db_session):
         sess['_fresh'] = True
     response = client.get('/auth/')
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Self-service password change
+# ---------------------------------------------------------------------------
+
+def test_change_password_modal_returns_200(logged_in_client):
+    response = logged_in_client.get('/auth/change-password')
+    assert response.status_code == 200
+    assert b'Current Password' in response.data
+
+
+def test_change_password_success(logged_in_client, logged_in_user, db_session):
+    response = logged_in_client.post(
+        '/auth/change-password',
+        data={
+            'current_password': 'smoke-secret',
+            'new_password': 'Sup3rStrong!',
+            'confirm_password': 'Sup3rStrong!',
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(logged_in_user)
+    assert logged_in_user.check_password('Sup3rStrong!')
+    assert not logged_in_user.check_password('smoke-secret')
+
+
+def test_change_password_wrong_current_is_rejected(logged_in_client, logged_in_user, db_session):
+    logged_in_client.post(
+        '/auth/change-password',
+        data={
+            'current_password': 'WRONG',
+            'new_password': 'Sup3rStrong!',
+            'confirm_password': 'Sup3rStrong!',
+        },
+    )
+    db_session.refresh(logged_in_user)
+    assert logged_in_user.check_password('smoke-secret')  # unchanged
+
+
+def test_change_password_weak_new_is_rejected(logged_in_client, logged_in_user, db_session):
+    logged_in_client.post(
+        '/auth/change-password',
+        data={
+            'current_password': 'smoke-secret',
+            'new_password': 'weak',
+            'confirm_password': 'weak',
+        },
+    )
+    db_session.refresh(logged_in_user)
+    assert logged_in_user.check_password('smoke-secret')  # unchanged
+
+
+def test_change_password_mismatched_confirm_is_rejected(logged_in_client, logged_in_user, db_session):
+    logged_in_client.post(
+        '/auth/change-password',
+        data={
+            'current_password': 'smoke-secret',
+            'new_password': 'Sup3rStrong!',
+            'confirm_password': 'Different1!',
+        },
+    )
+    db_session.refresh(logged_in_user)
+    assert logged_in_user.check_password('smoke-secret')  # unchanged
+
+
+def test_change_password_allowed_for_non_admin(client, db_session):
+    """Self-service password change is reachable by any authenticated user,
+    not just admins (the ``_AUTH_SELF_SERVICE_ENDPOINTS`` exemption)."""
+    non_admin = make_user(
+        db_session, email='peon2@example.com', active=True, admin=False,
+    )
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(non_admin.id)
+        sess['_fresh'] = True
+    response = client.get('/auth/change-password')
+    assert response.status_code == 200
+
+
+def test_change_password_requires_login(client):
+    """Anonymous users are bounced to login by the global hook."""
+    response = client.get('/auth/change-password', follow_redirects=False)
+    assert response.status_code == 302
+    assert '/auth/login' in response.headers['Location']

@@ -8,7 +8,9 @@ import flask_login
 from colony_manager_gui import db
 from colony_manager_gui.auth_decorators import public
 from colony_manager_gui.routes.util import flash_form_errors, get_or_404, render_modal
-from colony_manager_gui.forms.auth import UserLoginForm, UserCreateForm, UserEditForm
+from colony_manager_gui.forms.auth import (
+    UserLoginForm, UserCreateForm, UserEditForm, ChangePasswordForm,
+)
 from colony_manager.models import User
 
 auth_bp = Blueprint('auth', __name__)
@@ -17,11 +19,21 @@ auth_bp = Blueprint('auth', __name__)
 # admin privileges. Everything else (user list/view/edit) requires admin.
 _AUTH_PUBLIC_ENDPOINTS = {'auth.login_user', 'auth.add_user', 'auth.logout_user'}
 
+# Endpoints any *authenticated* user may reach to manage their own account
+# (login required, but admin is not).
+_AUTH_SELF_SERVICE_ENDPOINTS = {'auth.change_password'}
+
 
 @auth_bp.before_request
 def _restrict_auth_to_admin():
     from flask import request, Response
     if request.endpoint in _AUTH_PUBLIC_ENDPOINTS:
+        return
+    if request.endpoint in _AUTH_SELF_SERVICE_ENDPOINTS:
+        # The global check_login hook already guarantees authentication;
+        # just make sure we don't hand an anonymous user through here.
+        if flask_login.current_user.is_anonymous:
+            abort(403)
         return
     if flask_login.current_user.is_anonymous or not flask_login.current_user.is_admin():
         abort(403)
@@ -122,6 +134,38 @@ def update_user_admin(user_id) -> Response | str:
     else:
         flash_form_errors(form, f'Unable to update user {user.display_name}', 'error')
     return redirect(request.referrer or url_for('auth.list_users'))
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+def change_password() -> Response | str:
+    """Let the logged-in user change their own password.
+
+    GET renders the modal; POST verifies the current password, enforces
+    the complexity rules, and updates the hash. Follows the same full-POST
+    modal pattern as ``update_user_admin`` (flash + redirect rather than an
+    HTMX swap).
+    """
+    user = flask_login.current_user
+    form = ChangePasswordForm()
+    if request.method == 'GET':
+        return render_modal(
+            form, label='Change Password',
+            submit_url=url_for('auth.change_password'),
+            submit_label='Update Password',
+        )
+    if form.validate_on_submit():
+        if not user.check_password(form.current_password.data):
+            flash('Current password is incorrect.', 'danger')
+        elif user.check_password(form.new_password.data):
+            flash('New password must be different from the current one.', 'danger')
+        else:
+            user.set_password(form.new_password.data)
+            db.session.commit()
+            flash('Password updated successfully.', 'success')
+            return redirect(url_for('main.view_dashboard'))
+    else:
+        flash_form_errors(form, 'Unable to change password')
+    return redirect(request.referrer or url_for('main.view_dashboard'))
+
 
 @auth_bp.route('/<int:user_id>/edit_modal')
 def edit_user_modal(user_id) -> Response | str:

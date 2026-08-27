@@ -43,3 +43,20 @@ class UserEditForm(FlaskForm):
     last_name = StringField('Last Name', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     active = BooleanField('Active')
+
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField(
+        'Current Password', validators=[DataRequired()],
+    )
+    new_password = PasswordField('New Password', validators=[
+        DataRequired(),
+        validate_password_complexity,
+    ])
+    confirm_password = PasswordField(
+        'New Password (repeat)',
+        validators=[
+            DataRequired(),
+            EqualTo('new_password', message='Passwords must match'),
+        ],
+    )

@@ -192,6 +192,101 @@ def test_sync_locations_skips_already_synced_paths(
     assert len(db_session.scalars(select(AnimalEventData)).all()) == 1
 
 
+def test_sync_flags_partial_animal_match(db_session, app, tmp_path):
+    """A multi-animal filename naming an animal the colony lacks links the
+    animals it can and sets ``has_unmatched_animals`` on the row."""
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    a1 = make_animal(db_session, species=species, custom_id='M-001')
+    a2 = make_animal(db_session, species=species, custom_id='M-002')
+    # M-999 deliberately absent.
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_multi_animal'
+    db_session.commit()
+
+    _write_file(tmp_path, 'M-001 M-002 M-999.txt')
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert {a.custom_id for a in row.candidate_animals} == {'M-001', 'M-002'}
+    assert row.has_unmatched_animals is True
+    assert row.unmatched_animal_ids == ['M-999']
+
+    # And it's reachable via the review-page query.
+    flagged = db_session.scalars(
+        select(Data).where(Data.has_unmatched_animals.is_(True))
+    ).all()
+    assert row in flagged
+
+
+def test_rematch_backfills_flag_on_already_matched_row(db_session, app, tmp_path):
+    """A non-force rematch refreshes has_unmatched_animals on rows that
+    already have targets (backfills pre-flag rows) without re-linking."""
+    from colony_manager_gui.sync import sync_locations, rematch_datatype
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+    make_animal(db_session, species=species, custom_id='M-002')
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_multi_animal'
+    db_session.commit()
+
+    _write_file(tmp_path, 'M-001 M-002 M-999.txt')
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert {a.custom_id for a in row.animals} == {'M-001', 'M-002'}  # has targets
+    # Simulate a row synced before the flag column existed.
+    row.has_unmatched_animals = False
+    db_session.commit()
+
+    with app.app_context():
+        rematch_datatype(dtype.id, force=False)
+        gui_db.session.commit()
+
+    db_session.refresh(row)
+    assert row.has_unmatched_animals is True
+    assert {a.custom_id for a in row.animals} == {'M-001', 'M-002'}  # links intact
+
+
+def test_sync_no_flag_when_all_animals_present(db_session, app, tmp_path):
+    """Every named animal exists → flag stays false."""
+    from colony_manager_gui.sync import sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+    make_animal(db_session, species=species, custom_id='M-002')
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_multi_animal'
+    db_session.commit()
+
+    _write_file(tmp_path, 'M-001 M-002.txt')
+    make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    with app.app_context():
+        sync_locations()
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.has_unmatched_animals is False
+    assert row.unmatched_animal_ids == []
+
+
 # ---------------------------------------------------------------------------
 # sync_locations — dry-run
 # ---------------------------------------------------------------------------

@@ -492,4 +492,7 @@ def handle_upload(
     _, m2m_attr, _ = TARGET_LOADERS[target_type]
     setattr(row, m2m_attr, list(targets))
     session.add(row)
+    # Uploads seed parsed_metadata from the chosen targets, so this is
+    # normally False; recompute anyway to keep the invariant in one place.
+    row.recompute_unmatched_flag()
     return UploadResult(row=row, full_path=full)

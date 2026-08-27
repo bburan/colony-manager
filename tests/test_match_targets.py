@@ -138,6 +138,45 @@ def test_animal_event_accepts_list_of_ids(db_session):
     assert set(matches) == {e1, e2}
 
 
+def test_animal_event_matches_subprocedure_of_default(db_session):
+    """A DataType keyed on a parent procedure matches events recorded
+    against any of its subprocedures."""
+    parent = make_procedure(db_session, name='Noise Exposure')
+    child = make_procedure(db_session, name='Noise Exposure 100 dB', parent=parent)
+    animal = make_animal(db_session, custom_id='SUB-1')
+    dtype = make_animal_event_data_type(db_session, default_procedure=parent)
+    event = make_event(
+        db_session, animal=animal, procedure=child,
+        scheduled_date=date(2025, 6, 1),
+        completion_date=date(2025, 6, 1),
+    )
+
+    matches = dtype.match_targets(db_session, {
+        'animal_id': 'SUB-1',
+        'date': date(2025, 6, 1),
+    })
+    assert matches == [event]
+
+
+def test_animal_event_does_not_match_unrelated_procedure(db_session):
+    """Widening to the subtree must not match a sibling/unrelated procedure."""
+    parent = make_procedure(db_session, name='Noise Exposure (root)')
+    other = make_procedure(db_session, name='Dissection (root)')
+    animal = make_animal(db_session, custom_id='SUB-2')
+    dtype = make_animal_event_data_type(db_session, default_procedure=parent)
+    make_event(
+        db_session, animal=animal, procedure=other,
+        scheduled_date=date(2025, 6, 1),
+        completion_date=date(2025, 6, 1),
+    )
+
+    matches = dtype.match_targets(db_session, {
+        'animal_id': 'SUB-2',
+        'date': date(2025, 6, 1),
+    })
+    assert matches == []
+
+
 # ---------------------------------------------------------------------------
 # ConfocalImageDataType
 # ---------------------------------------------------------------------------

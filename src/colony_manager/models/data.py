@@ -79,7 +79,7 @@ class AnimalEventDataType(DataType):
 
     def match_targets(self, session, parsed):
         from sqlalchemy import select, or_
-        from .animal import Animal, AnimalEvent
+        from .animal import Animal, AnimalEvent, AnimalProcedure
 
         animal_ids = parsed.get('animal_id') or []
         if isinstance(animal_ids, str):
@@ -87,6 +87,13 @@ class AnimalEventDataType(DataType):
         target_date = parsed.get('date')
         if not animal_ids or not target_date or not self.default_procedure_id:
             return []
+        # Match the configured procedure *or any of its subprocedures*: an
+        # event recorded against a more specific child (e.g. a subtype of
+        # "Noise Exposure") should still link to a DataType whose default is
+        # the parent procedure.
+        procedure_ids = AnimalProcedure.descendant_ids(
+            session, self.default_procedure_id,
+        )
         side = _canonical_side(parsed.get('side'))
         events = []
         for aid in animal_ids:
@@ -97,7 +104,7 @@ class AnimalEventDataType(DataType):
                 continue
             stmt = select(AnimalEvent).where(
                 AnimalEvent.animal_id == animal.id,
-                AnimalEvent.procedure_id == self.default_procedure_id,
+                AnimalEvent.procedure_id.in_(procedure_ids),
                 or_(
                     AnimalEvent.scheduled_date == target_date,
                     AnimalEvent.completion_date == target_date,
@@ -261,6 +268,14 @@ class Data(VersionedModel):
     ctime           = Column(DateTime, nullable=True)
     discovered_at   = Column(DateTime, nullable=True)
     parsed_metadata = Column(JSON, nullable=True)
+    # Queryable flag: at least one animal ID parsed from the filename had no
+    # matching Animal at the last sync/rematch (even if other IDs matched).
+    # Maintained by ``sync.py``; drives the data-review page filter. For live
+    # display, prefer the ``unmatched_animal_ids`` property, which recomputes
+    # from ``candidate_animals`` and lists the specific offending IDs.
+    has_unmatched_animals = Column(
+        Boolean, nullable=False, default=False, server_default='false',
+    )
 
     candidate_animals = relationship(
         'Animal', secondary=data_candidate_animals, backref='candidate_data_files',
@@ -291,6 +306,50 @@ class Data(VersionedModel):
     def is_unmatched(self):
         return len(self.targets) == 0
 
+    @property
+    def parsed_animal_ids(self):
+        """Animal custom_ids the parser extracted from the filename."""
+        parsed = self.parsed_metadata or {}
+        raw = parsed.get('animal_id')
+        if not raw:
+            return []
+        return list(raw) if isinstance(raw, (list, tuple)) else [raw]
+
+    @property
+    def matched_animal_ids(self):
+        """custom_ids of animals reachable from this file's linked targets.
+
+        Overridden per subclass to walk that subclass's target collection
+        down to the owning Animal. The base has no targets.
+        """
+        return set()
+
+    @property
+    def unmatched_animal_ids(self):
+        """Parsed animal IDs that have no linked target on this file.
+
+        A multi-animal filename is only fully matched once *every* animal
+        it names has a linked target. This lists the ones that don't yet —
+        covering both animals absent from the colony (a typo like
+        ``B0828-4`` can never be linked) and animals that exist but whose
+        event/ear/image isn't linked yet. Empty once all are matched.
+        """
+        parsed_ids = self.parsed_animal_ids
+        if not parsed_ids:
+            return []
+        matched = self.matched_animal_ids
+        return [aid for aid in parsed_ids if aid not in matched]
+
+    def recompute_unmatched_flag(self):
+        """Refresh the persisted ``has_unmatched_animals`` column.
+
+        Call after any change to this row's targets (sync, rematch, manual
+        (un)link, auto-create) so the data-review page's SQL filter stays
+        accurate. Kept as a plain method — not an ORM event — so every
+        mutation site opts in explicitly.
+        """
+        self.has_unmatched_animals = bool(self.unmatched_animal_ids)
+
 
 class AnimalEventData(Data):
     __tablename__ = 'animal_event_data'
@@ -305,6 +364,10 @@ class AnimalEventData(Data):
     @property
     def targets(self):
         return list(self.events)
+
+    @property
+    def matched_animal_ids(self):
+        return {e.animal.custom_id for e in self.events}
 
 
 class ConfocalImageData(Data):
@@ -321,6 +384,10 @@ class ConfocalImageData(Data):
     def targets(self):
         return list(self.confocal_images)
 
+    @property
+    def matched_animal_ids(self):
+        return {img.ear.animal.custom_id for img in self.confocal_images}
+
 
 class AnimalData(Data):
     __tablename__ = 'animal_data'
@@ -336,6 +403,10 @@ class AnimalData(Data):
     def targets(self):
         return list(self.animals)
 
+    @property
+    def matched_animal_ids(self):
+        return {a.custom_id for a in self.animals}
+
 
 class EarData(Data):
     __tablename__ = 'ear_data'
@@ -348,6 +419,10 @@ class EarData(Data):
     @property
     def targets(self):
         return list(self.ears)
+
+    @property
+    def matched_animal_ids(self):
+        return {e.animal.custom_id for e in self.ears}
 
 
 DATA_SUBCLASSES = {

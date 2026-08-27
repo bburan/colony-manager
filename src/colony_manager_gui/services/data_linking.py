@@ -172,6 +172,7 @@ def resync_confocal_image(image: ConfocalImage) -> int:
         if side and side != image.ear.side:
             continue
         f.confocal_images.append(image)
+        f.recompute_unmatched_flag()
         linked += 1
     return linked
 
@@ -188,14 +189,17 @@ def resync_event_files(event: AnimalEvent) -> None:
     # Unlink files (this event only) whose date or parsed side no longer
     # matches. A file with no parsed side is allowed to stay linked — same
     # convention as the initial sync match.
+    touched = set()
     for f in list(event.data_files):
         if f.date != new_date:
             f.events.remove(event)
+            touched.add(f)
             continue
         if event.side is not None:
             f_sides = parsed_animal_sides(f, animal_custom_id)
             if f_sides and event.side not in set(f_sides):
                 f.events.remove(event)
+                touched.add(f)
 
     # Link AnimalEventData files matching date, animal candidacy, and the
     # DataType's default procedure. Side must match when both the event
@@ -216,6 +220,10 @@ def resync_event_files(event: AnimalEvent) -> None:
             if f_sides and event.side not in set(f_sides):
                 continue
         f.events.append(event)
+        touched.add(f)
+
+    for f in touched:
+        f.recompute_unmatched_flag()
 
 
 @dataclass
@@ -311,6 +319,7 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
         )
     ).all()
     linked_count = 0
+    touched = set()
     for f in candidate_files:
         f_sides = parsed_animal_sides(f, animal_custom_id)
         if f_sides is None:
@@ -322,7 +331,11 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
             if event.side is not None and f_sides and event.side not in f_sides:
                 continue
             f.events.append(event)
+            touched.add(f)
             linked_count += 1
+
+    for f in touched:
+        f.recompute_unmatched_flag()
 
     db.session.commit()
     return AutoCreateResult(

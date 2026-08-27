@@ -2,6 +2,14 @@
 {% import 'macros.html' as macros %}
 {% set linked_event = data_file.events|selectattr('animal_id', 'equalto', animal.id)|first if (animal and data_file.target_type == 'animal_event') else None %}
 
+{% if data_file.unmatched_animal_ids %}
+<div class="alert alert-warning py-1 px-2 small mb-2 d-flex align-items-center gap-2">
+    <i class="fas fa-triangle-exclamation flex-shrink-0"></i>
+    <span>Named in the filename but not linked to a target:
+        <strong>{{ data_file.unmatched_animal_ids|join(', ') }}</strong></span>
+</div>
+{% endif %}
+
 <div class="d-flex align-items-center mb-2">
 	<div id="data-notes-{{ data_file.id }}" class="flex-grow-1"
 		 x-data="{ success: false, error: false }">

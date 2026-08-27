@@ -752,6 +752,7 @@ def reassign_data(animal_id, data_id) -> Response | str:
         flash(f"File {data_file.name} attached to event.", "success")
     else:
         flash(f"File {data_file.name} detached from event.", "info")
+    data_file.recompute_unmatched_flag()
     db.session.commit()
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
@@ -768,6 +769,14 @@ def list_unmatched_data() -> Response | str:
     target_type_filter = request.args.get('target_type', 'all')
     datatype_id_filter = request.args.get('datatype_id', None, type=int)
     status_filter = request.args.get('status', 'all')
+    # Which incompleteness to show:
+    #   'all' (default)     — either of the below.
+    #   'no_target'         — files that linked to nothing at all.
+    #   'unmatched_animals' — files where at least one animal named in the
+    #                         filename has no linked target (covers typos
+    #                         not in the colony *and* named-but-not-yet-
+    #                         linked animals on partially-matched files).
+    issue_filter = request.args.get('issue', 'all')
     search_filter = (request.args.get('q', '') or '').strip()
     date_from_raw = (request.args.get('date_from', '') or '').strip()
     date_to_raw = (request.args.get('date_to', '') or '').strip()
@@ -783,21 +792,36 @@ def list_unmatched_data() -> Response | str:
     date_from = _parse_date(date_from_raw)
     date_to = _parse_date(date_to_raw)
 
+    # Ids of files that linked to *no* target, scoped to the chosen
+    # target_type when one is selected.
     if target_type_filter == 'animal_event':
-        stmt = select(AnimalEventData).where(~AnimalEventData.events.any())
+        no_target_ids = select(AnimalEventData.id).where(~AnimalEventData.events.any())
     elif target_type_filter == 'confocal_image':
-        stmt = select(ConfocalImageData).where(~ConfocalImageData.confocal_images.any())
+        no_target_ids = select(ConfocalImageData.id).where(~ConfocalImageData.confocal_images.any())
     elif target_type_filter == 'animal':
-        stmt = select(AnimalData).where(~AnimalData.animals.any())
+        no_target_ids = select(AnimalData.id).where(~AnimalData.animals.any())
     elif target_type_filter == 'ear':
-        stmt = select(EarData).where(~EarData.ears.any())
+        no_target_ids = select(EarData.id).where(~EarData.ears.any())
     else:
-        unmatched_ae_ids = select(AnimalEventData.id).where(~AnimalEventData.events.any())
-        unmatched_ci_ids = select(ConfocalImageData.id).where(~ConfocalImageData.confocal_images.any())
-        unmatched_a_ids = select(AnimalData.id).where(~AnimalData.animals.any())
-        unmatched_e_ids = select(EarData.id).where(~EarData.ears.any())
-        combined = union_all(unmatched_ae_ids, unmatched_ci_ids, unmatched_a_ids, unmatched_e_ids).subquery()
-        stmt = select(Data).where(Data.id.in_(select(combined)))
+        no_target_ids = select(union_all(
+            select(AnimalEventData.id).where(~AnimalEventData.events.any()),
+            select(ConfocalImageData.id).where(~ConfocalImageData.confocal_images.any()),
+            select(AnimalData.id).where(~AnimalData.animals.any()),
+            select(EarData.id).where(~EarData.ears.any()),
+        ).subquery())
+
+    no_target_cond = Data.id.in_(no_target_ids)
+    unmatched_animals_cond = Data.has_unmatched_animals.is_(True)
+
+    if issue_filter == 'no_target':
+        stmt = select(Data).where(no_target_cond)
+    elif issue_filter == 'unmatched_animals':
+        stmt = select(Data).where(unmatched_animals_cond)
+    else:  # 'all' — either kind of incomplete match
+        stmt = select(Data).where(or_(no_target_cond, unmatched_animals_cond))
+
+    if target_type_filter in ('animal_event', 'confocal_image', 'animal', 'ear'):
+        stmt = stmt.where(Data.target_type == target_type_filter)
 
     if datatype_id_filter:
         stmt = stmt.where(Data.datatype_id == datatype_id_filter)
@@ -840,6 +864,7 @@ def list_unmatched_data() -> Response | str:
         filters={
             'target_type': target_type_filter,
             'datatype_id': datatype_id_filter,
+            'issue': issue_filter,
             'per_page': per_page,
             'status': status_filter,
             'q': search_filter,

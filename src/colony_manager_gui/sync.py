@@ -415,6 +415,7 @@ def _sync_location(location, dry_run=False, debug=False):
                             hash_match.ears = list(new_targets)
                         hash_match.candidate_animals = candidate_animals
                         hash_match.candidate_ears = candidate_ears
+                        hash_match.recompute_unmatched_flag()
                     counts['moved'] += 1
                     continue
                 else:
@@ -474,6 +475,9 @@ def _sync_location(location, dry_run=False, debug=False):
         new_data.candidate_animals = candidate_animals
         new_data.candidate_ears = candidate_ears
         db.session.add(new_data)
+        # Recompute after add() so walking the target relationship doesn't
+        # autoflush a not-yet-managed row.
+        new_data.recompute_unmatched_flag()
         counts['added'] += 1
 
     if not dry_run:
@@ -624,6 +628,12 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
     parsed_rows = []  # list of (row, parsed)
     for row in rows:
         if not force and not _is_unmatched(row, dt.target_type):
+            # Already has targets, so we don't re-resolve them — but refresh
+            # the partial-match flag from the current targets + cached
+            # parsed_metadata. This backfills has_unmatched_animals on rows
+            # synced before the flag existed without disturbing their links.
+            if not dry_run:
+                row.recompute_unmatched_flag()
             counts['skipped'] += 1
             continue
         counts['walked'] += 1
@@ -700,6 +710,7 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
             # need to re-parse on render. A force-rematch is the recommended
             # way to repopulate after a parser change.
             row.parsed_metadata = to_json_safe(parsed)
+            row.recompute_unmatched_flag()
 
         if targets:
             counts['matched'] += 1

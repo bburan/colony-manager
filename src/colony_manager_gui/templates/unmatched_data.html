@@ -8,6 +8,7 @@ Unmatched Data Files
 {% set link_args = {
     'target_type': filters.target_type,
     'datatype_id': filters.datatype_id or '',
+    'issue': filters.issue,
     'per_page': filters.per_page,
     'status': filters.status,
     'q': filters.q,
@@ -62,6 +63,14 @@ Unmatched Data Files
 
         <div class="card-body py-2">
             <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Issue</label>
+                    <select name="issue" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="all" {% if filters.issue == 'all' %}selected{% endif %}>All incomplete</option>
+                        <option value="no_target" {% if filters.issue == 'no_target' %}selected{% endif %}>No linked target</option>
+                        <option value="unmatched_animals" {% if filters.issue == 'unmatched_animals' %}selected{% endif %}>Unresolved animal IDs</option>
+                    </select>
+                </div>
                 <div class="col-auto">
                     <label class="form-label small mb-1">Target Type</label>
                     <select name="target_type" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -128,7 +137,15 @@ Unmatched Data Files
     {{ csrf_only_form.csrf_token }}
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Files that did not link to a target</h2>
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            {% if filters.issue == 'unmatched_animals' %}
+                Files with animals not yet linked
+            {% elif filters.issue == 'no_target' %}
+                Files that did not link to a target
+            {% else %}
+                Files needing review (incomplete match)
+            {% endif %}
+        </h2>
         <div class="d-flex align-items-center gap-2">
             {% if files %}
                 <button type="submit"
@@ -163,6 +180,9 @@ Unmatched Data Files
                     <th>{{ sort_header('Location', 'name') }}</th>
                     <th>{{ sort_header('Date', 'date') }}</th>
                     <th>Candidates</th>
+                    {% if filters.issue in ('all', 'unmatched_animals') %}
+                    <th>Unlinked animals</th>
+                    {% endif %}
                     <th>{{ sort_header('Status', 'status') }}</th>
                 </tr>
             </thead>
@@ -194,6 +214,15 @@ Unmatched Data Files
                             <span class="text-muted">none</span>
                         {% endif %}
                     </td>
+                    {% if filters.issue in ('all', 'unmatched_animals') %}
+                    <td class="small">
+                        {% for aid in f.unmatched_animal_ids %}
+                            <span class="badge bg-warning text-dark">{{ aid }}</span>
+                        {% else %}
+                            <span class="text-muted">&mdash;</span>
+                        {% endfor %}
+                    </td>
+                    {% endif %}
                     <td>
                         <span class="badge bg-{{ 'success' if f.status == 'reviewed' else 'warning text-dark' if f.status == 'unreviewed' else 'danger' }}">
                             {{ f.status|capitalize }}

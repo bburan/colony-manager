@@ -119,6 +119,24 @@ class _HashingUploadableAnimalDescription(_HashingAnimalDescription):
         return f'{ids}_{date:%Y-%m-%d}{ext}'
 
 
+class _MultiAnimalDescription(DataTypeDescription):
+    """Parses a space-separated list of animal IDs from the filename.
+
+    e.g. ``M-001 M-002 M-999.txt`` → animal_id=['M-001','M-002','M-999'].
+    Used to exercise the partial-match flag (``has_unmatched_animals``)
+    when a filename names animals that don't all exist in the colony.
+    """
+
+    def parse(self):
+        ids = [p for p in self.path.stem.split(' ') if p]
+        if not ids:
+            return None
+        return {'animal_id': ids}
+
+    def hash_files(self):
+        return []
+
+
 class _UploadableEarDescription(DataTypeDescription):
     """Ear-target description that opts in to the upload flow."""
 
@@ -146,4 +164,5 @@ DESCRIPTION_CLASSES = {
     'fake_animal_upload_subclass': _UploadableAnimalDescriptionSubclass,
     'fake_animal_upload_hashed': _HashingUploadableAnimalDescription,
     'fake_ear_upload': _UploadableEarDescription,
+    'fake_multi_animal': _MultiAnimalDescription,
 }

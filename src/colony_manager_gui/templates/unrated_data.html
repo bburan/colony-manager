@@ -8,10 +8,8 @@ Rating Review
     'datatype_id': filters.datatype_id or '',
     'per_page': filters.per_page,
     'q': filters.q,
-    'date_from': filters.date_from,
-    'date_to': filters.date_to,
-    'coverage': filters.coverage,
-    'rater': filters.rater,
+    'note': filters.note,
+    'state': filters.state,
     'sort': filters.sort,
     'dir': filters.dir,
 } %}
@@ -62,45 +60,28 @@ Rating Review
         <div class="card-body py-2">
             <div class="row g-2 align-items-end">
                 <div class="col-auto">
-                    <label class="form-label small mb-1">Coverage</label>
-                    <select name="coverage" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <label class="form-label small mb-1">Status</label>
+                    <select name="state" class="form-select form-select-sm" onchange="this.form.submit()">
                         {% for val, lbl in [
-                            ('unrated', 'Unrated'), ('single', 'Single rater'),
-                            ('multi', 'Multiple raters'), ('rated', 'Rated (any)'),
-                            ('all', 'All ratable')] %}
-                        <option value="{{ val }}" {% if filters.coverage == val %}selected{% endif %}>{{ lbl }}</option>
+                            ('both', 'Both'), ('unrated', 'Unrated'), ('partial', 'Partial')] %}
+                        <option value="{{ val }}" {% if filters.state == val %}selected{% endif %}>{{ lbl }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                {% if known_raters %}
                 <div class="col-auto">
-                    <label class="form-label small mb-1">Rated by</label>
-                    <select name="rater" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">Anyone</option>
-                        {% for r in known_raters %}
-                        <option value="{{ r }}" {% if filters.rater == r %}selected{% endif %}>{{ r }}</option>
-                        {% endfor %}
-                    </select>
+                    <label class="form-label small mb-1">Rating note</label>
+                    <input type="text" name="note" value="{{ filters.note }}"
+                           class="form-control form-control-sm" style="max-width: 220px;"
+                           placeholder="e.g. Partial OHC1" onchange="this.form.submit()">
                 </div>
-                {% endif %}
                 <div class="col-auto">
-                    <label class="form-label small mb-1">DataType</label>
+                    <label class="form-label small mb-1">Data type</label>
                     <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All DataTypes</option>
+                        <option value="">All data types</option>
                         {% for dt in ratable_datatypes %}
                         <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
                         {% endfor %}
                     </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Date from</label>
-                    <input type="date" name="date_from" value="{{ filters.date_from }}"
-                           class="form-control form-control-sm" onchange="this.form.submit()">
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Date to</label>
-                    <input type="date" name="date_to" value="{{ filters.date_to }}"
-                           class="form-control form-control-sm" onchange="this.form.submit()">
                 </div>
                 <div class="col-auto">
                     <label class="form-label small mb-1">Per page</label>
@@ -118,11 +99,9 @@ Rating Review
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-            {% if filters.coverage == 'single' %}Files rated by a single person
-            {% elif filters.coverage == 'multi' %}Files rated by multiple people
-            {% elif filters.coverage == 'rated' %}Rated files
-            {% elif filters.coverage == 'all' %}All ratable files
-            {% else %}Files that have not been rated{% endif %}
+            {% if filters.state == 'unrated' %}Unrated files
+            {% elif filters.state == 'partial' %}Partially rated files
+            {% else %}Unrated &amp; partially rated files{% endif %}
         </h2>
         <div class="d-flex align-items-center gap-2">
             <form method="POST" action="{{ url_for('animals.trigger_rating_sync') }}"

@@ -878,32 +878,20 @@ def list_unmatched_data() -> Response | str:
 
 @animals_bp.route('/unrated-data')
 def list_unrated_data() -> Response | str:
-    """Files whose DataType supports rating but have not yet been rated."""
+    """Files whose DataType supports rating and are unrated or partial."""
     from colony_manager.models import DataType
     from colony_manager.datatypes import load_description_class
-    from datetime import datetime
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     datatype_id_filter = request.args.get('datatype_id', None, type=int)
     search_filter = (request.args.get('q', '') or '').strip()
-    date_from_raw = (request.args.get('date_from', '') or '').strip()
-    date_to_raw = (request.args.get('date_to', '') or '').strip()
-    # Rating coverage: 'unrated' (default), 'single'/'multi' rater,
-    # 'rated' (any), 'all' (ratable regardless of state).
-    coverage_filter = request.args.get('coverage', 'unrated')
-    rater_filter = (request.args.get('rater', '') or '').strip()
+    note_filter = (request.args.get('note', '') or '').strip()
+    # Which review state to show: 'unrated' (not started), 'partial'
+    # (analysis started but incomplete), or 'both' (default).
+    state_filter = request.args.get('state', 'both')
     sort = request.args.get('sort', 'date')
     direction = request.args.get('dir', 'desc')
-
-    def _parse_date(raw):
-        try:
-            return datetime.strptime(raw, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            return None
-
-    date_from = _parse_date(date_from_raw)
-    date_to = _parse_date(date_to_raw)
 
     all_dts = db.session.scalars(
         select(DataType).where(DataType.description_class.isnot(None)).order_by(DataType.name)
@@ -919,32 +907,17 @@ def list_unrated_data() -> Response | str:
             pass
 
     stmt = select(Data).where(Data.datatype_id.in_(ratable_ids))
-    if coverage_filter == 'single':
-        stmt = stmt.where(Data.rater_count == 1)
-    elif coverage_filter == 'multi':
-        stmt = stmt.where(Data.rater_count >= 2)
-    elif coverage_filter == 'rated':
-        stmt = stmt.where(Data.is_rated == True)  # noqa: E712
-    elif coverage_filter == 'all':
-        pass
-    else:  # 'unrated'
-        stmt = stmt.where(or_(Data.is_rated == False, Data.is_rated.is_(None)))
-
-    if rater_filter:
-        # JSONB containment: rows whose raters array includes this name.
-        stmt = stmt.where(Data.raters.contains([rater_filter]))
-
-    # Distinct rater names for the filter dropdown (small set; flatten the
-    # per-file arrays in Python rather than an unnest query).
-    known_raters = sorted({
-        name
-        for (rl,) in db.session.execute(
-            select(Data.raters).where(
-                Data.datatype_id.in_(ratable_ids), Data.raters.isnot(None),
-            )
-        )
-        for name in (rl or [])
-    }) if ratable_ids else []
+    # Not fully rated = unrated or partial. "Partial" analyses flag
+    # themselves in the note ("Partial — ..."); everything else in the
+    # not-rated set counts as unrated (including a NULL note = never scanned).
+    not_rated = or_(Data.is_rated == False, Data.is_rated.is_(None))  # noqa: E712
+    partial = Data.rating_note.ilike('%partial%')
+    if state_filter == 'partial':
+        stmt = stmt.where(not_rated, partial)
+    elif state_filter == 'unrated':
+        stmt = stmt.where(not_rated, or_(Data.rating_note.is_(None), ~partial))
+    else:  # 'both'
+        stmt = stmt.where(not_rated)
 
     if datatype_id_filter:
         stmt = stmt.where(Data.datatype_id == datatype_id_filter)
@@ -953,10 +926,12 @@ def list_unrated_data() -> Response | str:
         like = f'%{search_filter}%'
         stmt = stmt.where(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
 
-    if date_from is not None:
-        stmt = stmt.where(Data.date >= date_from)
-    if date_to is not None:
-        stmt = stmt.where(Data.date <= date_to)
+    if note_filter:
+        # Whitespace-separated terms, AND-ed as case-insensitive substrings
+        # of the rating note, so "Partial OHC1" matches
+        # "Partial — no spiral for OHC1, OHC2, OHC3" regardless of order.
+        for term in note_filter.split():
+            stmt = stmt.where(Data.rating_note.ilike(f'%{term}%'))
 
     sort_columns = {
         'date': Data.date,
@@ -978,15 +953,12 @@ def list_unrated_data() -> Response | str:
         files=pagination.items,
         pagination=pagination,
         ratable_datatypes=ratable_datatypes,
-        known_raters=known_raters,
         filters={
             'datatype_id': datatype_id_filter,
             'per_page': per_page,
             'q': search_filter,
-            'date_from': date_from_raw,
-            'date_to': date_to_raw,
-            'coverage': coverage_filter,
-            'rater': rater_filter,
+            'note': note_filter,
+            'state': state_filter,
             'sort': sort,
             'dir': direction,
         },

@@ -933,8 +933,8 @@ def test_bulk_delete_skips_unknown_ids(logged_in_client, db_session):
     assert db_session.get(Data, row_id) is None
 
 
-def test_unrated_data_rating_coverage_and_rater_filters(logged_in_client, db_session, monkeypatch):
-    """The rating-review page filters by rater coverage and by rater name."""
+def test_unrated_data_state_filter(logged_in_client, db_session, monkeypatch):
+    """The Status flag filters by unrated / partial / both."""
     from colony_manager.datatypes import reset_registry_cache
     from colony_manager.models import AnimalData
     from .factories import make_animal_data_type
@@ -945,32 +945,76 @@ def test_unrated_data_rating_coverage_and_rater_filters(logged_in_client, db_ses
         dtype = make_animal_data_type(db_session)
         dtype.description_class = 'fake_ratable'
         db_session.commit()
-        loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/rate2')
+        loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/state')
 
-        def _row(rel, raters, count):
-            r = AnimalData(
+        def _row(rel, note):
+            db_session.add(AnimalData(
                 datatype_id=dtype.id, location_id=loc.id, target_type='animal',
-                relative_path=rel, name=rel, is_rated=True,
-                raters=raters, rater_count=count,
-            )
-            db_session.add(r)
-            return r
+                relative_path=rel, name=rel, is_rated=False, rating_note=note,
+            ))
 
-        _row('solo_file.txt', ['Sean'], 1)
-        _row('duo_file.txt', ['Sean', 'Brad'], 2)
+        _row('unrated_file.txt', 'Not analyzed')
+        _row('null_note.txt', None)          # never scanned → unrated
+        _row('partial_file.txt', 'Partial — no spiral for OHC1')
         db_session.commit()
 
-        # Single-rater coverage shows only the file with one rater.
-        resp = logged_in_client.get('/animals/unrated-data?coverage=single')
+        # Unrated: excludes the partial one; includes the NULL-note row.
+        resp = logged_in_client.get('/animals/unrated-data?state=unrated')
         assert resp.status_code == 200
-        assert b'solo_file.txt' in resp.data
-        assert b'duo_file.txt' not in resp.data
+        assert b'unrated_file.txt' in resp.data
+        assert b'null_note.txt' in resp.data
+        assert b'partial_file.txt' not in resp.data
 
-        # Filter by a specific rater (JSONB containment).
-        resp = logged_in_client.get('/animals/unrated-data?coverage=rated&rater=Brad')
+        # Partial: only the partial one.
+        resp = logged_in_client.get('/animals/unrated-data?state=partial')
+        assert b'partial_file.txt' in resp.data
+        assert b'unrated_file.txt' not in resp.data
+        assert b'null_note.txt' not in resp.data
+
+        # Both (the default): everything not fully rated.
+        resp = logged_in_client.get('/animals/unrated-data')
+        assert b'unrated_file.txt' in resp.data
+        assert b'partial_file.txt' in resp.data
+        assert b'null_note.txt' in resp.data
+    finally:
+        reset_registry_cache()
+
+
+def test_unrated_data_note_search_matches_all_terms(logged_in_client, db_session, monkeypatch):
+    """Space-separated note terms are AND-ed as substrings of rating_note."""
+    from colony_manager.datatypes import reset_registry_cache
+    from colony_manager.models import AnimalData
+    from .factories import make_animal_data_type
+
+    monkeypatch.setenv('COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes')
+    reset_registry_cache()
+    try:
+        dtype = make_animal_data_type(db_session)
+        dtype.description_class = 'fake_ratable'
+        db_session.commit()
+        loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/note')
+
+        def _row(rel, note):
+            db_session.add(AnimalData(
+                datatype_id=dtype.id, location_id=loc.id, target_type='animal',
+                relative_path=rel, name=rel, is_rated=False, rating_note=note,
+            ))
+
+        _row('multi.txt', 'Partial — no spiral for OHC1, OHC2, OHC3')
+        _row('single.txt', 'Partial — no spiral for OHC1')
+        _row('other.txt', 'Partial — no spiral for OHC3')
+        _row('done.txt', 'Analyzed — IHC 33, OHC 33/33/32')
+        db_session.commit()
+
+        # "Partial OHC1" → both terms must appear; matches the two OHC1 notes.
+        resp = logged_in_client.get(
+            '/animals/unrated-data?state=both&note=Partial+OHC1'
+        )
         assert resp.status_code == 200
-        assert b'duo_file.txt' in resp.data
-        assert b'solo_file.txt' not in resp.data
+        assert b'multi.txt' in resp.data
+        assert b'single.txt' in resp.data
+        assert b'other.txt' not in resp.data   # no OHC1
+        assert b'done.txt' not in resp.data     # not Partial
     finally:
         reset_registry_cache()
 
@@ -1000,7 +1044,7 @@ def test_unrated_data_confocal_target_shows_full_display(logged_in_client, db_se
         f.is_rated = False
         db_session.commit()
 
-        resp = logged_in_client.get('/animals/unrated-data?coverage=unrated')
+        resp = logged_in_client.get('/animals/unrated-data?state=unrated')
         assert resp.status_code == 200
         assert image.full_display.encode() in resp.data
         assert b'ConfocalImage object' not in resp.data

@@ -44,7 +44,7 @@ class CageForm(FlaskForm):
 
 
 class CageDetailsForm(FlaskForm):
-    """Edits the cage's own stored fields (ID, species).
+    """Edits the cage's own stored fields (ID, species, notes).
 
     Sex and source, also shown on the cage detail page, aren't columns
     on ``Cage`` — they're aggregated from the cage's animals — so
@@ -58,6 +58,7 @@ class CageDetailsForm(FlaskForm):
         'Species', query_factory=species_factory, get_label='name',
         allow_blank=False, validators=[DataRequired()],
     )
+    notes = TextAreaField('Notes', validators=[Optional()])
 
     def __init__(self, *args, obj=None, **kwargs):
         super().__init__(*args, obj=obj, **kwargs)

@@ -35,6 +35,16 @@ def test_list_cages_with_seeded_data(logged_in_client, db_session):
     assert b'G001' in response.data
 
 
+def test_list_cages_has_edit_button(logged_in_client, db_session):
+    """Each row exposes an edit button targeting the cage-details modal."""
+    species = make_species(db_session)
+    cage = make_cage(db_session, species=species, custom_id='G002')
+    make_animal(db_session, cage=cage, species=species)  # so it's active/shown
+    response = logged_in_client.get('/cages/')
+    assert response.status_code == 200
+    assert f'/cages/{cage.id}/edit_details_modal'.encode() in response.data
+
+
 def test_list_cages_target_age_column(logged_in_client, db_session):
     species = make_species(db_session)
     cage = make_cage(db_session, species=species, custom_id='TARGET')
@@ -257,10 +267,13 @@ def test_edit_note_modal_returns_404_for_unknown_id(logged_in_client):
 
 
 def test_edit_cage_details_modal_renders(logged_in_client, db_session):
-    cage = make_cage(db_session, custom_id='ID-1')
+    cage = make_cage(db_session, custom_id='ID-1', notes='keep cool')
     response = logged_in_client.get(f'/cages/{cage.id}/edit_details_modal')
     assert response.status_code == 200
     assert b'ID-1' in response.data
+    # The details modal now includes the notes field, pre-filled.
+    assert b'Notes' in response.data
+    assert b'keep cool' in response.data
 
 
 def test_edit_cage_details_modal_returns_404_for_unknown_id(logged_in_client):
@@ -321,6 +334,21 @@ def test_update_cage_details_persists_id_and_species(logged_in_client, db_sessio
     db_session.refresh(cage)
     assert cage.custom_id == 'ID-2-FIXED'
     assert cage.species_id == new_species.id
+
+
+def test_update_cage_details_persists_notes(logged_in_client, db_session):
+    cage = make_cage(db_session, custom_id='ID-N')
+    response = logged_in_client.post(
+        f'/cages/{cage.id}/update_details',
+        data={
+            'custom_id': 'ID-N', 'species': str(cage.species_id),
+            'notes': 'handle with care',
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.refresh(cage)
+    assert cage.notes == 'handle with care'
 
 
 def test_update_cage_details_allows_resubmitting_same_id(logged_in_client, db_session):

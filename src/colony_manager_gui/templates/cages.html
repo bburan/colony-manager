@@ -75,6 +75,7 @@ Cages
                     <th rowspan=1 colspan=2 class="text-center">Animals</th>
                     <th rowspan=2>Source</th>
                     <th rowspan=2>Notes</th>
+                    <th rowspan=2></th>
                 </tr>
                 <tr>
                     <th>Original</th>
@@ -95,9 +96,15 @@ Cages
                     <td>{{ cage.active_animals_count }}</td>
                     <td>{{ cage.source_display }}</td>
                     <td>{{ cage.notes }}</td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm"
+                                data-bs-toggle="tooltip" data-bs-placement="top" title="Edit cage"
+                                hx-get="{{ url_for('cages.edit_cage_details_modal', cage_id=cage.id) }}"
+                                hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="{{ 9 if target_age else 8 }}" class="text-center text-muted small fst-italic py-4">No cages match the current filters.</td></tr>
+                <tr><td colspan="{{ 10 if target_age else 9 }}" class="text-center text-muted small fst-italic py-4">No cages match the current filters.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

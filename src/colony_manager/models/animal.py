@@ -489,15 +489,21 @@ class Animal(VersionedModel):
         end_date   = reference_date + timedelta(days=after)
         total_days = (end_date - start_date).days + 1
 
+        # Terminated animals drop off the daily weighing/feeding table.
         weight_stmt = select(cls, WeightLog).join(WeightLog).where(
             WeightLog.date >= start_date,
             WeightLog.date <= end_date,
+            cls.terminated == False,  # noqa: E712
         )
         feed_stmt = (
             select(cls, FeedLog)
             .join(FeedLog)
             .options(joinedload(FeedLog.feed_type))
-            .where(FeedLog.date >= start_date, FeedLog.date <= end_date)
+            .where(
+                FeedLog.date >= start_date,
+                FeedLog.date <= end_date,
+                cls.terminated == False,  # noqa: E712
+            )
         )
 
         if species is not None:

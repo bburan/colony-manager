@@ -22,7 +22,8 @@ def test_count_active_cages_with_active_and_inactive(db_session):
     # Active cage: has an un-terminated animal.
     cage_a = make_cage(db_session, species=species, custom_id='ACT')
     make_animal(db_session, cage=cage_a, species=species)
-    # Active cage (empty): the OR-no-animals branch.
+    # Empty cage: NOT active — matches the Cages page, which requires at
+    # least one un-terminated animal.
     make_cage(db_session, species=species, custom_id='EMPTY')
     # Inactive: only terminated animals.
     cage_t = make_cage(db_session, species=species, custom_id='TERM')
@@ -32,9 +33,30 @@ def test_count_active_cages_with_active_and_inactive(db_session):
 
     rows = queries.count_active_cages(db_session)
     by_name = dict(rows)
-    # 2 active cages (ACT + EMPTY); TERM is excluded because its only
-    # animal is terminated.
-    assert by_name == {'Mouse': 2}
+    # Only ACT counts; EMPTY (no animals) and TERM (only terminated) are
+    # both excluded — the dashboard now agrees with the Cages page.
+    assert by_name == {'Mouse': 1}
+
+
+def test_active_cage_count_matches_cages_page(db_session):
+    """Dashboard 'Active Cages' agrees with the Cages page active filter.
+
+    Regression for the two using different definitions of 'active' (the
+    dashboard used to count empty cages, the Cages page never did).
+    """
+    from colony_manager_gui.services.cage_queries import get_filtered_cages
+
+    species = make_species(db_session, name='Mouse')
+    cage_a = make_cage(db_session, species=species, custom_id='ACT')
+    make_animal(db_session, cage=cage_a, species=species)
+    make_cage(db_session, species=species, custom_id='EMPTY')  # empty → not active
+    db_session.commit()
+
+    dashboard = dict(queries.count_active_cages(db_session)).get('Mouse', 0)
+    page = get_filtered_cages(
+        db_session, {'status_filter': 'active', 'species_id': species.id},
+    )
+    assert dashboard == len(page) == 1
 
 
 def test_count_active_animals_excludes_terminated_and_unassigned_ids(db_session):
@@ -88,3 +110,36 @@ def test_count_active_breeding_pairs(db_session):
 
     rows = queries.count_active_breeding_pairs(db_session)
     assert dict(rows) == {'Mouse': 1}
+
+
+def test_count_unprocessed_ears_omits_zero_species(db_session):
+    """A species with no unlabeled ears is omitted, not shown as 0."""
+    species = make_species(db_session, name='Mouse')
+    animal = make_animal(db_session, species=species)
+    # Only a labeled ear → 0 unlabeled.
+    db_session.add(
+        Ear(animal_id=animal.id, side='Left', immunolabel_date=date.today())
+    )
+    # A second species with no ears at all.
+    make_species(db_session, name='Gerbil')
+    db_session.commit()
+
+    assert queries.count_unprocessed_ears(db_session) == []
+
+
+def test_count_active_breeding_pairs_requires_both_alive(db_session):
+    """An is_active pair with a terminated partner is not counted (and its
+    species, having no other active pairs, is omitted)."""
+    species = make_species(db_session, name='Mouse')
+    male = make_animal(db_session, species=species, sex='male')
+    female = make_animal(db_session, species=species, sex='female')
+    pair = BreedingPair(
+        custom_id='BP-DEAD', male_animal_id=male.id,
+        female_animal_id=female.id, start_date=date.today(),
+        is_active=True,   # flag left on; not auto-cleared on termination
+    )
+    db_session.add(pair)
+    male.terminate(termination_date=date.today())
+    db_session.commit()
+
+    assert queries.count_active_breeding_pairs(db_session) == []

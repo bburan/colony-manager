@@ -158,6 +158,25 @@ def test_animals_sorted_by_display_id(db_session):
     assert [a.display_id for a in result.keys()] == ['A-001', 'M-001', 'Z-001']
 
 
+def test_terminated_animals_excluded(db_session):
+    """A terminated animal drops off the table even with in-window logs
+    (covers both the weight and feed queries)."""
+    today = date.today()
+    active = make_animal(db_session, custom_id='ACT-1')
+    dead = make_animal(db_session, custom_id='DEAD-1')
+    make_weight_log(db_session, animal=active, date=today, weight=20.0)
+    make_weight_log(db_session, animal=dead, date=today, weight=21.0)
+    feed = make_feed(db_session, weight=0.5)
+    make_feed_log(db_session, animal=dead, feed=feed, date=today, quantity=2)
+
+    dead.terminated = True
+    db_session.commit()
+
+    result = Animal.get_daily_logs(db_session, before=0, after=0)
+    assert active in result
+    assert dead not in result
+
+
 def test_species_filter_excludes_other_species(db_session):
     mouse = make_species(db_session, name='Mouse-only')
     gerbil = make_species(db_session, name='Gerbil-only')

@@ -5,7 +5,8 @@ which made the library layer reach back into Flask-SQLAlchemy's session.
 They're presentation aggregates, not domain logic, so they live in the
 GUI layer and take an explicit session argument.
 """
-from sqlalchemy import and_, or_, func, select
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import aliased
 
 from colony_manager.models import (
     Animal, BreedingPair, Cage, Ear, Species,
@@ -15,12 +16,11 @@ from colony_manager.models import (
 def count_active_cages(session):
     """``[(species_name, cage_count), ...]`` for the dashboard top cards.
 
-    A cage counts as active when it has at least one un-terminated
-    animal, OR has no animals at all (newly-created empty cage).
-
-    The query starts from Cage and outer-joins to Animal so empty
-    cages survive the join (the previous Species-rooted version
-    couldn't see them — empty cages have no animal rows to traverse).
+    A cage counts as active when it has at least one un-terminated animal
+    — matching the Cages page's ``status_filter='active'`` definition
+    (``Cage.animals.any(Animal.terminated == False)``). Empty cages and
+    cages holding only terminated animals are NOT active, so this card
+    agrees with the count you get on the Cages page.
     """
     return session.execute(
         select(
@@ -29,13 +29,8 @@ def count_active_cages(session):
         )
         .select_from(Cage)
         .join(Species, Cage.species_id == Species.id)
-        .outerjoin(Animal, Animal.cage_id == Cage.id)
-        .where(
-            or_(
-                Animal.terminated == False,  # noqa: E712
-                Animal.id.is_(None),
-            )
-        )
+        .join(Animal, Animal.cage_id == Cage.id)
+        .where(Animal.terminated == False)  # noqa: E712
         .group_by(Species.id)
     ).all()
 
@@ -59,33 +54,47 @@ def count_active_animals(session):
 
 
 def count_unprocessed_ears(session):
-    """``[(species_name, ear_count), ...]`` for ears awaiting immunolabeling."""
+    """``[(species_name, ear_count), ...]`` for ears awaiting immunolabeling.
+
+    Inner joins so a species with no unlabeled ears (none at all, or all
+    labeled) is omitted entirely rather than shown with a count of 0.
+    """
     return session.execute(
         select(
             Species.name,
             func.count(func.distinct(Ear.id)),
         )
-        .outerjoin(Species.animals)
-        .outerjoin(Animal.ears)
+        .join(Species.animals)
+        .join(Animal.ears)
         .where(Ear.immunolabel_date.is_(None))
         .group_by(Species.id)
     ).all()
 
 
 def count_active_breeding_pairs(session):
-    """``[(species_name, pair_count), ...]`` for active breeding pairs."""
+    """``[(species_name, pair_count), ...]`` for active breeding pairs.
+
+    A pair is active when it is flagged ``is_active`` **and both animals
+    are still alive** (un-terminated) — ``is_active`` is a manual flag that
+    isn't cleared automatically when an animal is terminated, so the
+    aliveness check is what keeps pairs with a dead partner off the card.
+    Inner joins omit species with no active pairs (no 0-count rows).
+    """
+    male = aliased(Animal)
+    female = aliased(Animal)
     return session.execute(
         select(
             Species.name,
             func.count(func.distinct(BreedingPair.id)),
         )
-        .outerjoin(Species.animals)
-        .outerjoin(
-            BreedingPair,
-            and_(
-                Animal.id == BreedingPair.male_animal_id,
-                BreedingPair.is_active == True,  # noqa: E712 — SQL boolean
-            ),
+        .select_from(BreedingPair)
+        .join(male, BreedingPair.male_animal_id == male.id)
+        .join(female, BreedingPair.female_animal_id == female.id)
+        .join(Species, male.species_id == Species.id)
+        .where(
+            BreedingPair.is_active == True,   # noqa: E712 — SQL boolean
+            male.terminated == False,         # noqa: E712
+            female.terminated == False,       # noqa: E712
         )
         .group_by(Species.id)
     ).all()

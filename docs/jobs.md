@@ -38,6 +38,33 @@ with app.app_context():
 
 Returns the `SyncJob.id`, useful for storing and polling.
 
+### From the command line (`flask data`)
+
+All data-file operations are subcommands of the `flask data` group
+(defined in `commands.py`). They run **inline** (no worker required;
+`REDIS_URL` is honored if set) and need `SECRET_KEY`, `DATABASE_URL`, and
+`COLONY_MANAGER_DESCRIPTION_REGISTRY` in the environment.
+
+```sh
+flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [--debug] [-v]
+flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run] [-v]
+flask --app colony_manager_gui:create_app data rehash       [--dry-run] [-v]
+flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
+flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID] [--dry-run] [-v]
+```
+
+| Command | What it does |
+|---|---|
+| `sync` | Walk DataLocations and ingest new / moved files. |
+| `rematch` | Re-parse + re-match existing rows for one DataType; `--force` re-links every row (not just unmatched). |
+| `rehash` | Re-hash rows whose stored hash isn't xxh3_128 (legacy hashes). |
+| `sync-rating` | Refresh rating status (`is_rated` / `rating_note` / `raters` / `rater_count`) for rows whose description class supports rating. |
+| `refresh` | `sync` then `sync-rating` — the single entrypoint for a scheduled full refresh. |
+
+`--datatype` accepts a DataType name or numeric id; `-v` surfaces
+per-item progress logging. There is no standalone sync script — `flask
+data <cmd>` is the only CLI surface.
+
 ### Monitoring
 
 ```sh
@@ -124,6 +151,15 @@ The worker performs the stale-job sweep, then enters `Worker.work(with_scheduler
 > **Windows note**: RQ workers use `os.fork()`, which doesn't work on native Windows. Use WSL, Docker Desktop, or stick to Option B (`is_async=False`) for local Windows dev.
 
 ## Adding scheduled (cron-style) jobs
+
+Nothing runs on a schedule out of the box. Two ways to add one:
+
+- **OS cron / systemd timer (simplest):** call `flask data refresh`
+  (sync + rating in one run) on a timer, with `SECRET_KEY` /
+  `DATABASE_URL` / `COLONY_MANAGER_DESCRIPTION_REGISTRY` in the
+  environment. E.g. `0 2 * * *  flask --app colony_manager_gui:create_app data refresh`.
+- **rq-scheduler (in-app):** register a recurring RQ job so runs show up
+  in the `SyncJob` table / recent-jobs panel. Steps below.
 
 `rq-scheduler` is installed alongside RQ (see `pyproject.toml` gui extras). It uses the same Redis instance.
 

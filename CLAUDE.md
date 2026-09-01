@@ -52,8 +52,16 @@ alembic revision --autogenerate -m "description"
 
 ```sh
 python -m colony_manager_gui.worker          # RQ worker (needs REDIS_URL; won't fork on native Windows — use WSL/Docker)
-flask --app colony_manager_gui:create_app data sync-rating [--datatype NAME] [-v]
+
+# All data-file ops live under the `flask data` group (see commands.py):
+flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [-v]
+flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run]
+flask --app colony_manager_gui:create_app data rehash       [--dry-run]
+flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
+flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID]   # sync + sync-rating; the cron entrypoint
 ```
+
+There is no standalone sync script — `flask data <cmd>` is the only CLI surface. Nothing runs these on a schedule; a nightly refresh must be wired via cron/systemd (or rq-scheduler, see `docs/jobs.md`) calling `flask data refresh`.
 
 ## Architecture
 

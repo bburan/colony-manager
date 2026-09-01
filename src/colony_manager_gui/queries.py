@@ -74,11 +74,11 @@ def count_unprocessed_ears(session):
 def count_active_breeding_pairs(session):
     """``[(species_name, pair_count), ...]`` for active breeding pairs.
 
-    A pair is active when it is flagged ``is_active`` **and both animals
-    are still alive** (un-terminated) — ``is_active`` is a manual flag that
-    isn't cleared automatically when an animal is terminated, so the
-    aliveness check is what keeps pairs with a dead partner off the card.
-    Inner joins omit species with no active pairs (no 0-count rows).
+    A pair is active when **both animals are still alive** (un-terminated).
+    The ``is_active`` column is intentionally ignored: there is currently no
+    UI to edit a breeding pair or toggle that flag, so it's effectively
+    always ``True`` and aliveness is the only meaningful signal. Inner joins
+    omit species with no active pairs (no 0-count rows).
     """
     male = aliased(Animal)
     female = aliased(Animal)
@@ -92,9 +92,8 @@ def count_active_breeding_pairs(session):
         .join(female, BreedingPair.female_animal_id == female.id)
         .join(Species, male.species_id == Species.id)
         .where(
-            BreedingPair.is_active == True,   # noqa: E712 — SQL boolean
-            male.terminated == False,         # noqa: E712
-            female.terminated == False,       # noqa: E712
+            male.terminated == False,    # noqa: E712
+            female.terminated == False,  # noqa: E712
         )
         .group_by(Species.id)
     ).all()

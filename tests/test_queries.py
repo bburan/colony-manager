@@ -89,7 +89,9 @@ def test_count_unprocessed_ears(db_session):
     assert dict(rows) == {'Mouse': 1}
 
 
-def test_count_active_breeding_pairs(db_session):
+def test_count_active_breeding_pairs_ignores_is_active_flag(db_session):
+    """Both-alive pairs count regardless of the (currently unused, un-editable)
+    is_active flag."""
     species = make_species(db_session, name='Mouse')
     male = make_animal(db_session, species=species, sex='male')
     female = make_animal(db_session, species=species, sex='female')
@@ -100,16 +102,16 @@ def test_count_active_breeding_pairs(db_session):
     )
     male2 = make_animal(db_session, species=species, sex='male')
     female2 = make_animal(db_session, species=species, sex='female')
-    inactive = BreedingPair(
+    flagged_inactive = BreedingPair(
         custom_id='BP-I', male_animal_id=male2.id,
         female_animal_id=female2.id, start_date=date.today(),
-        is_active=False,
+        is_active=False,   # ignored — both animals are alive, so it counts
     )
-    db_session.add_all([active, inactive])
+    db_session.add_all([active, flagged_inactive])
     db_session.commit()
 
     rows = queries.count_active_breeding_pairs(db_session)
-    assert dict(rows) == {'Mouse': 1}
+    assert dict(rows) == {'Mouse': 2}
 
 
 def test_count_unprocessed_ears_omits_zero_species(db_session):

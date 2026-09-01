@@ -287,6 +287,42 @@ def test_sync_no_flag_when_all_animals_present(db_session, app, tmp_path):
     assert row.unmatched_animal_ids == []
 
 
+def test_sync_rating_persists_raters_and_count(db_session, app):
+    """sync_rating_status stores the rater list + count from a description
+    class that reports named raters."""
+    from colony_manager.models import AnimalData
+    from colony_manager_gui.sync import sync_rating_status
+    from colony_manager_gui import db as gui_db
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_ratable'
+    db_session.commit()
+    loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/rate')
+
+    def _row(rel):
+        r = AnimalData(datatype_id=dtype.id, location_id=loc.id,
+                       target_type='animal', relative_path=rel, name=rel)
+        db_session.add(r)
+        return r
+
+    two = _row('M-001__raters-Sean-Brad.txt')
+    zero = _row('M-002.txt')
+    db_session.commit()
+
+    with app.app_context():
+        sync_rating_status()
+        gui_db.session.commit()
+
+    db_session.refresh(two)
+    db_session.refresh(zero)
+    assert two.is_rated is True
+    assert two.raters == ['Brad', 'Sean']   # sorted
+    assert two.rater_count == 2
+    assert zero.is_rated is False
+    assert zero.raters == []
+    assert zero.rater_count == 0
+
+
 # ---------------------------------------------------------------------------
 # sync_locations — dry-run
 # ---------------------------------------------------------------------------

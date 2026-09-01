@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
     String, Text, UniqueConstraint, func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from colony_manager.enums import DataStatus
@@ -264,6 +265,13 @@ class Data(VersionedModel):
     notes           = Column(Text, nullable=True)
     is_rated        = Column(Boolean, nullable=True)
     rating_note     = Column(Text, nullable=True)
+    # For rating schemes with named raters (e.g. ABR waveform picks):
+    # ``raters`` is the sorted list of who has rated, ``rater_count`` its
+    # length. Both are set by the sync-rating job from a description
+    # class's ``get_rating_status()['raters']`` and let the rating-review
+    # page filter by coverage (single vs multi rater) and by identity.
+    rater_count     = Column(Integer, nullable=True)
+    raters          = Column(JSONB, nullable=True)
     mtime           = Column(DateTime, nullable=True)
     ctime           = Column(DateTime, nullable=True)
     discovered_at   = Column(DateTime, nullable=True)

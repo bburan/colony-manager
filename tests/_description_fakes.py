@@ -137,6 +137,26 @@ class _MultiAnimalDescription(DataTypeDescription):
         return []
 
 
+class _RatableAnimalDescription(_FilenameAnimalDescription):
+    """Animal-target description that reports named raters.
+
+    Raters are encoded in the filename after a ``__raters-`` marker so the
+    rating job produces deterministic output without touching disk, e.g.
+    ``M-001__raters-Sean-Brad.txt`` -> raters ``['Brad', 'Sean']``.
+    """
+
+    supports_rating = True
+
+    def get_rating_status(self):
+        stem = self.path.stem
+        marker = '__raters-'
+        if marker not in stem:
+            return {'is_rated': False, 'raters': [], 'note': '0 raters'}
+        raters = sorted(p for p in stem.split(marker, 1)[1].split('-') if p)
+        return {'is_rated': True, 'raters': raters,
+                'note': f'{len(raters)} rater(s)'}
+
+
 class _UploadableEarDescription(DataTypeDescription):
     """Ear-target description that opts in to the upload flow."""
 
@@ -165,4 +185,5 @@ DESCRIPTION_CLASSES = {
     'fake_animal_upload_hashed': _HashingUploadableAnimalDescription,
     'fake_ear_upload': _UploadableEarDescription,
     'fake_multi_animal': _MultiAnimalDescription,
+    'fake_ratable': _RatableAnimalDescription,
 }

@@ -283,7 +283,11 @@ class DataTypeDescription(ABC):
         -------
         dict or None
             ``{'is_rated': bool, 'note': str | None}`` when
-            ``supports_rating`` is ``True``; ``None`` otherwise.
+            ``supports_rating`` is ``True``; ``None`` otherwise. May also
+            include ``'raters': list[str]`` for schemes with named raters
+            (e.g. ABR waveform picks); the sync-rating job persists it to
+            ``Data.raters`` / ``Data.rater_count`` for the review page to
+            filter on. Omit the key when the concept doesn't apply.
         """
         return None
 

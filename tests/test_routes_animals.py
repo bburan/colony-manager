@@ -931,3 +931,78 @@ def test_bulk_delete_skips_unknown_ids(logged_in_client, db_session):
     assert response.status_code == 302
     db_session.expire_all()
     assert db_session.get(Data, row_id) is None
+
+
+def test_unrated_data_rating_coverage_and_rater_filters(logged_in_client, db_session, monkeypatch):
+    """The rating-review page filters by rater coverage and by rater name."""
+    from colony_manager.datatypes import reset_registry_cache
+    from colony_manager.models import AnimalData
+    from .factories import make_animal_data_type
+
+    monkeypatch.setenv('COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes')
+    reset_registry_cache()
+    try:
+        dtype = make_animal_data_type(db_session)
+        dtype.description_class = 'fake_ratable'
+        db_session.commit()
+        loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/rate2')
+
+        def _row(rel, raters, count):
+            r = AnimalData(
+                datatype_id=dtype.id, location_id=loc.id, target_type='animal',
+                relative_path=rel, name=rel, is_rated=True,
+                raters=raters, rater_count=count,
+            )
+            db_session.add(r)
+            return r
+
+        _row('solo_file.txt', ['Sean'], 1)
+        _row('duo_file.txt', ['Sean', 'Brad'], 2)
+        db_session.commit()
+
+        # Single-rater coverage shows only the file with one rater.
+        resp = logged_in_client.get('/animals/unrated-data?coverage=single')
+        assert resp.status_code == 200
+        assert b'solo_file.txt' in resp.data
+        assert b'duo_file.txt' not in resp.data
+
+        # Filter by a specific rater (JSONB containment).
+        resp = logged_in_client.get('/animals/unrated-data?coverage=rated&rater=Brad')
+        assert resp.status_code == 200
+        assert b'duo_file.txt' in resp.data
+        assert b'solo_file.txt' not in resp.data
+    finally:
+        reset_registry_cache()
+
+
+def test_unrated_data_confocal_target_shows_full_display(logged_in_client, db_session, monkeypatch):
+    """Confocal-image targets render their full_display, not an object repr."""
+    from colony_manager.datatypes import reset_registry_cache
+    from .factories import (
+        make_animal, make_confocal_image, make_confocal_image_data,
+        make_confocal_image_data_type, make_confocal_image_type, make_ear,
+    )
+
+    monkeypatch.setenv('COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes')
+    reset_registry_cache()
+    try:
+        dtype = make_confocal_image_data_type(db_session)
+        dtype.description_class = 'fake_ratable'
+        db_session.commit()
+
+        animal = make_animal(db_session, custom_id='CF-1')
+        ear = make_ear(db_session, animal=animal, side='Left')
+        image_type = make_confocal_image_type(db_session, name='IHC and OHC (counts)')
+        image = make_confocal_image(db_session, ear=ear, image_type=image_type,
+                                    frequency=11314.0)
+        f = make_confocal_image_data(db_session, datatype=dtype,
+                                     confocal_image=image)
+        f.is_rated = False
+        db_session.commit()
+
+        resp = logged_in_client.get('/animals/unrated-data?coverage=unrated')
+        assert resp.status_code == 200
+        assert image.full_display.encode() in resp.data
+        assert b'ConfocalImage object' not in resp.data
+    finally:
+        reset_registry_cache()

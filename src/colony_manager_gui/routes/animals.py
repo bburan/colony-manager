@@ -889,6 +889,10 @@ def list_unrated_data() -> Response | str:
     search_filter = (request.args.get('q', '') or '').strip()
     date_from_raw = (request.args.get('date_from', '') or '').strip()
     date_to_raw = (request.args.get('date_to', '') or '').strip()
+    # Rating coverage: 'unrated' (default), 'single'/'multi' rater,
+    # 'rated' (any), 'all' (ratable regardless of state).
+    coverage_filter = request.args.get('coverage', 'unrated')
+    rater_filter = (request.args.get('rater', '') or '').strip()
     sort = request.args.get('sort', 'date')
     direction = request.args.get('dir', 'desc')
 
@@ -914,10 +918,33 @@ def list_unrated_data() -> Response | str:
         except Exception:
             pass
 
-    stmt = select(Data).where(
-        Data.datatype_id.in_(ratable_ids),
-        or_(Data.is_rated == False, Data.is_rated.is_(None)),
-    )
+    stmt = select(Data).where(Data.datatype_id.in_(ratable_ids))
+    if coverage_filter == 'single':
+        stmt = stmt.where(Data.rater_count == 1)
+    elif coverage_filter == 'multi':
+        stmt = stmt.where(Data.rater_count >= 2)
+    elif coverage_filter == 'rated':
+        stmt = stmt.where(Data.is_rated == True)  # noqa: E712
+    elif coverage_filter == 'all':
+        pass
+    else:  # 'unrated'
+        stmt = stmt.where(or_(Data.is_rated == False, Data.is_rated.is_(None)))
+
+    if rater_filter:
+        # JSONB containment: rows whose raters array includes this name.
+        stmt = stmt.where(Data.raters.contains([rater_filter]))
+
+    # Distinct rater names for the filter dropdown (small set; flatten the
+    # per-file arrays in Python rather than an unnest query).
+    known_raters = sorted({
+        name
+        for (rl,) in db.session.execute(
+            select(Data.raters).where(
+                Data.datatype_id.in_(ratable_ids), Data.raters.isnot(None),
+            )
+        )
+        for name in (rl or [])
+    }) if ratable_ids else []
 
     if datatype_id_filter:
         stmt = stmt.where(Data.datatype_id == datatype_id_filter)
@@ -951,12 +978,15 @@ def list_unrated_data() -> Response | str:
         files=pagination.items,
         pagination=pagination,
         ratable_datatypes=ratable_datatypes,
+        known_raters=known_raters,
         filters={
             'datatype_id': datatype_id_filter,
             'per_page': per_page,
             'q': search_filter,
             'date_from': date_from_raw,
             'date_to': date_to_raw,
+            'coverage': coverage_filter,
+            'rater': rater_filter,
             'sort': sort,
             'dir': direction,
         },

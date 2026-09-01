@@ -2,10 +2,10 @@
 
 Walks ``DataLocation`` rows on disk, parses metadata via the configured
 ``DataTypeDescription`` subclass, and inserts/updates ``Data`` rows in
-the database. The CLI wrapper at ``scripts/sync_data.py`` re-exports
-:func:`sync_locations` and :func:`rehash_legacy`; the Flask app calls
-:func:`sync_locations` (with ``filter_datatype_id`` set) right after a
-DataType is created or updated.
+the database. The ``flask data`` CLI group (``commands.py``) wraps these
+functions (``flask data sync`` / ``rematch`` / ``rehash`` / ``sync-rating``
+/ ``refresh``); the Flask app also enqueues :func:`sync_locations` (with
+``filter_datatype_id`` set) from the per-DataType Sync button.
 """
 import logging
 import os
@@ -65,6 +65,15 @@ def sync_rating_status(filter_datatype_id=None):
             continue
         row.is_rated    = result['is_rated']
         row.rating_note = result.get('note')
+        # ``raters`` is optional: description classes with named raters (ABR)
+        # return a list; others omit it, leaving both columns NULL.
+        raters = result.get('raters')
+        if raters is None:
+            row.raters = None
+            row.rater_count = None
+        else:
+            row.raters = sorted(raters)
+            row.rater_count = len(raters)
         updated += 1
 
     db.session.commit()

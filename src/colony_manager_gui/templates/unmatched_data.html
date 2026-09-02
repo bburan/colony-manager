@@ -82,9 +82,9 @@ Unmatched Data Files
                     </select>
                 </div>
                 <div class="col-auto">
-                    <label class="form-label small mb-1">DataType</label>
+                    <label class="form-label small mb-1">Data type</label>
                     <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">All DataTypes</option>
+                        <option value="">All Data types</option>
                         {% for dt in datatypes %}
                         <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
                         {% endfor %}
@@ -175,14 +175,11 @@ Unmatched Data Files
                                onclick="document.querySelectorAll('input[name=data_ids]').forEach(cb => cb.checked = this.checked);"
                                aria-label="Select all">
                     </th>
-                    <th>{{ sort_header('DataType', 'datatype') }}</th>
+                    <th>{{ sort_header('Data type', 'datatype') }}</th>
                     <th>Target</th>
                     <th>{{ sort_header('Location', 'name') }}</th>
                     <th>{{ sort_header('Date', 'date') }}</th>
-                    <th>Candidates</th>
-                    {% if filters.issue in ('all', 'unmatched_animals') %}
-                    <th>Unlinked animals</th>
-                    {% endif %}
+                    <th>Unlinked objects</th>
                     <th>{{ sort_header('Status', 'status') }}</th>
                 </tr>
             </thead>
@@ -197,32 +194,26 @@ Unmatched Data Files
                     <td><span class="badge bg-info text-dark">{{ f.datatype.TARGET_LABEL }}</span></td>
                     <td><span class="small text-muted">{{ f.relative_path }}</span></td>
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
+                    {# One pill per object (animal or ear) the file names but
+                       hasn't linked. Objects that resolve to a real row link to
+                       their detail page in the dark secondary color like the
+                       datatype pills; names with no matching row (e.g. typos)
+                       get a muted, unlinked pill. #}
                     <td class="small">
-                        {% set has_candidates = f.candidate_animals or f.candidate_ears %}
-                        {% if f.target_type in ('ear', 'confocal_image') %}
-                            {% for e in f.candidate_ears %}
-                                <a href="{{ url_for('histology.view_ear', ear_id=e.id) }}"
-                                   class="badge bg-light text-dark text-decoration-none">{{ e.full_display }}</a>
-                            {% endfor %}
-                        {% else %}
-                            {% for a in f.candidate_animals %}
-                                <a href="{{ url_for('animals.view_animal', animal_id=a.id) }}"
-                                   class="badge bg-light text-dark text-decoration-none">{{ a.display_id }}</a>
-                            {% endfor %}
-                        {% endif %}
-                        {% if not has_candidates %}
-                            <span class="text-muted">none</span>
-                        {% endif %}
-                    </td>
-                    {% if filters.issue in ('all', 'unmatched_animals') %}
-                    <td class="small">
-                        {% for aid in f.unmatched_animal_ids %}
-                            <span class="badge bg-warning text-dark">{{ aid }}</span>
+                        {% for kind, obj, label in f.unmatched_objects %}
+                            {% if obj and kind == 'ear' %}
+                                <a href="{{ url_for('histology.view_ear', ear_id=obj.id) }}"
+                                   class="badge bg-secondary text-decoration-none">{{ label }}</a>
+                            {% elif obj %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=obj.id) }}"
+                                   class="badge bg-secondary text-decoration-none">{{ label }}</a>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ label }}</span>
+                            {% endif %}
                         {% else %}
                             <span class="text-muted">&mdash;</span>
                         {% endfor %}
                     </td>
-                    {% endif %}
                     <td>
                         <span class="badge bg-{{ 'success' if f.status == 'reviewed' else 'warning text-dark' if f.status == 'unreviewed' else 'danger' }}">
                             {{ f.status|capitalize }}

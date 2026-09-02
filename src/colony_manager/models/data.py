@@ -348,6 +348,48 @@ class Data(VersionedModel):
         matched = self.matched_animal_ids
         return [aid for aid in parsed_ids if aid not in matched]
 
+    @property
+    def unmatched_objects(self):
+        """Objects named in the filename but not yet linked, for display.
+
+        Returns a list of ``(kind, obj, label)`` tuples where *kind* is
+        ``'animal'`` or ``'ear'``, *obj* is the ORM row when the named
+        thing resolves to a real one (``None`` for typos with no matching
+        row), and *label* is the pill text. The Unmatched-Data page links
+        resolved objects and greys out the unresolved rest. The base walks
+        animals; ear/confocal subclasses override to yield ``Ear`` rows at
+        side granularity via :meth:`_ear_unmatched_objects`.
+        """
+        return self._animal_unmatched_objects()
+
+    def _animal_unmatched_objects(self):
+        by_cid = {a.custom_id: a for a in self.candidate_animals}
+        objects = []
+        for aid in self.unmatched_animal_ids:
+            animal = by_cid.get(aid)
+            objects.append(('animal', animal, animal.display_id if animal else aid))
+        return objects
+
+    def _ear_unmatched_objects(self, linked_ear_ids):
+        """Shared body for ear-targeted subclasses: the still-unlinked ears
+        (at side granularity), plus any named animal id that resolves to no
+        unlinked ear (a typo, or an existing animal missing that ear row).
+        """
+        objects = []
+        covered_cids = set()
+        for ear in sorted(self.candidate_ears):
+            if ear.id in linked_ear_ids:
+                continue
+            objects.append(('ear', ear, ear.full_display))
+            covered_cids.add(ear.animal.custom_id)
+        by_cid = {a.custom_id: a for a in self.candidate_animals}
+        for aid in self.unmatched_animal_ids:
+            if aid in covered_cids:
+                continue
+            animal = by_cid.get(aid)
+            objects.append(('animal', animal, animal.display_id if animal else aid))
+        return objects
+
     def recompute_unmatched_flag(self):
         """Refresh the persisted ``has_unmatched_animals`` column.
 
@@ -396,6 +438,10 @@ class ConfocalImageData(Data):
     def matched_animal_ids(self):
         return {img.ear.animal.custom_id for img in self.confocal_images}
 
+    @property
+    def unmatched_objects(self):
+        return self._ear_unmatched_objects({img.ear.id for img in self.confocal_images})
+
 
 class AnimalData(Data):
     __tablename__ = 'animal_data'
@@ -431,6 +477,10 @@ class EarData(Data):
     @property
     def matched_animal_ids(self):
         return {e.animal.custom_id for e in self.ears}
+
+    @property
+    def unmatched_objects(self):
+        return self._ear_unmatched_objects({e.id for e in self.ears})
 
 
 DATA_SUBCLASSES = {

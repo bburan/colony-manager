@@ -965,6 +965,32 @@ def list_unrated_data() -> Response | str:
     )
 
 
+@animals_bp.route('/data/<int:data_id>/rating-refresh', methods=['POST'])
+def refresh_data_rating(data_id) -> Response | str:
+    """Recompute rating status for a single Data row (per-row rescan).
+
+    Runs the description class's rating check inline for just this file.
+    For HTMX, returns the re-rendered row so it updates in place; otherwise
+    flashes and redirects back.
+    """
+    from colony_manager_gui.sync import apply_rating_status
+    row = get_or_404(models.Data, data_id)
+    outcome = apply_rating_status(row)
+    if outcome == 'updated':
+        db.session.commit()
+    else:
+        db.session.rollback()
+    if is_htmx():
+        return render_template('partials/unrated_data_row.html', f=row)
+    if outcome == 'error':
+        flash(f'Could not check rating for {row.name}.', 'danger')
+    elif outcome == 'skipped':
+        flash(f'{row.name} has no rating check.', 'info')
+    else:
+        flash(f'Rating status refreshed for {row.name}.', 'success')
+    return redirect(request.referrer or url_for('animals.list_unrated_data'))
+
+
 @animals_bp.route('/unrated-data/sync-rating', methods=['POST'])
 def trigger_rating_sync() -> Response | str:
     """Enqueue a rating-sync job for all ratable DataTypes (or one if filtered)."""

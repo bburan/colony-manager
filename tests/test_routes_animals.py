@@ -1050,3 +1050,45 @@ def test_unrated_data_confocal_target_shows_full_display(logged_in_client, db_se
         assert b'ConfocalImage object' not in resp.data
     finally:
         reset_registry_cache()
+
+
+def test_refresh_data_rating_recomputes_single_row(logged_in_client, db_session, monkeypatch):
+    """The per-row button recomputes just that row's rating status."""
+    from colony_manager.datatypes import reset_registry_cache
+    from colony_manager.models import AnimalData
+    from .factories import make_animal_data_type
+
+    monkeypatch.setenv('COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes')
+    reset_registry_cache()
+    try:
+        dtype = make_animal_data_type(db_session)
+        dtype.description_class = 'fake_ratable'
+        db_session.commit()
+        loc = make_data_location(db_session, datatype=dtype, base_path='/tmp/refresh')
+        row = AnimalData(
+            datatype_id=dtype.id, location_id=loc.id, target_type='animal',
+            relative_path='M-001__raters-Sean-Brad.txt',
+            name='M-001__raters-Sean-Brad.txt',
+            is_rated=None, rating_note=None,
+        )
+        db_session.add(row)
+        db_session.commit()
+        rid = row.id
+
+        # HTMX path returns the re-rendered row with the fresh status.
+        resp = logged_in_client.post(
+            f'/animals/data/{rid}/rating-refresh',
+            headers={'HX-Request': 'true'},
+        )
+        assert resp.status_code == 200
+        assert b'2 rater(s)' in resp.data
+        db_session.refresh(row)
+        assert row.is_rated is True
+        assert row.raters == ['Brad', 'Sean']
+        assert row.rater_count == 2
+
+        # Non-HTMX falls back to a redirect.
+        resp = logged_in_client.post(f'/animals/data/{rid}/rating-refresh')
+        assert resp.status_code == 302
+    finally:
+        reset_registry_cache()

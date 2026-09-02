@@ -30,6 +30,39 @@ log = logging.getLogger(__name__)
 XXH3_128_HEX_LEN = 32
 
 
+def apply_rating_status(row):
+    """Recompute and write the rating columns on a single Data ``row``.
+
+    Returns one of ``'updated'`` / ``'skipped'`` / ``'error'``. Does not
+    commit — the caller owns the transaction.
+    """
+    try:
+        desc_cls = row.datatype.get_description_class()
+    except Exception:
+        return 'skipped'
+    if desc_cls is None or not desc_cls.supports_rating:
+        return 'skipped'
+    try:
+        result = row.get_description().get_rating_status()
+    except Exception as exc:
+        log.warning('rating status error for data id=%s: %s', row.id, exc)
+        return 'error'
+    if result is None:
+        return 'skipped'
+    row.is_rated    = result['is_rated']
+    row.rating_note = result.get('note')
+    # ``raters`` is optional: description classes with named raters (ABR)
+    # return a list; others omit it, leaving both columns NULL.
+    raters = result.get('raters')
+    if raters is None:
+        row.raters = None
+        row.rater_count = None
+    else:
+        row.raters = sorted(raters)
+        row.rater_count = len(raters)
+    return 'updated'
+
+
 def sync_rating_status(filter_datatype_id=None):
     """Update ``is_rated`` / ``rating_note`` for all ratable Data rows.
 
@@ -43,41 +76,14 @@ def sync_rating_status(filter_datatype_id=None):
     if filter_datatype_id is not None:
         stmt = stmt.where(DataType.id == filter_datatype_id)
 
-    updated = errors = skipped = 0
-
+    counts = {'updated': 0, 'errors': 0, 'skipped': 0}
     for row in db.session.scalars(stmt):
-        try:
-            desc_cls = row.datatype.get_description_class()
-        except Exception:
-            skipped += 1
-            continue
-        if desc_cls is None or not desc_cls.supports_rating:
-            skipped += 1
-            continue
-        try:
-            result = row.get_description().get_rating_status()
-        except Exception as exc:
-            log.warning('sync_rating_status error for data id=%s: %s', row.id, exc)
-            errors += 1
-            continue
-        if result is None:
-            skipped += 1
-            continue
-        row.is_rated    = result['is_rated']
-        row.rating_note = result.get('note')
-        # ``raters`` is optional: description classes with named raters (ABR)
-        # return a list; others omit it, leaving both columns NULL.
-        raters = result.get('raters')
-        if raters is None:
-            row.raters = None
-            row.rater_count = None
-        else:
-            row.raters = sorted(raters)
-            row.rater_count = len(raters)
-        updated += 1
+        outcome = apply_rating_status(row)
+        counts['errors' if outcome == 'error' else outcome] += 1
 
     db.session.commit()
-    return {'updated': updated, 'errors': errors, 'skipped': skipped}
+    return {'updated': counts['updated'], 'errors': counts['errors'],
+            'skipped': counts['skipped']}
 
 
 # ---------------------------------------------------------------------------

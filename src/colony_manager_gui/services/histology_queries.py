@@ -63,10 +63,12 @@ def apply_ear_filters(query: Select[Any], filters: dict[str, Any], session: Sess
     Assumes ``query`` is rooted on ``Ear`` and already joined to ``Animal``
     (needed for sex / sort by custom_id or termination_date).
     """
+    # An ear is "labeled" once it has an immunolabeling panel assigned —
+    # not by the date, which is sometimes left blank even after labeling.
     if filters['immunolabel_filter'] == 'labeled':
-        query = query.where(Ear.immunolabel_date.is_not(None))
+        query = query.where(Ear.panel_id.is_not(None))
     elif filters['immunolabel_filter'] == 'pending':
-        query = query.where(Ear.immunolabel_date.is_(None))
+        query = query.where(Ear.panel_id.is_(None))
 
     if filters['cryo_filter'] == 'done':
         query = query.where(Ear.cryoprotection_date.is_not(None))

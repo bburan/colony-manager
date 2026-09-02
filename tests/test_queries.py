@@ -76,12 +76,17 @@ def test_count_active_animals_excludes_terminated_and_unassigned_ids(db_session)
 
 
 def test_count_unprocessed_ears(db_session):
+    from colony_manager.models import ImmunolabelingPanel
     species = make_species(db_session, name='Mouse')
     animal = make_animal(db_session, species=species)
-    # Ear without an immunolabel_date → counted.
+    panel = ImmunolabelingPanel(name='Panel A')
+    db_session.add(panel)
+    db_session.commit()
+    # No panel → pending (counted).
     pending = Ear(animal_id=animal.id, side='Left')
-    # Ear with date → excluded.
-    done = Ear(animal_id=animal.id, side='Right', immunolabel_date=date.today())
+    # Panel assigned but NO date → labeled (excluded): the panel is the
+    # signal, not the date.
+    done = Ear(animal_id=animal.id, side='Right', panel_id=panel.id)
     db_session.add_all([pending, done])
     db_session.commit()
 
@@ -116,12 +121,14 @@ def test_count_active_breeding_pairs_ignores_is_active_flag(db_session):
 
 def test_count_unprocessed_ears_omits_zero_species(db_session):
     """A species with no unlabeled ears is omitted, not shown as 0."""
+    from colony_manager.models import ImmunolabelingPanel
     species = make_species(db_session, name='Mouse')
     animal = make_animal(db_session, species=species)
-    # Only a labeled ear → 0 unlabeled.
-    db_session.add(
-        Ear(animal_id=animal.id, side='Left', immunolabel_date=date.today())
-    )
+    panel = ImmunolabelingPanel(name='Panel B')
+    db_session.add(panel)
+    db_session.commit()
+    # Only a labeled ear (has a panel) → 0 unlabeled.
+    db_session.add(Ear(animal_id=animal.id, side='Left', panel_id=panel.id))
     # A second species with no ears at all.
     make_species(db_session, name='Gerbil')
     db_session.commit()

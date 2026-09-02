@@ -41,15 +41,24 @@ def test_list_histology_returns_200(logged_in_client, db_session):
 
 
 def test_list_histology_immunolabel_filter(logged_in_client, db_session):
-    """Exercises the .filter(Ear.immunolabel_date.is_not(None)) path."""
-    animal = make_animal(db_session, custom_id='H-LBL')
-    labeled = make_ear(db_session, animal=animal, side='Left')
-    labeled.immunolabel_date = date.today()
-    pending = make_ear(db_session, animal=animal, side='Right')
+    """Labeled = has an immunolabeling panel assigned (not the date, which
+    is sometimes left blank even after labeling)."""
+    from colony_manager.models import ImmunolabelingPanel
+    panel = ImmunolabelingPanel(name='Panel X')
+    db_session.add(panel)
+    db_session.commit()
+
+    labeled_animal = make_animal(db_session, custom_id='H-LBL')
+    labeled = make_ear(db_session, animal=labeled_animal, side='Left')
+    labeled.panel_id = panel.id            # panel set, date deliberately blank
+    pending_animal = make_animal(db_session, custom_id='H-PEND')
+    make_ear(db_session, animal=pending_animal, side='Left')
     db_session.commit()
 
     response = logged_in_client.get('/histology/?immunolabel_filter=labeled')
     assert response.status_code == 200
+    assert b'H-LBL' in response.data
+    assert b'H-PEND' not in response.data
 
 
 def test_list_histology_side_filter(logged_in_client, db_session):

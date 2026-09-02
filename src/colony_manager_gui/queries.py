@@ -56,8 +56,11 @@ def count_active_animals(session):
 def count_unprocessed_ears(session):
     """``[(species_name, ear_count), ...]`` for ears awaiting immunolabeling.
 
-    Inner joins so a species with no unlabeled ears (none at all, or all
-    labeled) is omitted entirely rather than shown with a count of 0.
+    An ear counts as unlabeled when it has no immunolabeling panel
+    assigned (``panel_id`` is NULL) — the panel, not the date, is the
+    signal, since the date is sometimes left blank even after labeling.
+    Inner joins so a species with no unlabeled ears is omitted entirely
+    rather than shown with a count of 0.
     """
     return session.execute(
         select(
@@ -66,7 +69,7 @@ def count_unprocessed_ears(session):
         )
         .join(Species.animals)
         .join(Animal.ears)
-        .where(Ear.immunolabel_date.is_(None))
+        .where(Ear.panel_id.is_(None))
         .group_by(Species.id)
     ).all()
 

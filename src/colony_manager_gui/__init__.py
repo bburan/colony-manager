@@ -64,8 +64,29 @@ def _configure_rq(app):
     app.rq_queue = Queue('sync', connection=connection, is_async=is_async)
 
 
+def _validate_description_registry():
+    """Fail fast at startup if the description registry is misconfigured.
+
+    When ``COLONY_MANAGER_DESCRIPTION_REGISTRY`` is set, eagerly import the
+    registry — and therefore every ``DataTypeDescription`` subclass it lists —
+    so a broken/renamed dependency surfaces as a boot-time crash rather than a
+    silently empty data-files/rating page. The env var is optional by design
+    (the non-data parts of the app run without it), so an *unset* var is not an
+    error; anything else (bad module, a description class that fails to import,
+    a malformed registry) raises and stops the app from booting.
+    """
+    from colony_manager.datatypes import get_description_class_registry
+
+    if not os.environ.get('COLONY_MANAGER_DESCRIPTION_REGISTRY', '').strip():
+        return
+    get_description_class_registry()  # raises RuntimeError on any load failure
+
+
 def create_app():
     app = Flask(__name__)
+
+    # Refuse to boot with a broken description registry (see docstring).
+    _validate_description_registry()
 
     app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
     # ``DATABASE_URL`` is read inside :mod:`colony_manager.db` — both the

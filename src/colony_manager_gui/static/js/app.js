@@ -261,6 +261,28 @@ document.body.addEventListener('htmx:load', function (evt) {
     initBootstrapWidgets(evt.detail.elt);
 });
 
+// Dispose Bootstrap tooltips/popovers under ``root`` so their body-attached
+// popups don't orphan when the trigger element is removed.
+function disposeBootstrapWidgets(root) {
+    if (!root || !root.querySelectorAll) return;
+    const triggers = [root, ...root.querySelectorAll(
+        '[data-bs-toggle="tooltip"], [data-bs-toggle="popover"]')];
+    triggers.forEach(el => {
+        const tip = bootstrap.Tooltip.getInstance(el);
+        if (tip) tip.dispose();
+        const pop = bootstrap.Popover.getInstance(el);
+        if (pop) pop.dispose();
+    });
+}
+
+// Before htmx swaps content out, tear down tooltips/popovers in the
+// outgoing subtree. Otherwise a tooltip that's showing on the clicked
+// element (e.g. a per-row action button swapped via outerHTML) stays
+// stuck on screen after its trigger leaves the DOM.
+document.body.addEventListener('htmx:beforeSwap', function (evt) {
+    disposeBootstrapWidgets(evt.detail.target);
+});
+
 function markDirty(input) {
     // Access the form directly via the built-in 'form' property
     const activeForm = input.form;

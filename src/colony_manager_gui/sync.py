@@ -101,6 +101,21 @@ def _parsed_custom_ids(parsed):
         yield raw
 
 
+# Placeholder animal_ids used for throwaway acquisitions (quick rig/scope
+# checks). No real Animal row carries these, so they'd otherwise land in the
+# "unmatched" view and have to be deleted by hand. Drop them at ingestion for
+# every datatype instead. Match is case-insensitive and whitespace-trimmed.
+IGNORED_ANIMAL_IDS = frozenset({'test'})
+
+
+def _is_test_acquisition(parsed):
+    """Return True if any parsed animal_id is a placeholder test id."""
+    return any(
+        str(cid).strip().lower() in IGNORED_ANIMAL_IDS
+        for cid in _parsed_custom_ids(parsed)
+    )
+
+
 def _candidate_animals_for(session, parsed, animals_by_cid=None):
     """Return Animals matching parsed['animal_id'] (single value or list).
 
@@ -303,6 +318,10 @@ def _sync_location(location, dry_run=False, debug=False):
                     raise
                 continue
             if not parsed:
+                continue
+            if _is_test_acquisition(parsed):
+                log.info('  [SKIP] %s: test animal_id, not ingesting',
+                         relative_path)
                 continue
 
             file_hash = None
@@ -665,6 +684,9 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
             counts['failed'] += 1
             continue
         if not parsed:
+            counts['skipped'] += 1
+            continue
+        if _is_test_acquisition(parsed):
             counts['skipped'] += 1
             continue
 

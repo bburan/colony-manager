@@ -76,7 +76,7 @@ def login_user() -> Response | str:
         else:
             flash('Not authorized to login. Please contact admin.', 'danger')
     return render_template('login.html', login_form=login_form,
-                           create_form=UserCreateForm())
+                           create_form=UserCreateForm(), active_tab='login')
 
 @auth_bp.route('/add', methods=['GET', 'POST'])
 @public
@@ -113,7 +113,7 @@ def add_user() -> Response | str:
     else:
         flash_form_errors(create_form, 'Error creating account')
     return render_template('login.html', login_form=UserLoginForm(),
-                           create_form=create_form)
+                           create_form=create_form, active_tab='create')
 
 @auth_bp.route('/')
 def list_users() -> Response | str:

@@ -1,41 +1,73 @@
 {% extends "base.html" %}
 
-{% block header %}Account{% endblock %}
+{# Login is its own centered, branded screen — suppress the standard
+   page-title band so the "Colony Manager" lockup in the card is the
+   only header. #}
+{% block page_header %}{% endblock %}
 
 {% block content %}
-<div class="row g-4">
-    <div class="col-6">
-        <div class="card">
-            <div class="card-header">Login</div>
-            <div class="card-body">
-                <form action="{{ url_for('auth.login_user') }}" method="POST">
-                    {{ login_form.hidden_tag() }}
-                    {%  for field in login_form if field.widget.input_type != 'hidden' %}
-                        <div>
-                            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
-                            {{ field(class="form-control form-control-sm mb-2") }}
-                        </div>
-                    {% endfor %}
-                    <button type="submit" class="btn btn-primary btn-sm">Submit</button>
-                </form>
-            </div>
+{% set active_tab = active_tab|default('login') %}
+<div class="row justify-content-center mt-4 mt-md-5">
+    <div class="col-11 col-sm-9 col-md-7 col-lg-5 col-xl-4">
+        <div class="text-center mb-4">
+            <i class="fas fa-dna fa-2x text-primary mb-3"></i>
+            <h1 class="h4 fw-bold mb-1">Colony Manager</h1>
+            <p class="text-muted small mb-0">Sign in to your account to continue.</p>
         </div>
-    </div>
 
-    <div class="col-6">
-        <div class="card">
-            <div class="card-header">Create</div>
-            <div class="card-body">
-                <form action="{{ url_for('auth.add_user') }}" method="POST">
-                    {{ create_form.hidden_tag() }}
-                    {%  for field in create_form if field.widget.input_type != 'hidden' %}
-                        <div>
-                            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
-                            {{ field(class="form-control form-control-sm mb-2") }}
-                        </div>
-                    {% endfor %}
-                    <button type="submit" class="btn btn-primary btn-sm">Submit</button>
-                </form>
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0 px-3">
+                <ul class="nav nav-tabs card-header-tabs nav-fill" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {{ 'active' if active_tab == 'login' }}"
+                                id="login-tab" data-bs-toggle="tab" data-bs-target="#login-pane"
+                                type="button" role="tab" aria-controls="login-pane"
+                                aria-selected="{{ 'true' if active_tab == 'login' else 'false' }}">
+                            Sign in
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {{ 'active' if active_tab == 'create' }}"
+                                id="create-tab" data-bs-toggle="tab" data-bs-target="#create-pane"
+                                type="button" role="tab" aria-controls="create-pane"
+                                aria-selected="{{ 'true' if active_tab == 'create' else 'false' }}">
+                            Create account
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body p-4">
+                <div class="tab-content">
+                    <div class="tab-pane fade {{ 'show active' if active_tab == 'login' }}"
+                         id="login-pane" role="tabpanel" aria-labelledby="login-tab">
+                        <form action="{{ url_for('auth.login_user') }}" method="POST">
+                            {{ login_form.hidden_tag() }}
+                            {% for field in login_form if field.widget.input_type != 'hidden' %}
+                            <div class="mb-3">
+                                <label for="{{ field.id }}" class="form-label small fw-bold text-muted">{{ field.label.text }}</label>
+                                {{ field(class="form-control") }}
+                            </div>
+                            {% endfor %}
+                            <button type="submit" class="btn btn-primary w-100">Sign in</button>
+                        </form>
+                    </div>
+                    <div class="tab-pane fade {{ 'show active' if active_tab == 'create' }}"
+                         id="create-pane" role="tabpanel" aria-labelledby="create-tab">
+                        <form action="{{ url_for('auth.add_user') }}" method="POST">
+                            {{ create_form.hidden_tag() }}
+                            {% for field in create_form if field.widget.input_type != 'hidden' %}
+                            <div class="mb-3">
+                                <label for="{{ field.id }}" class="form-label small fw-bold text-muted">{{ field.label.text }}</label>
+                                {{ field(class="form-control") }}
+                            </div>
+                            {% endfor %}
+                            <button type="submit" class="btn btn-primary w-100">Create account</button>
+                        </form>
+                        <p class="text-muted small mb-0 mt-3">
+                            New accounts require admin approval before you can sign in.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

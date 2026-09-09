@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% import "macros.html" as macros %}
 
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Cage ' ~ animal.cage.custom_id, url_for('cages.view_cage', cage_id=animal.cage.id)),
+    (animal.display_id, None),
+]) }}
+{% endblock %}
+
 {% block header %}
-{{ animal.species.name|capitalize }} > {{ animal.display_id }}
+{{ animal.display_id }}
 {% endblock %}
 
 {% block content %}

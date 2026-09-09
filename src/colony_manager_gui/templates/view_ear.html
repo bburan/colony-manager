@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% import "macros.html" as macros %}
 
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Cage ' ~ ear.animal.cage.custom_id, url_for('cages.view_cage', cage_id=ear.animal.cage.id)),
+    (ear.animal.display_id, url_for('animals.view_animal', animal_id=ear.animal.id)),
+    (ear.side ~ ' ear', None),
+]) }}
+{% endblock %}
+
 {% block header %}
 Ear {{ ear.animal.custom_id }} {{ ear.side }}
 {% endblock %}

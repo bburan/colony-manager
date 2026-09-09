@@ -50,6 +50,24 @@
 </div>
 {% endmacro %}
 
+{# Bootstrap breadcrumb trail rendered above a detail page's title.
+   ``items`` is a list of (label, url) pairs, outermost first; the final
+   item is the current page and renders as inactive text (its url is
+   ignored, so pass None). #}
+{% macro breadcrumb(items) %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2 small">
+        {% for label, url in items %}
+        {% if loop.last %}
+        <li class="breadcrumb-item active" aria-current="page">{{ label }}</li>
+        {% else %}
+        <li class="breadcrumb-item"><a href="{{ url }}">{{ label }}</a></li>
+        {% endif %}
+        {% endfor %}
+    </ol>
+</nav>
+{% endmacro %}
+
 {% macro filter_button_group(name, label, filters, options) %}
 <div class="col-auto">
     <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">

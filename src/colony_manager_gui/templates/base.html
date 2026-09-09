@@ -169,6 +169,7 @@
     {% block page_header %}
     <div class="app-header py-4">
         <div class="container">
+            {% block breadcrumb %}{% endblock %}
             <h1 class="h3 mb-0 fw-bold text-dark">
                 {% block header %}{% endblock %}
             </h1>

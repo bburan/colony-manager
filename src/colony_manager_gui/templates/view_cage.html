@@ -1,16 +1,18 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Cages', url_for('cages.list_cages')),
+    (cage.custom_id, None),
+]) }}
+{% endblock %}
 
 {% block header %}
     Cage {{ cage.custom_id }}
 {% endblock %}
 
 {% block content %}
-<nav class="mb-4">
-    <a href="{{ url_for('cages.list_cages') }}" class="text-decoration-none small text-muted">
-        &larr; Back to Cages
-    </a>
-</nav>
-
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4">

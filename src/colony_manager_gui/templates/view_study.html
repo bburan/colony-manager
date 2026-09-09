@@ -1,4 +1,12 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Studies', url_for('studies.list_studies')),
+    (study.name, None),
+]) }}
+{% endblock %}
 
 {% block header %}
 Study {{ study.name }}

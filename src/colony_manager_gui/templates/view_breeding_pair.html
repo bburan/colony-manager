@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% import "macros.html" as macros %}
 
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Breeding', url_for('breeding.list_breeding_pairs')),
+    (pair.custom_id, None),
+]) }}
+{% endblock %}
+
 {% block header %}
 Breeding Pair {{ pair.custom_id }}
 {% endblock %}

@@ -12,7 +12,7 @@
             {% for log in logs %}
                 {% if (log['weight'] is none) and (log['feeds']|length == 0) %}
                     <td>
-                        <button class="btn btn-sm"
+                        <button class="btn btn-sm btn-icon"
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
                                 title="Add weight/feed entry"

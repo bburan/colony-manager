@@ -50,7 +50,7 @@ Unmatched Data Files
                 <div class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
                     <input type="text" name="q" class="form-control border-end-0"
                            placeholder="Search filename or path..." value="{{ filters.q }}">
-                    <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                    <button class="btn btn-secondary border-start-0" type="submit" aria-label="Search"><i class="fas fa-search"></i></button>
                 </div>
 
                 <a href="{{ url_for('animals.list_unmatched_data') }}"

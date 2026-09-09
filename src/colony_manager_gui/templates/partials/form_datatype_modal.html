@@ -91,7 +91,7 @@
                         <span class="input-group-text"><i class="fas fa-folder-open"></i></span>
                         <input type="hidden" name="location_ids" :value="loc.id">
                         <input type="text" name="locations" x-model="loc.path" class="form-control form-control-sm font-monospace">
-                        <button type="button" class="btn btn-outline-danger btn-sm" @click="locations.splice(index, 1)"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" aria-label="Remove path" @click="locations.splice(index, 1)"><i class="fas fa-trash"></i></button>
                     </div>
                 </template>
             </div>

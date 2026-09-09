@@ -36,7 +36,7 @@ Animal Overview
                 <div class="input-group input-group-sm shadow-sm" style="max-width: 300px;">
                     <input type="text" name="search_query" class="form-control border-end-0"
                            placeholder="Search ID..." value="{{ filters['search_query'] or '' }}">
-                    <button class="btn btn-secondary border-start-0" type="submit"><i class="fas fa-search"></i></button>
+                    <button class="btn btn-secondary border-start-0" type="submit" aria-label="Search"><i class="fas fa-search"></i></button>
                 </div>
 
                 <a href="{{ url_for('animals.list_animals') }}" class="btn btn-link btn-sm text-decoration-none text-muted p-0" title="Reset all filters">

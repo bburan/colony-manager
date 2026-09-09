@@ -41,7 +41,7 @@
                           hx-target="#setting-{{ type }}"
                           hx-swap="outerHTML"
                           hx-confirm="Are you sure you want to delete this?">
-                        <button class="btn btn-sm text-danger"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-sm text-danger" aria-label="Delete {{ item.name }}"><i class="fas fa-trash"></i></button>
                     </form>
                 </li>
             {% endfor %}

@@ -57,7 +57,7 @@
         </td>
         <td class="text-end">
             <div class="d-flex justify-content-end align-items-center gap-1">
-                <button class="btn btn-sm"
+                <button class="btn btn-sm btn-icon"
                         hx-post="{{ url_for('histology.delete_confocal_image', image_id=img.id) }}"
                         hx-target="#confocal-image-{{ img.id }}"
                         hx-swap="outerHTML swap:300ms"

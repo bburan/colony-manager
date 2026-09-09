@@ -107,8 +107,8 @@ Ear {{ ear.animal.custom_id }} {{ ear.side }}
                     hx-get="{{ url_for('histology.create_confocal_images_modal', ear_id=ear.id) }}"
                     hx-target="#modalBody"
                     title="Add images"
-                    class="btn btn-sm">
-                    <i class="fas fa-camera"> +</i></button>
+                    class="btn btn-sm btn-icon">
+                    <span class="fa-icon-badge"><i class="fas fa-camera"></i><i class="fas fa-plus fa-badge"></i></span></button>
             </div>
 
             <div class="card-body table-responsive">

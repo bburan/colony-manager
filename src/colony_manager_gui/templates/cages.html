@@ -55,14 +55,14 @@ Cages
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Cages</h2>
-        <button class="btn btn-sm"
+        <button class="btn btn-sm btn-icon"
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
                 title="Add new cage"
-                hx-get="{{ url_for('cages.create_cage_modal') }}" hx-target="#modalBody"><i class="fas fa-boxes"> +</i></button>
+                hx-get="{{ url_for('cages.create_cage_modal') }}" hx-target="#modalBody"><span class="fa-icon-badge"><i class="fas fa-boxes"></i><i class="fas fa-plus fa-badge"></i></span></button>
     </div>
     <div class="card-body">
-        <table class="table table-hover align-middle mb-0 small table-striped">
+        <table class="table table-hover align-middle mb-0 small">
             <thead class="card-header bg-light text-secondary text-uppercase fw-bold border-bottom">
                 <tr>
                     <th rowspan=2>Cage ID</th>
@@ -84,7 +84,7 @@ Cages
             </thead>
             <tbody>
                 {% for cage in cages %}
-                <tr>
+                <tr class="{{ '' if cage.is_active else 'table-archived' }}">
                     <td><a href="{{ url_for('cages.view_cage', cage_id=cage.id) }}">{{ cage.custom_id }}</a></td>
                     <td>{{ cage.species.name }}</td>
                     <td>{{ cage.sex_symbol }}</td>
@@ -97,7 +97,7 @@ Cages
                     <td>{{ cage.source_display }}</td>
                     <td>{{ cage.notes }}</td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-sm"
+                        <button type="button" class="btn btn-sm btn-icon"
                                 data-bs-toggle="tooltip" data-bs-placement="top" title="Edit cage"
                                 hx-get="{{ url_for('cages.edit_cage_details_modal', cage_id=cage.id) }}"
                                 hx-target="#modalBody"><i class="fas fa-pencil"></i></button>

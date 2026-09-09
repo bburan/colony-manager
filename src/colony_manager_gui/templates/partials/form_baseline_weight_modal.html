@@ -7,7 +7,7 @@
 <div class="row g-4">
     <div class="col-5">Date</div>
     <div class="col-5">Weight</div>
-    <div class="col-2"><button onclick="addField('weight')" class="btn btn-sm"><i class="fas fa-clipboard-check"></i> +</button></div>
+    <div class="col-2"><button onclick="addField('weight')" class="btn btn-sm btn-icon" aria-label="Add weight entry"><i class="fas fa-clipboard-check"></i> +</button></div>
 </div>
 <fieldset id="weight-container">
 {% for entry in form.weights %}
@@ -20,7 +20,7 @@
             {{ macros.render_field(entry.weight, False) }}
         </div>
         <div class="col-2">
-            <button type="button" onclick="removeField('weight', this)" class="btn btn-sm"><i class="fas fa-trash"></i></button>
+            <button type="button" onclick="removeField('weight', this)" class="btn btn-sm btn-icon" aria-label="Remove weight entry"><i class="fas fa-trash"></i></button>
         </div>
     </div>
 {% endfor %}

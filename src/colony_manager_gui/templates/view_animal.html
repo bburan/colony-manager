@@ -7,19 +7,19 @@
 
 {% block content %}
 <div class="row mb-4">
-    <div class="col-4">
+    <div class="col-12 col-lg-4">
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Information</h2>
                 <div>
                     {% if animal.is_active %}
-                    <button class="btn btn-sm"
+                    <button class="btn btn-sm btn-icon"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
                             title="Terminate animal"
-                            hx-get="{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}" hx-target="#modalBody"><i class="fas fa-crosshairs"></i></button>
+                            hx-get="{{ url_for('animals.terminate_animal_modal', animal_id=animal.id) }}" hx-target="#modalBody"><i class="fas fa-box-archive"></i></button>
                     {% endif %}
-                    <button class="btn btn-sm"
+                    <button class="btn btn-sm btn-icon"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
                             title="Edit animal information"
@@ -45,7 +45,7 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Notes</h2>
-                <button class="btn btn-sm"
+                <button class="btn btn-sm btn-icon"
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
                         title="Edit animal notes"
@@ -57,12 +57,12 @@
         <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Studies</h2>
-                <button class="btn btn-sm"
+                <button class="btn btn-sm btn-icon"
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
                         title="Add to study"
                         hx-get="{{ url_for('animals.add_study_modal', animal_id=animal.id) }}" hx-target="#modalBody">
-					<i class="fas fa-clipboard">&nbsp;&plus;</i>
+					<span class="fa-icon-badge"><i class="fas fa-clipboard"></i><i class="fas fa-plus fa-badge"></i></span>
                 </button>
             </div>
             <div class="card-body p-0">
@@ -78,7 +78,7 @@
                                 data-bs-toggle="tooltip"
                                 title="Remove from study">
                             <span class="fa-icon-badge">
-                                <i class="fas fa-clipboard">&nbsp;&minus;</i>
+                                <i class="fas fa-clipboard"></i><i class="fas fa-minus fa-badge"></i>
                             </span>
                         </button>
                     </li>
@@ -91,7 +91,7 @@
         </div>
     </div>
 
-    <div class="col-8">
+    <div class="col-12 col-lg-8">
         <div class="accordion" id="animalDetailAccordion">
             {# --- Files Accordion Item --- #}
             <div class="accordion-item shadow-sm mb-3">
@@ -234,12 +234,12 @@
                                     <td>{{ data.notes or "—" }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-sm"
+                                            <button class="btn btn-sm btn-icon"
                                                     data-bs-toggle="tooltip"
                                                     data-bs-placement="top"
                                                     title="Edit weight/feed entry"
                                                     hx-get="{{ url_for('animals.update_animal_daily_log_modal', animal_id=animal.id, date=date.strftime('%Y-%m-%d')) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
-                                            <button class="btn btn-sm"
+                                            <button class="btn btn-sm btn-icon"
                                                     data-bs-toggle="tooltip"
                                                     data-bs-placement="top"
                                                     title="Delete weight/feed entry"

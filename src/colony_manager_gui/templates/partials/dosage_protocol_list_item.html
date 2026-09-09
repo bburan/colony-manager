@@ -29,7 +29,7 @@
               hx-swap="outerHTML swap:300ms"
               hx-confirm="Delete dosage protocol &quot;{{ protocol.name }}&quot;?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-link btn-sm text-danger p-0 px-2"><i class="fas fa-trash"></i></button>
+            <button class="btn btn-link btn-sm text-danger p-0 px-2" aria-label="Delete dosage protocol"><i class="fas fa-trash"></i></button>
         </form>
     </div>
 </li>

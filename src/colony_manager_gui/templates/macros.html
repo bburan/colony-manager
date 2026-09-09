@@ -1,6 +1,6 @@
 {% macro filter_dropdown(name, label, filters, items, all_label='All', label_attr='display_name') %}
 <div class="col-auto">
-    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">
         {{ label }}
     </label>
     <select name="{{ name }}" class="form-select form-select-sm shadow-sm"
@@ -18,7 +18,7 @@
 {% set params = filters.copy() %}
 {% set _ = params.update({'sort_dir': next_dir}) %}
 <div class="col-auto">
-    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">
         Dir
     </label>
     <a href="{{ url_for(request.endpoint, **params) }}"
@@ -36,7 +36,7 @@
    feedback when the value could not be parsed. #}
 {% macro filter_text_input(name, label, filters, placeholder='', error='', width='8rem') %}
 <div class="col-auto">
-    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">
         {{ label }}
     </label>
     <input type="text" name="{{ name }}" value="{{ filters[name] or '' }}"
@@ -45,14 +45,14 @@
            placeholder="{{ placeholder }}"
            onchange="this.form.submit()">
     {% if error %}
-    <div class="invalid-feedback d-block" style="font-size: 0.7rem;">{{ error }}</div>
+    <div class="invalid-feedback d-block fs-xs">{{ error }}</div>
     {% endif %}
 </div>
 {% endmacro %}
 
 {% macro filter_button_group(name, label, filters, options) %}
 <div class="col-auto">
-    <label class="d-block small fw-bold text-muted text-uppercase mb-1" style="font-size: 0.65rem;">
+    <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">
         {{ label }}
     </label>
     <div class="btn-group btn-group-sm shadow-sm">
@@ -71,12 +71,19 @@
 
 {# Reusable AJAX status buttons for a data file. All three buttons are
    rendered but visibility is toggled via data-status on the container. #}
+{# Status is carried by icon SHAPE (check / x / plain circle) as well as
+   colour, so it stays legible for colour-blind users. app.js swaps both
+   the shape (fa-*) and colour (status) classes when the status changes
+   client-side — keep the three fa-* names in sync with it. #}
 {% macro render_status_indicator(data_file) %}
-{% set status_class = {'reviewed': 'reviewed', 'exclude': 'excluded'}.get(data_file.status, 'unreviewed') %}
-<i class="fas fa-circle df-status-icon {{ status_class }} flex-shrink-0"
+{% set fa_icon, status_class, status_title = {
+    'reviewed': ('fa-circle-check', 'reviewed', 'Reviewed'),
+    'exclude': ('fa-circle-xmark', 'excluded', 'Excluded'),
+}.get(data_file.status, ('fa-circle', 'unreviewed', 'Unreviewed')) %}
+<i class="fas {{ fa_icon }} df-status-icon {{ status_class }} flex-shrink-0"
    data-data-id="{{ data_file.id }}"
    data-bs-toggle="tooltip"
-   title="{{ {'reviewed': 'Reviewed', 'exclude': 'Excluded'}.get(data_file.status, 'Unreviewed') }}"></i>
+   title="{{ status_title }}"></i>
 {% endmacro %}
 
 {% macro render_status_buttons(animal_id, data_file, size='sm') %}
@@ -145,8 +152,7 @@
 				<button type="button"
 				        class="btn btn-link df-toggle p-0 d-flex align-items-center gap-2 flex-grow-1 text-start"
 				        @click="open = !open" :aria-expanded="open">
-					<i class="fas fa-chevron-right df-chevron flex-shrink-0"
-					   style="font-size: 0.65rem;"
+					<i class="fas fa-chevron-right df-chevron flex-shrink-0 fs-label"
 					   :class="{ 'open': open }"></i>
 					{{ render_status_indicator(data_file) }}
 					<span class="datatype-badge flex-shrink-0">{{ data_file.datatype.name }}</span>
@@ -251,8 +257,8 @@
                         {% endif %}
                     </div>
                     <div class="btn-group btn-group-sm flex-shrink-0">
-                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" hx-get="{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}" hx-target="#modalBody"><i class="fas fa-pencil fa-xs"></i></button>
-                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" hx-get="{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}" hx-target="#modalBody"><i class="fas fa-trash fa-xs"></i></button>
+                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" aria-label="Edit event" hx-get="{{ url_for('animals.edit_animal_event_modal', event_id=event.id) }}" hx-target="#modalBody"><i class="fas fa-pencil fa-xs"></i></button>
+                        <button class="btn btn-link btn-sm p-0 px-1 text-secondary" aria-label="Delete event" hx-get="{{ url_for('animals.delete_animal_event_modal', event_id=event.id) }}" hx-target="#modalBody"><i class="fas fa-trash fa-xs"></i></button>
                     </div>
                 </div>
             {% endfor %}

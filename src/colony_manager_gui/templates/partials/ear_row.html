@@ -36,11 +36,11 @@
         >
             <i class="fas fa-camera me-1"></i>{{ img_count }}
         </button>
-        <button type="button" class="btn btn-sm"
+        <button type="button" class="btn btn-sm btn-icon"
                 hx-get="{{ url_for('histology.edit_ear_histology_modal', ear_id=ear.id, hx_target='#ear-row-' ~ ear.id) }}"
                 hx-target="#modalBody"><i class="fas fa-pencil"></i></button>
         {% if img_count == 0 %}
-        <button class="btn btn-sm"
+        <button class="btn btn-sm btn-icon"
                 hx-post="{{ url_for('histology.delete_ear', ear_id=ear.id) }}"
                 hx-target="#ear-row-{{ ear.id }}"
                 hx-swap="outerHTML swap:300ms"

@@ -51,7 +51,7 @@
     </td>
     <td class="small text-muted">{{ f.rating_note or '' }}</td>
     <td class="text-end">
-        <button type="button" class="btn btn-sm"
+        <button type="button" class="btn btn-sm btn-icon"
                 data-bs-toggle="tooltip" data-bs-placement="top"
                 title="Re-check rating status for this file"
                 hx-post="{{ url_for('animals.refresh_data_rating', data_id=f.id) }}"

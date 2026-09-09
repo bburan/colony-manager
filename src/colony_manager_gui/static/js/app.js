@@ -212,6 +212,19 @@ function initBootstrapWidgets(root) {
     const tooltipTriggers = scope.querySelectorAll('[data-bs-toggle="tooltip"]');
     tooltipTriggers.forEach(el => {
         if (bootstrap.Tooltip.getInstance(el)) return;
+        // Give icon-only triggers an accessible name. Bootstrap moves
+        // `title` into `data-bs-original-title` and removes it on init, so
+        // an icon-only button/link would otherwise expose no name to screen
+        // readers. Copy the tooltip text into aria-label when the element
+        // has no visible text and isn't already labelled — do this BEFORE
+        // instantiating the tooltip, while `title` is still present.
+        if (!el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby')) {
+            const label = el.getAttribute('title')
+                || el.getAttribute('data-bs-original-title');
+            if (label && !el.textContent.trim()) {
+                el.setAttribute('aria-label', label);
+            }
+        }
         new bootstrap.Tooltip(el);
     });
 
@@ -547,13 +560,24 @@ document.addEventListener('click', async function(e) {
                         : data.new_status === 'exclude'
                             ? 'Excluded'
                             : 'Unreviewed';
+                    // Shape carries the status too (not just colour), so the
+                    // state is distinguishable without relying on colour alone.
+                    // Keep these in sync with render_status_indicator (macros.html).
+                    const faClass = data.new_status === 'reviewed'
+                        ? 'fa-circle-check'
+                        : data.new_status === 'exclude'
+                            ? 'fa-circle-xmark'
+                            : 'fa-circle';
                     document.querySelectorAll(
                         '.df-status-icon[data-data-id="' + dataId + '"]'
                     ).forEach(function (icon) {
                         icon.classList.remove('reviewed', 'excluded', 'unreviewed');
                         icon.classList.add(statusClass);
+                        icon.classList.remove('fa-circle', 'fa-circle-check', 'fa-circle-xmark');
+                        icon.classList.add(faClass);
                         icon.setAttribute('title', tooltipTitle);
                         icon.setAttribute('data-bs-original-title', tooltipTitle);
+                        icon.setAttribute('aria-label', tooltipTitle);
                     });
                 }
             } else {

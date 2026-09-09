@@ -23,7 +23,7 @@
     </thead>
     <tbody>
         {% for animal in animals %}
-        <tr class="{{ '' if animal.is_active else 'table-danger' }}">
+        <tr class="{{ '' if animal.is_active else 'table-archived' }}">
             {% if show_select_column|default(False) %}
             <td>
                 <input type="checkbox" class="form-check-input bulk-select-row"
@@ -43,7 +43,7 @@
             <td>
                 <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}">{{ animal.custom_id }}</a>
                 {% if not animal.custom_id %}
-                <button class="btn btn-sm"
+                <button class="btn btn-sm btn-icon"
                         data-bs-toggle="tooltip"
                         title="Assign ID to animal"
                         hx-get="{{ url_for('animals.assign_animal_id_modal', animal_id=animal.id) }}" hx-target="#modalBody"><i class="fas fa-tag"></i></button>
@@ -77,7 +77,7 @@
                         data-bs-trigger="hover click focus"
                         data-bs-html="true"
                         data-id="{{ url_for('animals.view_animal_events_popover', animal_id=animal.id) }}"
-                        title="<div class='d-flex justify-content-between align-center'>Events <button class='btn btn-sm float-right' hx-get='{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}' hx-target='#modalBody'><i class='fas fa-calendar'> +</i></button></div>"
+                        title="<div class='d-flex justify-content-between align-center'>Events <button class='btn btn-sm float-right' hx-get='{{ url_for('animals.create_animal_event_modal', animal_id=animal.id) }}' hx-target='#modalBody'><span class='fa-icon-badge'><i class='fas fa-calendar'></i><i class='fas fa-plus fa-badge'></i></span></button></div>"
 "
                 >
                     {{  animal.events_count }}
@@ -118,7 +118,7 @@
                                 class="btn btn-secondary btn-sm shadow"
                                 data-bs-toggle="tooltip"
                                 title="Terminate animal">
-                            <i class="fas fa-crosshairs fa-sm"></i>
+                            <i class="fas fa-box-archive fa-sm"></i>
                         </button>
                         {% endif %}
                         {% if show_delete_action|default(False) and animal.is_deletable %}
@@ -140,7 +140,7 @@
                             data-bs-toggle="tooltip"
                             title="Remove from study">
                         <span class="fa-icon-badge">
-                            <i class="fas fa-clipboard">&nbsp;&minus;</i>
+                            <i class="fas fa-clipboard"></i><i class="fas fa-minus fa-badge"></i>
                         </span>
                     </button>
                     {% endif %}

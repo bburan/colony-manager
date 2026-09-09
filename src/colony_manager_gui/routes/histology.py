@@ -340,10 +340,16 @@ def delete_ear(ear_id) -> Response | str:
             return msg, 409
         flash(msg, 'danger')
         return redirect(request.referrer or url_for('histology.list_histology'))
+    animal = ear.animal
     try:
         db.session.delete(ear)
         db.session.commit()
         if request.headers.get('HX-Request'):
+            # The animal page re-renders the whole Ears panel so the
+            # "Add <side> Ear" buttons recompute; other callers (the ear
+            # list row) just drop the swapped-out element via empty body.
+            if request.args.get('hx_target') == '#animal-ears-body':
+                return render_template('partials/animal_ears_body.html', animal=animal)
             return '', 200
         flash('Ear deleted successfully.', 'info')
     except Exception as e:

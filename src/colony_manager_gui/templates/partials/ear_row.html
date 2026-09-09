@@ -24,7 +24,7 @@
     <td>{{ macros.format_date(ear.dissection_date) }}</td>
     <td>{{ macros.format_date(ear.immunolabel_date) }}</td>
     <td>{{ ear.panel.name if ear.panel else '' }}</td>
-    <td>
+    <td class="text-nowrap">
         {% set img_count = ear.confocal_images|length %}
         <button type="button"
                 class="ajax-popover btn btn-sm btn-{{ 'primary' if img_count > 0 else 'outline-secondary' }} px-2"

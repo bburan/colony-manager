@@ -1,0 +1,39 @@
+{% set existing_ear_sides = animal.ears | map(attribute='side') | list %}
+<ul class="list-group mb-2">
+{% for ear in animal.ears %}
+    {% set img_count = ear.confocal_images|length %}
+    <li class="d-flex justify-content-between align-items-center list-group-item">
+        <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}">{{ ear.side }}</a>
+        <div class="d-flex gap-1 align-items-center text-nowrap">
+            <a href="{{ url_for('histology.view_ear', ear_id=ear.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-camera"></i> {{ img_count }}</a>
+            {% if img_count == 0 %}
+            <button class="btn btn-sm"
+                    hx-post="{{ url_for('histology.delete_ear', ear_id=ear.id, hx_target='#animal-ears-body') }}"
+                    hx-target="#animal-ears-body"
+                    hx-swap="innerHTML"
+                    hx-confirm="Delete ear {{ ear.animal.custom_id }} {{ ear.side }}? This cannot be undone."><i class="fas fa-trash"></i></button>
+            {% endif %}
+        </div>
+    </li>
+{% endfor %}
+</ul>
+{# Offer "Add" buttons for any side that doesn't yet have an ear,
+   but only if the animal is terminated — pre-termination there's
+   no reason to record an ear yet. #}
+{% if not animal.is_active %}
+    <div class="d-flex gap-2">
+        {% for side in ['Left', 'Right'] %}
+            {% if side not in existing_ear_sides %}
+                <form method="POST"
+                      action="{{ url_for('histology.create_ear', animal_id=animal.id) }}"
+                      class="d-inline">
+                    {{ csrf_only_form.csrf_token }}
+                    <input type="hidden" name="side" value="{{ side }}">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-plus"></i> Add {{ side }} Ear
+                    </button>
+                </form>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% endif %}

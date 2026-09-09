@@ -127,7 +127,7 @@ class Cage(VersionedModel):
 
     @property
     def active_animals_count(self):
-        return sum(1 for a in self.animals if a.termination_date is None)
+        return sum(1 for a in self.animals if a.is_active)
 
     @property
     def is_active(self):

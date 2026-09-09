@@ -103,6 +103,13 @@ def create_app():
     app.config['MAX_CONTENT_LENGTH'] = (
         int(os.environ.get('COLONY_MANAGER_MAX_UPLOAD_MB', '100')) * 1024 * 1024
     )
+    # In debug mode the navbar is tinted so a dev instance is never
+    # mistaken for production (or another local site). Override the colour
+    # per deployment via env so each site can be told apart at a glance;
+    # default is an amber "caution" tint.
+    app.config['NAVBAR_DEBUG_COLOR'] = os.environ.get(
+        'NAVBAR_DEBUG_COLOR', '#ffda6a'
+    )
 
     # --- RQ queue wiring ---
     # REDIS_URL points at a real Redis in prod (set by docker-compose);

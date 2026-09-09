@@ -17,11 +17,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg bg-white shadow-sm">
+    <nav class="navbar navbar-expand-lg shadow-sm {{ 'bg-white' if not config.DEBUG }}"
+         {% if config.DEBUG %}style="background-color: {{ config.get('NAVBAR_DEBUG_COLOR', '#ffda6a') }};"{% endif %}>
 		<div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('main.view_dashboard') }}">
                 <i class="fas fa-dna me-2"></i>Colony Manager
             </a>
+            {% if config.DEBUG %}
+            <span class="badge text-bg-dark ms-2" title="Running in debug mode">DEBUG</span>
+            {% endif %}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
                 <span class="navbar-toggler-icon"></span>
             </button>

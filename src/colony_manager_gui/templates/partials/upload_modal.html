@@ -48,8 +48,7 @@
                     <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
                         <span x-text="t.label"></span>
                         <button type="button"
-                                class="btn-close btn-close-white"
-                                style="font-size: 0.55rem;"
+                                class="btn-close btn-close-white fs-label"
                                 aria-label="Remove"
                                 @click="remove(t.id)"></button>
                         <input type="hidden" name="targets" :value="t.id">
@@ -150,8 +149,7 @@
                                  x-text="f.name"
                                  :title="f.name"></div>
                             <button type="button"
-                                    class="btn-close"
-                                    style="font-size: 0.55rem;"
+                                    class="btn-close fs-label"
                                     aria-label="Remove this file"
                                     @click="removeFile(idx)"></button>
                         </div>

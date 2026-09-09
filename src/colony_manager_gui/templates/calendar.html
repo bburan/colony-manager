@@ -10,11 +10,11 @@ Event Calendar
         <div class="d-flex gap-3">
             <div class="d-flex align-items-center">
                 <span class="badge rounded-pill bg-primary me-2" style="width: 12px; height: 12px; padding: 0;">&nbsp;</span>
-                <span class="small fw-bold text-secondary text-uppercase" style="font-size: 0.65rem;">Scheduled</span>
+                <span class="small fw-bold text-secondary text-uppercase fs-label">Scheduled</span>
             </div>
             <div class="d-flex align-items-center">
                 <span class="badge rounded-pill bg-success me-2" style="width: 12px; height: 12px; padding: 0;">&nbsp;</span>
-                <span class="small fw-bold text-secondary text-uppercase" style="font-size: 0.65rem;">Completed</span>
+                <span class="small fw-bold text-secondary text-uppercase fs-label">Completed</span>
             </div>
         </div>
 
@@ -49,7 +49,7 @@ Event Calendar
         letter-spacing: 0.5px;
     }
     .fc .fc-button {
-        font-size: 0.85rem;
+        font-size: var(--fs-sm);
         font-weight: 600;
         text-transform: capitalize;
         padding: 0.4rem 0.8rem;
@@ -65,7 +65,7 @@ Event Calendar
         border: none !important;
         border-radius: 4px;
         padding: 1px 4px;
-        font-size: 0.8rem;
+        font-size: var(--fs-sm);
         transition: transform 0.1s ease;
     }
     .fc-event:hover {

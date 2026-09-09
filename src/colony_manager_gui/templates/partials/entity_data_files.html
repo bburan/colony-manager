@@ -81,8 +81,7 @@
                 <button type="button"
                         class="btn btn-link df-toggle p-0 d-flex align-items-center gap-2 flex-grow-1 text-start"
                         @click="open = !open" :aria-expanded="open">
-                    <i class="fas fa-chevron-right df-chevron flex-shrink-0"
-                       style="font-size: 0.65rem;"
+                    <i class="fas fa-chevron-right df-chevron flex-shrink-0 fs-label"
                        :class="{ 'open': open }"></i>
                     {{ macros.render_status_indicator(f) }}
                     <span class="datatype-badge flex-shrink-0">{{ f.datatype.name }}</span>

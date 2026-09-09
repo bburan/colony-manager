@@ -60,7 +60,7 @@ Histology Grid
 {# Legend #}
 <div class="card shadow-sm mb-3">
     <div class="card-body py-2 px-3 small d-flex flex-wrap gap-3 align-items-center">
-        <span class="fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Legend:</span>
+        <span class="fw-bold text-muted text-uppercase fs-label">Legend:</span>
         {% for value, label in status_labels.items() %}
             <span class="d-inline-flex align-items-center gap-1">
                 <span style="display:inline-block; width:14px; height:14px; background:{{ status_colors[value] }}; border:1px solid rgba(0,0,0,0.15); border-radius:2px;"></span>
@@ -90,7 +90,7 @@ Histology Grid
             <div class="p-3 text-muted">No images recorded for image type "{{ selected_image_type.name }}".</div>
         {% else %}
         <div class="table-responsive">
-        <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.8rem;">
+        <table class="table table-sm table-hover align-middle mb-0 fs-sm">
             <thead>
                 <tr>
                     <th style="position: sticky; left: 0; background: #fff; z-index: 2; white-space: nowrap;">Ear</th>
@@ -120,7 +120,7 @@ Histology Grid
                     </td>
                     <td>
                         {% for tag in ear.tags %}
-                            <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.65rem;">{{ tag.display_name }}</span>
+                            <span class="badge bg-light text-secondary border fw-normal fs-label">{{ tag.display_name }}</span>
                         {% endfor %}
                     </td>
                     {% for f in frequencies %}

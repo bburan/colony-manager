@@ -25,7 +25,7 @@
       class="d-inline-flex align-items-center justify-content-center"
       style="width:18px; height:18px; background:{{ color }};
              border: {{ '2px solid #dc3545' if missing_files_conflict else '1px solid rgba(0,0,0,0.15)' }};
-             border-radius:3px; cursor:pointer; color:#fff; font-size:0.65rem;"
+             border-radius:3px; cursor:pointer; color:#fff; font-size:var(--fs-label);"
       title="{{ status_labels.get(status, status) }}{% if has_files %} — {{ file_count }} file(s){% endif %}{% if missing_files_conflict %} — CONFLICT: status set but no data files{% endif %}"
       hx-get="{{ url_for('histology.edit_confocal_image_modal', image_id=img.id) }}"
       hx-target="#modalBody">

@@ -25,7 +25,7 @@
       @htmx:after-request="if(event.detail.successful) { success = true; setTimeout(() => success = false, 1500) } else { error = true }">
 
     <div class="mb-3">
-        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Status</label>
+        <label class="form-label small fw-bold text-muted text-uppercase fs-label">Status</label>
         <select name="status" class="form-select form-select-sm subtle-input"
                 :class="{ 'is-saved': success, 'is-error': error }">
             {% for value, label in image_options.items() %}
@@ -35,7 +35,7 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Notes</label>
+        <label class="form-label small fw-bold text-muted text-uppercase fs-label">Notes</label>
         <textarea name="notes" rows="3" class="form-control form-control-sm subtle-input"
                   placeholder="Add observations..."
                   :class="{ 'is-saved': success, 'is-error': error }">{{ img.notes or '' }}</textarea>
@@ -43,7 +43,7 @@
 
     <div>
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <label class="form-label small fw-bold text-muted text-uppercase mb-0" style="font-size: 0.65rem;">
+            <label class="form-label small fw-bold text-muted text-uppercase mb-0 fs-label">
                 Attached files ({{ data_files|length }})
             </label>
         </div>

@@ -6,7 +6,26 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import backref, relationship
 
+from colony_manager.enums import ConfocalImageStatus
+
 from .base import NestedMixin, VersionedModel, ear_tags
+
+
+# Statuses that assert imaging work happened, so a linked data file is
+# expected. REGION_MISSING is the deliberate omission — the region was
+# never imaged, so having no file is correct, not a conflict.
+_STATUS_EXPECTS_FILE = frozenset({
+    ConfocalImageStatus.IMAGED,
+    ConfocalImageStatus.ANALYZED,
+    ConfocalImageStatus.NEED_REVIEW,
+    ConfocalImageStatus.REGION_BAD,
+})
+
+# Grid conflict codes, listed in the precedence ``ConfocalImage.conflict``
+# applies them.
+CONFLICT_FILE_MISMATCH  = 'file_mismatch'
+CONFLICT_MULTIPLE_FILES = 'multiple_files'
+CONFLICT_UNANALYZED     = 'unanalyzed'
 
 
 class ImmunolabelingPanel(VersionedModel):
@@ -85,3 +104,43 @@ class ConfocalImage(VersionedModel):
     @property
     def full_display(self):
         return f'{self.ear.full_display} {self.image_type.name} {self.frequency}'
+
+    @property
+    def conflict(self):
+        """Return this image's conflict code for the histology grid, or None.
+
+        One source of truth for both the grid's border colors
+        (``partials/grid_status_square.html``) and the grid's
+        "show conflicts only" filter (``routes/histology.py:view_grid``),
+        so the two can't drift apart.
+
+        In precedence order:
+
+        ``file_mismatch``
+            The linked files contradict the status, in either direction —
+            a status asserting imaging work happened but no file linked,
+            or a region marked missing that nonetheless has one.
+        ``multiple_files``
+            More than one data file linked, where the grid expects one
+            image per cell.
+        ``unanalyzed``
+            Marked analyzed, with a file linked, but no linked file
+            reports a completed analysis. Files whose ``is_rated`` is
+            NULL are ignored rather than treated as unanalyzed: NULL
+            means the rating job has nothing to say about that file (its
+            description class doesn't rate, or hasn't been scanned), which
+            is not evidence of missing analysis.
+        """
+        status = self.status or ConfocalImageStatus.IMAGED
+        files = list(self.data_files)
+        if status in _STATUS_EXPECTS_FILE and not files:
+            return CONFLICT_FILE_MISMATCH
+        if status == ConfocalImageStatus.REGION_MISSING and files:
+            return CONFLICT_FILE_MISMATCH
+        if len(files) > 1:
+            return CONFLICT_MULTIPLE_FILES
+        if (status == ConfocalImageStatus.ANALYZED
+                and any(f.is_rated is not None for f in files)
+                and not any(f.is_rated for f in files)):
+            return CONFLICT_UNANALYZED
+        return None

@@ -140,22 +140,14 @@ def view_grid() -> Response | str:
                 has_other_column = True
 
     if conflicts_only:
-        # data_files is already selectinloaded above, so img.data_files is an
-        # in-memory list — no further queries issued here.
-        conflict_statuses = {
-            ConfocalImageStatus.IMAGED,
-            ConfocalImageStatus.ANALYZED,
-            ConfocalImageStatus.NEED_REVIEW,
-            ConfocalImageStatus.REGION_BAD,
-        }
-
+        # ``ConfocalImage.conflict`` is the same rule the grid squares paint
+        # their borders from, so the filter and the highlighting can't
+        # disagree. data_files is already selectinloaded above, so the
+        # property reads an in-memory list — no further queries issued here.
         def ear_has_conflict(ear):
             if ear.id in orphans_by_ear:
                 return True
-            for img in grid[ear.id].values():
-                if img.status in conflict_statuses and not img.data_files:
-                    return True
-            return False
+            return any(img.conflict for img in grid[ear.id].values())
 
         ears = [e for e in ears if ear_has_conflict(e)]
 

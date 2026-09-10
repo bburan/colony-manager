@@ -9,6 +9,7 @@ continue to use ``.filter()`` / ``.order_by()`` — those methods exist
 on both Query and Select, so the helpers stay compatible with both
 callers' SQLAlchemy 2.0 select pipelines.
 """
+import re
 from datetime import date
 
 from sqlalchemy import select
@@ -18,7 +19,10 @@ from colony_manager.models import (
     ConfocalImage, ConfocalImageType, Ear, ImmunolabelingPanel,
 )
 
-from .factories import make_animal, make_ear
+from .factories import (
+    make_animal, make_confocal_image, make_confocal_image_data,
+    make_confocal_image_type, make_ear,
+)
 
 
 def _make_image_type(session, name='ImgType-1'):
@@ -390,3 +394,129 @@ def test_grid_page_contains_reload_sentinel(logged_in_client, db_session):
     response = logged_in_client.get('/histology/grid')
     assert response.status_code == 200
     assert b'id="histology-grid-reload"' in response.data
+
+
+# ---------------------------------------------------------------------------
+# Grid conflict borders + conflicts-only filter
+# ---------------------------------------------------------------------------
+
+def _grid_square(html, img):
+    """Return just the grid square's markup for ``img``.
+
+    The legend swatches use the same ``2px solid <color>`` shape as a
+    conflict border, so asserting against the whole page would pass on
+    the legend alone.
+    """
+    m = re.search(
+        rf'<span id="grid-square-{img.id}".*?</span>',
+        html.decode(), re.S,
+    )
+    assert m, f'no grid square rendered for image {img.id}'
+    return m.group(0)
+
+
+def _grid_ear_with_image(db_session, *, status, custom_id, files=0,
+                         is_rated=None, image_type=None):
+    """Build one ear carrying a single ConfocalImage, plus ``files`` links."""
+    image_type = image_type or make_confocal_image_type(db_session)
+    animal = make_animal(db_session, custom_id=custom_id)
+    ear = make_ear(db_session, animal=animal, side='Left')
+    img = make_confocal_image(db_session, ear=ear, image_type=image_type)
+    img.status = status
+    for _ in range(files):
+        row = make_confocal_image_data(db_session, confocal_image=img)
+        row.is_rated = is_rated
+    db_session.commit()
+    return ear, img
+
+
+def test_grid_square_drops_the_paperclip_icon(logged_in_client, db_session):
+    """A linked file is shown by the border scheme now, not an icon."""
+    _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED,
+        custom_id='G-P1', files=1, is_rated=True,
+    )
+    response = logged_in_client.get('/histology/grid')
+    assert response.status_code == 200
+    assert b'fa-paperclip' not in response.data
+
+
+def test_grid_square_borders_red_when_no_file_linked(
+    logged_in_client, db_session,
+):
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED, custom_id='G-R1',
+    )
+    response = logged_in_client.get('/histology/grid')
+    assert 'box-shadow: 0 0 0 1px rgba(220,53,69,0.9)' in _grid_square(response.data, img)
+
+
+def test_grid_square_borders_black_when_several_files_linked(
+    logged_in_client, db_session,
+):
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED,
+        custom_id='G-B1', files=2, is_rated=True,
+    )
+    response = logged_in_client.get('/histology/grid')
+    assert 'box-shadow: 0 0 0 1px rgba(0,0,0,0.9)' in _grid_square(response.data, img)
+
+
+def test_grid_square_borders_orange_when_analyzed_without_analysis(
+    logged_in_client, db_session,
+):
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED,
+        custom_id='G-O1', files=1, is_rated=False,
+    )
+    response = logged_in_client.get('/histology/grid')
+    assert 'box-shadow: 0 0 0 1px rgba(253,126,20,0.9)' in _grid_square(response.data, img)
+
+
+def test_grid_square_has_no_conflict_border_when_clean(
+    logged_in_client, db_session,
+):
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED,
+        custom_id='G-C1', files=1, is_rated=True,
+    )
+    response = logged_in_client.get('/histology/grid')
+    square = _grid_square(response.data, img)
+    assert 'box-shadow' not in square
+    assert '1px solid rgba(0,0,0,0.15)' in square
+
+
+def test_conflicts_only_filter_matches_the_new_conflicts(
+    logged_in_client, db_session,
+):
+    """The filter reads ConfocalImage.conflict, so black/orange count too."""
+    image_type = _make_image_type(db_session, name='Myo7a')
+    _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED, image_type=image_type,
+        custom_id='G-CLEAN', files=1, is_rated=True,
+    )
+    _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED, image_type=image_type,
+        custom_id='G-MULTI', files=2, is_rated=True,
+    )
+    _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.ANALYZED, image_type=image_type,
+        custom_id='G-NOANA', files=1, is_rated=False,
+    )
+    response = logged_in_client.get('/histology/grid?conflicts_only=1')
+    assert response.status_code == 200
+    assert b'G-MULTI' in response.data
+    assert b'G-NOANA' in response.data
+    assert b'G-CLEAN' not in response.data
+
+
+def test_conflicts_only_filter_keeps_region_missing_without_files_out(
+    logged_in_client, db_session,
+):
+    _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.REGION_MISSING,
+        custom_id='G-RMOK',
+    )
+    response = logged_in_client.get('/histology/grid?conflicts_only=1')
+    assert response.status_code == 200
+    assert b'G-RMOK' not in response.data

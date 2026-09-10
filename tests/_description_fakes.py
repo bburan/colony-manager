@@ -11,7 +11,7 @@ the directory, matching candidates, auto-creating events, persisting
 Data rows) rather than file-content semantics.
 """
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from colony_manager.datatypes import DataTypeDescription
@@ -157,6 +157,36 @@ class _RatableAnimalDescription(_FilenameAnimalDescription):
                 'note': f'{len(raters)} rater(s)'}
 
 
+class _AnalyzedAnimalDescription(_FilenameAnimalDescription):
+    """Animal-target description reporting analyst identity + timestamp.
+
+    Everything is encoded in the filename so the rating job stays
+    deterministic and disk-free (``get_rating_status`` never opens a file):
+
+      ``M-001__by-Brad-Sean__on-2026-09-01.txt``
+          -> analyzed_by ['Brad', 'Sean'], analyzed_at 2026-09-01
+
+    A file lacking the ``__by-`` marker is reported unanalyzed with no
+    attribution — mirroring an older analysis file that carries no
+    ``meta.history`` block.
+    """
+
+    supports_rating = True
+
+    def get_rating_status(self):
+        stem = self.path.stem
+        if '__by-' not in stem:
+            return {'is_rated': False, 'note': 'Not analyzed'}
+        rest = stem.split('__by-', 1)[1]
+        who_part, _, on_part = rest.partition('__on-')
+        analyzed_by = sorted(p for p in who_part.split('-') if p)
+        result = {'is_rated': True, 'analyzed_by': analyzed_by,
+                  'note': f'Analyzed by {", ".join(analyzed_by)}'}
+        if on_part:
+            result['analyzed_at'] = datetime.fromisoformat(on_part)
+        return result
+
+
 class _UploadableEarDescription(DataTypeDescription):
     """Ear-target description that opts in to the upload flow."""
 
@@ -186,4 +216,5 @@ DESCRIPTION_CLASSES = {
     'fake_ear_upload': _UploadableEarDescription,
     'fake_multi_animal': _MultiAnimalDescription,
     'fake_ratable': _RatableAnimalDescription,
+    'fake_analyzed': _AnalyzedAnimalDescription,
 }

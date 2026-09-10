@@ -76,7 +76,7 @@
                                    href="{{ url_for('histology.view_grid') }}">Grid</a></li>
                         </ul>
                     </li>
-                    {% set data_endpoints = ['animals.list_unmatched_data', 'animals.list_unrated_data'] %}
+                    {% set data_endpoints = ['animals.list_unmatched_data', 'animals.list_unrated_data', 'animals.list_analysis_scoreboard'] %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint in data_endpoints }}"
                            href="#" role="button" data-bs-toggle="dropdown">Data</a>
@@ -85,6 +85,8 @@
                                    href="{{ url_for('animals.list_unmatched_data') }}">Unmatched</a></li>
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_unrated_data' }}"
                                    href="{{ url_for('animals.list_unrated_data') }}">Rating Review</a></li>
+                            <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_analysis_scoreboard' }}"
+                                   href="{{ url_for('animals.list_analysis_scoreboard') }}">Scoreboard</a></li>
                         </ul>
                     </li>
                     {% for endpoint, label in nav_items_after %}

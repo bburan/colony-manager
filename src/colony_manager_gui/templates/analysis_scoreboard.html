@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block header %}
+Analysis Scoreboard
+{% endblock %}
+
+{% set window_label = ('all time' if filters.window == 'all' else 'last ' ~ filters.window ~ ' days') %}
+
+{# Compact target pills for a Data row, mirroring partials/unrated_data_row.html. #}
+{% macro target_pills(f) -%}
+    {% if f.target_type == 'animal_event' %}
+        {% for t in f.targets %}
+            <a href="{{ url_for('animals.view_animal', animal_id=t.animal_id) }}"
+               class="badge bg-light text-dark text-decoration-none">{{ t.animal.display_id }}</a>
+        {% else %}<span class="text-muted">&mdash;</span>{% endfor %}
+    {% elif f.target_type == 'animal' %}
+        {% for t in f.targets %}
+            <a href="{{ url_for('animals.view_animal', animal_id=t.id) }}"
+               class="badge bg-light text-dark text-decoration-none">{{ t.display_id }}</a>
+        {% else %}<span class="text-muted">&mdash;</span>{% endfor %}
+    {% elif f.target_type in ('ear', 'confocal_image') %}
+        {% for t in f.targets %}
+            <a href="{{ url_for('histology.view_ear', ear_id=(t.ear_id if f.target_type == 'confocal_image' else t.id)) }}"
+               class="badge bg-light text-dark text-decoration-none">{{ t.full_display }}</a>
+        {% else %}<span class="text-muted">&mdash;</span>{% endfor %}
+    {% else %}
+        {% for t in f.targets %}
+            <span class="badge bg-light text-dark">{{ t.full_display | default(t, true) }}</span>
+        {% else %}<span class="text-muted">&mdash;</span>{% endfor %}
+    {% endif %}
+{%- endmacro %}
+
+{% block content %}
+
+{# ---- Filters + Rescan ---------------------------------------------------- #}
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+            <i class="fas fa-clipboard-check me-2"></i>Analysis Scoreboard
+        </h2>
+        <form method="POST" action="{{ url_for('animals.trigger_rating_sync') }}"
+              onsubmit="return confirm('Rescan all ratable files to refresh analysis status?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="return_to" value="scoreboard">
+            <input type="hidden" name="window" value="{{ filters.window }}">
+            {% if filters.datatype_id %}
+            <input type="hidden" name="datatype_id" value="{{ filters.datatype_id }}">
+            {% endif %}
+            <button class="btn btn-sm btn-outline-secondary" title="Re-scan analysis status now">
+                <i class="fas fa-rotate me-1"></i>Rescan
+            </button>
+        </form>
+    </div>
+    <div class="card-body py-2">
+        <form method="GET" action="{{ url_for('animals.list_analysis_scoreboard') }}">
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Data type</label>
+                    <select name="datatype_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All data types</option>
+                        {% for dt in datatypes %}
+                        <option value="{{ dt.id }}" {% if filters.datatype_id == dt.id %}selected{% endif %}>{{ dt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small mb-1">Activity window</label>
+                    <select name="window" class="form-select form-select-sm" onchange="this.form.submit()">
+                        {% for val, lbl in [('7', 'Last 7 days'), ('30', 'Last 30 days'), ('90', 'Last 90 days'), ('all', 'All time')] %}
+                        <option value="{{ val }}" {% if filters.window == val %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <span class="small text-muted">Completion is all-time; analyst activity &amp; recent list use the window.</span>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ---- Completion per data type -------------------------------------------- #}
+<div class="row g-3 mb-3">
+    {% for s in summary %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h3 class="h6 fw-bold mb-0">{{ s.datatype.name }}</h3>
+                    <span class="badge bg-secondary">{{ s.pct }}%</span>
+                </div>
+                <div class="progress mb-2" style="height: 8px;" role="progressbar"
+                     aria-label="{{ s.datatype.name }} completion">
+                    {% if s.total %}
+                    <div class="progress-bar bg-success" style="width: {{ 100 * s.analyzed / s.total }}%"></div>
+                    <div class="progress-bar bg-warning" style="width: {{ 100 * s.partial / s.total }}%"></div>
+                    {% endif %}
+                </div>
+                <div class="small text-muted d-flex flex-wrap gap-3">
+                    <span><i class="fas fa-circle text-success me-1"></i>{{ s.analyzed }} analyzed</span>
+                    <span><i class="fas fa-circle text-warning me-1"></i>{{ s.partial }} partial</span>
+                    <span><i class="fas fa-circle text-secondary me-1"></i>{{ s.not_started }} not started</span>
+                    <span class="ms-auto">{{ s.total }} total</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12"><p class="text-muted">No ratable data types are configured.</p></div>
+    {% endfor %}
+</div>
+
+<div class="row g-3">
+    {# ---- By analyst ------------------------------------------------------ #}
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm h-100 overflow-hidden">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+                    <i class="fas fa-user-check me-2"></i>By analyst
+                </h2>
+                <span class="badge bg-light text-secondary border fw-normal">{{ window_label }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if by_analyst %}
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Analyst</th>
+                            <th class="text-center">Analyses</th>
+                            <th>Breakdown</th>
+                            <th>Last active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in by_analyst %}
+                        <tr>
+                            <td><span class="badge bg-info text-dark">{{ p.user }}</span></td>
+                            <td class="text-center fw-bold">{{ p.total }}</td>
+                            <td class="small">
+                                {% for name, n in p.by_type.items() %}
+                                <span class="badge bg-light text-dark border">{{ name }}: {{ n }}</span>
+                                {% endfor %}
+                            </td>
+                            <td class="small text-muted">
+                                {{ p.last_active.strftime('%Y-%m-%d') if p.last_active else '—' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="p-4"><p class="text-muted mb-0">No attributed analyses in this window. (ABR and newer IHC/OHC &amp; synaptogram files record an analyst; older files don't.)</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ---- Recent activity ------------------------------------------------- #}
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm h-100 overflow-hidden">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
+                    <i class="fas fa-clock-rotate-left me-2"></i>Recent analyses
+                </h2>
+            </div>
+            <div class="card-body p-0">
+                {% if recent %}
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Analyzed</th>
+                            <th>Data type</th>
+                            <th>Target</th>
+                            <th>By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in recent %}
+                        <tr>
+                            <td class="small text-muted text-nowrap">{{ f.analyzed_at.strftime('%Y-%m-%d') }}</td>
+                            <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
+                            <td class="small">{{ target_pills(f) }}</td>
+                            <td class="small">
+                                {% for r in f.analyzed_by or [] %}
+                                <span class="badge bg-info text-dark">{{ r }}</span>
+                                {% else %}<span class="text-muted">&mdash;</span>{% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="p-4"><p class="text-muted mb-0">No analyses recorded in this window.</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

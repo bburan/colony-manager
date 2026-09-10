@@ -272,6 +272,16 @@ class Data(VersionedModel):
     # page filter by coverage (single vs multi rater) and by identity.
     rater_count     = Column(Integer, nullable=True)
     raters          = Column(JSONB, nullable=True)
+    # Unified analysis-attribution columns, populated by the sync-rating job
+    # from a description class's ``get_rating_status()`` (``analyzed_by`` /
+    # ``analyzed_at``). Distinct from ``raters``: ``analyzed_by`` is the
+    # cross-datatype "who worked this analysis" list the scoreboard reads for
+    # every ratable type (ABR mirrors ``raters`` into it; IHC/OHC and
+    # synaptograms populate it from the analysis file's ``meta.history``),
+    # while ``analyzed_at`` is when the analysis was last modified. Both stay
+    # NULL for older files that carry no attribution metadata.
+    analyzed_by     = Column(JSONB, nullable=True)
+    analyzed_at     = Column(DateTime, nullable=True)
     mtime           = Column(DateTime, nullable=True)
     ctime           = Column(DateTime, nullable=True)
     discovered_at   = Column(DateTime, nullable=True)

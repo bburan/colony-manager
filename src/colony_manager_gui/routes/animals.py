@@ -991,6 +991,41 @@ def refresh_data_rating(data_id) -> Response | str:
     return redirect(request.referrer or url_for('animals.list_unrated_data'))
 
 
+@animals_bp.route('/analysis-scoreboard')
+def list_analysis_scoreboard() -> Response | str:
+    """Analysis Scoreboard: what's analyzed, by whom, and how recently.
+
+    Aggregates the rating columns the sync-rating job maintains on ``Data``
+    into per-DataType completion, a per-analyst rollup, and a recent-activity
+    feed. The ``window`` filter (days, or ``'all'``) scopes the analyst /
+    activity views by ``analyzed_at``; completion counts are always all-time.
+    """
+    from ..services import data_queries
+
+    datatype_id = request.args.get('datatype_id', None, type=int)
+    window = request.args.get('window', '30')
+    since = None
+    if window != 'all':
+        try:
+            days = int(window)
+        except ValueError:
+            days, window = 30, '30'
+        since = datetime.datetime.now() - datetime.timedelta(days=days)
+
+    datatypes = data_queries.ratable_datatypes(db.session)
+    active = ([dt for dt in datatypes if dt.id == datatype_id]
+              if datatype_id else datatypes)
+
+    return render_template(
+        'analysis_scoreboard.html',
+        datatypes=datatypes,
+        summary=data_queries.scoreboard_summary(db.session, active),
+        by_analyst=data_queries.scoreboard_by_analyst(db.session, active, since=since),
+        recent=data_queries.recent_analyses(db.session, active, since=since, limit=25),
+        filters={'datatype_id': datatype_id, 'window': window},
+    )
+
+
 @animals_bp.route('/unrated-data/sync-rating', methods=['POST'])
 def trigger_rating_sync() -> Response | str:
     """Enqueue a rating-sync job for all ratable DataTypes (or one if filtered)."""
@@ -998,9 +1033,15 @@ def trigger_rating_sync() -> Response | str:
     datatype_id = request.form.get('datatype_id', None, type=int)
     enqueue_rating_sync(datatype_id)
     flash('Rating scan queued.', 'info')
+    # The scoreboard reuses this endpoint; send the user back where they
+    # triggered it from rather than always to the rating-review list.
+    if request.form.get('return_to') == 'scoreboard':
+        return redirect(url_for('animals.list_analysis_scoreboard',
+                                **{k: v for k, v in request.form.items()
+                                   if k in ('datatype_id', 'window') and v}))
     return redirect(url_for('animals.list_unrated_data',
                             **{k: v for k, v in request.form.items()
-                               if k not in ('csrf_token', 'datatype_id')}))
+                               if k not in ('csrf_token', 'datatype_id', 'return_to')}))
 
 
 @animals_bp.route('/unmatched-data/delete', methods=['POST'])

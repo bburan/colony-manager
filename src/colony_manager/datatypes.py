@@ -288,6 +288,16 @@ class DataTypeDescription(ABC):
             (e.g. ABR waveform picks); the sync-rating job persists it to
             ``Data.raters`` / ``Data.rater_count`` for the review page to
             filter on. Omit the key when the concept doesn't apply.
+
+            Two further optional keys feed the Analysis Scoreboard and are
+            persisted to ``Data.analyzed_by`` / ``Data.analyzed_at`` by the
+            sync-rating job:
+
+            - ``'analyzed_by'`` : ``list[str]`` — usernames of everyone who
+              worked this analysis (the scoreboard's cross-datatype "who"
+              column). Omit when the analysis records no identity.
+            - ``'analyzed_at'`` : ``datetime`` or ``date`` — when the
+              analysis was last modified/completed. Omit when unknown.
         """
         return None
 

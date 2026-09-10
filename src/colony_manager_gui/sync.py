@@ -60,6 +60,12 @@ def apply_rating_status(row):
     else:
         row.raters = sorted(raters)
         row.rater_count = len(raters)
+    # Analysis attribution / recency for the scoreboard. Both keys are
+    # optional; a description that omits them clears the columns so a file
+    # that lost its attribution metadata doesn't keep a stale value.
+    analyzed_by = result.get('analyzed_by')
+    row.analyzed_by = sorted(analyzed_by) if analyzed_by else None
+    row.analyzed_at = result.get('analyzed_at')
     return 'updated'
 
 

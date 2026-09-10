@@ -172,6 +172,97 @@ def test_edit_study_modal_returns_404_for_unknown(logged_in_client):
     assert response.status_code == 404
 
 
+def test_clone_study_modal_renders_with_suggested_name(logged_in_client, db_session):
+    _make_study(db_session, name='Clone-Modal-Study', description='orig desc')
+    study = db_session.scalars(
+        select(Study).where(Study.name == 'Clone-Modal-Study')
+    ).one()
+    response = logged_in_client.get(f'/studies/{study.id}/clone_modal')
+    assert response.status_code == 200
+    assert b'Clone-Modal-Study (copy)' in response.data
+    assert b'orig desc' in response.data
+
+
+def test_clone_study_modal_returns_404_for_unknown(logged_in_client):
+    response = logged_in_client.get('/studies/99999/clone_modal')
+    assert response.status_code == 404
+
+
+def test_clone_study_modal_suggestion_skips_taken_names(logged_in_client, db_session):
+    _make_study(db_session, name='Dup')
+    _make_study(db_session, name='Dup (copy)')
+    study = db_session.scalars(select(Study).where(Study.name == 'Dup')).one()
+    response = logged_in_client.get(f'/studies/{study.id}/clone_modal')
+    assert b'Dup (copy 2)' in response.data
+
+
+# ---------------------------------------------------------------------------
+# Clone
+# ---------------------------------------------------------------------------
+
+def test_clone_study_copies_animals(logged_in_client, db_session):
+    species = make_species(db_session)
+    a1 = make_animal(db_session, species=species, custom_id='CL-1')
+    a2 = make_animal(db_session, species=species, custom_id='CL-2')
+    study = _make_study(db_session, name='Source', description='src desc')
+    study.animals.extend([a1, a2])
+    db_session.commit()
+
+    response = logged_in_client.post(
+        f'/studies/{study.id}/clone',
+        data={'name': 'Source (copy)', 'description': 'cloned note'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    clone = db_session.scalars(
+        select(Study).where(Study.name == 'Source (copy)')
+    ).one()
+    assert clone.id != study.id
+    assert clone.description == 'cloned note'
+    assert set(clone.animals) == {a1, a2}
+    # Redirects to the new study, not the source.
+    assert response.headers['Location'].endswith(f'/studies/{clone.id}')
+    # Source study is untouched.
+    db_session.refresh(study)
+    assert set(study.animals) == {a1, a2}
+
+
+def test_clone_study_with_no_animals(logged_in_client, db_session):
+    study = _make_study(db_session, name='Empty-Source')
+    response = logged_in_client.post(
+        f'/studies/{study.id}/clone',
+        data={'name': 'Empty-Source (copy)', 'description': ''},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    clone = db_session.scalars(
+        select(Study).where(Study.name == 'Empty-Source (copy)')
+    ).one()
+    assert clone.animals == []
+
+
+def test_clone_study_rejects_duplicate_name(logged_in_client, db_session):
+    study = _make_study(db_session, name='Taken-Source')
+    _make_study(db_session, name='Already-There')
+
+    response = logged_in_client.post(
+        f'/studies/{study.id}/clone',
+        data={'name': 'Already-There', 'description': 'x'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    # No third study was created.
+    assert len(db_session.scalars(select(Study)).all()) == 2
+
+
+def test_clone_study_returns_404_for_unknown(logged_in_client):
+    response = logged_in_client.post(
+        '/studies/99999/clone', data={'name': 'Whatever'},
+    )
+    assert response.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # Event matrix + shared-files (functions exposed for testability)
 # ---------------------------------------------------------------------------

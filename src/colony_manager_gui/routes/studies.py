@@ -338,6 +338,30 @@ def _find_shared_data_files(animals):
     return shared
 
 
+# Longest name Study.name can hold; the suggested clone name is trimmed
+# to fit rather than blowing up on INSERT.
+_STUDY_NAME_MAX = Study.__table__.c.name.type.length
+
+
+def _suggest_clone_name(name):
+    """Suggest an unused name for a clone of the study called *name*.
+
+    ``"Foo"`` -> ``"Foo (copy)"``, then ``"Foo (copy 2)"``,
+    ``"Foo (copy 3)"`` ... until one is free. Only a suggestion — the
+    user can overwrite it in the clone modal, and ``StudyForm`` still
+    validates whatever they submit against the same uniqueness rule.
+    """
+    taken = set(db.session.scalars(select(Study.name)).all())
+    suffix_n = 1
+    while True:
+        suffix = ' (copy)' if suffix_n == 1 else f' (copy {suffix_n})'
+        stem = name[:_STUDY_NAME_MAX - len(suffix)]
+        candidate = f'{stem}{suffix}'
+        if candidate not in taken:
+            return candidate
+        suffix_n += 1
+
+
 @studies_bp.route('/')
 def list_studies() -> Response | str:
     studies = db.session.scalars(select(Study)).all()
@@ -413,6 +437,32 @@ def create_study() -> Response | str:
     else:
         flash_form_errors(form, title="Study create failed")
     return redirect(url_for('studies.list_studies'))
+
+
+@studies_bp.route('/<int:study_id>/clone', methods=['POST'])
+def clone_study(study_id) -> Response | str:
+    """Create a copy of *study_id* under a new name, same animals.
+
+    Only the study row and its animal membership are copied — the
+    animals themselves (and their events/data files) stay put and end
+    up enrolled in both studies.
+    """
+    study = get_or_404(Study, study_id)
+    form = StudyForm()
+    if not form.validate_on_submit():
+        flash_form_errors(form, title="Study clone failed")
+        return redirect(request.referrer
+                        or url_for('studies.view_study', study_id=study.id))
+
+    clone = Study(name=form.name.data, description=form.description.data)
+    clone.animals.extend(study.animals)
+    animal_count = len(clone.animals)
+    db.session.add(clone)
+    db.session.commit()
+    flash(f'Study "{study.name}" cloned to "{clone.name}" '
+          f'({animal_count} animal{"" if animal_count == 1 else "s"} copied).',
+          'success')
+    return redirect(url_for('studies.view_study', study_id=clone.id))
 
 
 @studies_bp.route('/<int:study_id>/update', methods=['POST'])
@@ -531,3 +581,18 @@ def edit_study_modal(study_id) -> Response | str:
     return render_modal(StudyForm(obj=study), item=study,
                         label=f'Edit Study {study.name}',
                         submit_url=url_for('studies.update_study', study_id=study.id))
+
+
+@studies_bp.route('/<int:study_id>/clone_modal')
+def clone_study_modal(study_id) -> Response | str:
+    study = get_or_404(Study, study_id)
+    # Deliberately *not* ``obj=study``: that would set the form's
+    # ``initial_name`` to the source study's name and let the
+    # uniqueness check wave through a duplicate.
+    form = StudyForm(name=_suggest_clone_name(study.name),
+                     description=study.description)
+    return render_modal(form, item=study,
+                        label=f'Clone Study {study.name}',
+                        submit_url=url_for('studies.clone_study',
+                                           study_id=study.id),
+                        submit_label='Clone Study')

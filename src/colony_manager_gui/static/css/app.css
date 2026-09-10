@@ -184,6 +184,21 @@ th {
     --bs-link-color-rgb: var(--accent-rgb);
     --bs-link-hover-color: var(--accent-dark);
     --bs-link-hover-color-rgb: 17, 94, 89;
+
+    /* Bootstrap's "subtle" primary tints (badges, alerts) are hard-coded
+       light-blue and are NOT derived from --bs-primary — re-tint them to
+       the teal accent so bg-primary-subtle/border-primary-subtle/
+       text-primary-emphasis stay on-scheme. */
+    --bs-primary-bg-subtle: rgba(var(--accent-rgb), 0.12);
+    --bs-primary-border-subtle: rgba(var(--accent-rgb), 0.35);
+    --bs-primary-text-emphasis: var(--accent-dark);
+}
+
+/* Dropdown selected/active item (species + age-unit nav selectors).
+   Bootstrap hard-codes the active-item background to blue. */
+.dropdown-menu {
+    --bs-dropdown-link-active-bg: var(--accent);
+    --bs-dropdown-link-active-color: #fff;
 }
 
 .btn-primary {

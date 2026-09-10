@@ -101,7 +101,7 @@
 							<li>
 								<form method="post" action="{{ url_for('main.set_species', species_id=-1) }}" class="m-0">
 									{{ csrf_only_form.hidden_tag() }}
-									<button type="submit" class="dropdown-item">All</button>
+									<button type="submit" class="dropdown-item {{ 'active' if selected_species_id == -1 }}">All</button>
 								</form>
 							</li>
 							<li><hr class="dropdown-divider"></li>
@@ -109,7 +109,7 @@
                                 <li>
 									<form method="post" action="{{ url_for('main.set_species', species_id=s.id) }}" class="m-0">
 										{{ csrf_only_form.hidden_tag() }}
-										<button type="submit" class="dropdown-item">{{ s.name }}</button>
+										<button type="submit" class="dropdown-item {{ 'active' if selected_species_id == s.id }}">{{ s.name }}</button>
 									</form>
                                 </li>
 							{% endfor %}

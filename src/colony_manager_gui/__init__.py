@@ -168,6 +168,7 @@ def create_app():
             'datetime': datetime,
             'species': db.session.scalars(select(Species)).all(),
             'selected_species': selected_species,
+            'selected_species_id': species_id,
             'age_unit': age_unit,
             'csrf_only_form': CSRFOnlyForm(),
         }

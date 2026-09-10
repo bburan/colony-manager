@@ -6,6 +6,7 @@ single, discoverable entrypoint (``flask data --help``):
     flask data sync         [--datatype NAME|ID] [--dry-run] [-v]
     flask data rematch      --datatype NAME|ID [--force] [--dry-run] [-v]
     flask data rehash       [--dry-run] [-v]
+    flask data prune        [--datatype NAME|ID] [--apply] [-v]
     flask data sync-rating  [--datatype NAME|ID] [-v]
     flask data refresh      [--datatype NAME|ID] [-v]   # sync, then sync-rating
 
@@ -124,6 +125,29 @@ def rehash(dry_run, verbose):
     _enable_info_logging(verbose)
     counts = rehash_legacy(dry_run=dry_run)
     _echo_counts('rehash', counts)
+
+
+@data_cli.command('prune')
+@_datatype_option
+@click.option('--apply', 'apply_', is_flag=True, default=False,
+              help="Actually delete the rows. Without it, prune only "
+                   "reports what it would drop.")
+@_verbose_option
+@with_appcontext
+def prune(datatype, apply_, verbose):
+    """Delete Data rows whose on-disk file no longer parses.
+
+    Use after tightening a description class's parse(): `sync` skips files
+    already in the DB, so rows ingested under the old rule stay behind.
+    Reports without deleting unless --apply is passed.
+    """
+    from colony_manager_gui.sync import prune_locations
+    _enable_info_logging(verbose)
+    datatype_id = _resolve_datatype_id(datatype)
+    counts = prune_locations(filter_datatype_id=datatype_id, apply=apply_)
+    _echo_counts('prune', counts)
+    if counts['deleted'] and not apply_:
+        click.echo('Dry run — re-run with --apply to delete these rows.')
 
 
 @data_cli.command('sync-rating')

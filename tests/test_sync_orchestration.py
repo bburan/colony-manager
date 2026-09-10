@@ -20,7 +20,9 @@ from sqlalchemy import select
 
 from colony_manager.datatypes import reset_registry_cache
 from colony_manager.enums import DataStatus
-from colony_manager.models import AnimalEvent, AnimalEventData, AnimalData, Data
+from colony_manager.models import (
+    Animal, AnimalEvent, AnimalEventData, AnimalData, Data,
+)
 
 from .factories import (
     make_animal, make_animal_data_type, make_animal_event_data_type,
@@ -938,3 +940,220 @@ def test_animal_datatype_move_with_other_new_files_no_integrity_error(
     ).all()
     assert len(rows3) == 1
     assert animal3 in rows3[0].animals
+
+
+# ---------------------------------------------------------------------------
+# prune_locations
+# ---------------------------------------------------------------------------
+
+def _stale_row(db_session, dtype, location, relative_path):
+    """Insert an AnimalData row by hand, as an older/looser parser would have.
+
+    ``prune`` exists precisely because ``sync_locations`` can't produce
+    this state any more — the parser was tightened after the row landed —
+    so the fixture has to write the row directly.
+    """
+    row = AnimalData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path=relative_path,
+        name=relative_path,
+        status=DataStatus.UNREVIEWED,
+    )
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def test_prune_dry_run_reports_without_deleting(db_session, app, tmp_path):
+    """The default (no --apply) counts the doomed rows but leaves them alone."""
+    from colony_manager_gui.sync import prune_locations
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    # ``fake_animal`` rejects a stem with a space in it.
+    _write_file(tmp_path, 'not a valid id.txt')
+    row = _stale_row(db_session, dtype, location, 'not a valid id.txt')
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id)
+
+    assert totals['deleted'] == 1
+    assert db_session.get(AnimalData, row.id) is not None
+
+
+def test_prune_apply_deletes_only_unparseable_rows(db_session, app, tmp_path):
+    """--apply drops rows the current parser rejects and keeps the rest."""
+    from colony_manager_gui.sync import prune_locations, sync_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    _write_file(tmp_path, 'M-001.txt')
+    _write_file(tmp_path, 'not a valid id.txt')
+    with app.app_context():
+        sync_totals = sync_locations(filter_datatype_id=dtype.id)
+        gui_db.session.commit()
+    assert sync_totals['added'] == 1  # only the good file was ingested
+
+    stale = _stale_row(db_session, dtype, location, 'not a valid id.txt')
+    stale_id = stale.id
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals['deleted'] == 1
+    assert totals['kept'] == 1
+    db_session.expunge_all()
+    assert db_session.get(AnimalData, stale_id) is None
+    remaining = db_session.scalars(select(AnimalData)).all()
+    assert [r.relative_path for r in remaining] == ['M-001.txt']
+
+
+def test_prune_clears_target_links_of_deleted_row(db_session, app, tmp_path):
+    """Deleting goes through the ORM, so m2m association rows go with it.
+
+    ``animal_data_targets`` has a plain FK with no ON DELETE CASCADE — a
+    bulk SQL delete would raise instead.
+    """
+    from colony_manager_gui.sync import prune_locations
+    from colony_manager_gui import db as gui_db
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='M-002')
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    _write_file(tmp_path, 'not a valid id.txt')
+    row = _stale_row(db_session, dtype, location, 'not a valid id.txt')
+    row.animals.append(animal)
+    row.candidate_animals.append(animal)
+    db_session.commit()
+    row_id, animal_id = row.id, animal.id
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals['deleted'] == 1
+    db_session.expunge_all()
+    assert db_session.get(AnimalData, row_id) is None
+    assert db_session.get(Animal, animal_id) is not None
+
+
+def test_prune_leaves_rows_whose_file_is_gone(db_session, app, tmp_path):
+    """A row with no file on disk is the missing-pass's business, not prune's.
+
+    The share could simply be unmounted; deleting would be unrecoverable.
+    """
+    from colony_manager_gui.sync import prune_locations
+    from colony_manager_gui import db as gui_db
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    row = _stale_row(db_session, dtype, location, 'never-written.txt')
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals == {'walked': 1, 'deleted': 0, 'kept': 0,
+                      'absent': 1, 'failed': 0, 'skipped': 0}
+    db_session.expire_all()
+    assert db_session.get(AnimalData, row.id) is not None
+
+
+def test_prune_leaves_rows_whose_parser_raises(db_session, app, tmp_path):
+    """A parser exception means "unknown", not "would not ingest"."""
+    from colony_manager_gui.sync import prune_locations
+    from colony_manager_gui import db as gui_db
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_raising'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    _write_file(tmp_path, 'BOOM.txt')
+    row = _stale_row(db_session, dtype, location, 'BOOM.txt')
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals['failed'] == 1
+    assert totals['deleted'] == 0
+    db_session.expire_all()
+    assert db_session.get(AnimalData, row.id) is not None
+
+
+def test_prune_skips_upload_capable_datatypes(db_session, app, tmp_path):
+    """A UI upload legitimately never parsed — prune must not touch it.
+
+    ``handle_upload`` names the file via ``upload_filename()`` and takes
+    targets from the form, so ``parse()`` returning None for an uploaded
+    row is normal, not evidence of a stale ingestion. Nothing on the row
+    tells the two apart, so the whole datatype is off limits.
+    """
+    from colony_manager_gui.sync import prune_locations
+    from colony_manager_gui import db as gui_db
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal_upload'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    # A name ``upload_filename`` would produce but ``parse()`` rejects.
+    _write_file(tmp_path, 'M-001 M-002_2026-01-05.txt')
+    row_id = _stale_row(
+        db_session, dtype, location, 'M-001 M-002_2026-01-05.txt',
+    ).id
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals['deleted'] == 0
+    assert totals['skipped'] == 1
+    assert totals['walked'] == 0
+    db_session.expunge_all()
+    assert db_session.get(AnimalData, row_id) is not None
+
+
+def test_prune_drops_rows_that_now_parse_as_test_acquisitions(
+    db_session, app, tmp_path,
+):
+    """Rows ingested before IGNORED_ANIMAL_IDS existed get cleaned up too."""
+    from colony_manager_gui.sync import prune_locations
+    from colony_manager_gui import db as gui_db
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+
+    _write_file(tmp_path, 'test.txt')
+    row_id = _stale_row(db_session, dtype, location, 'test.txt').id
+
+    with app.app_context():
+        totals = prune_locations(filter_datatype_id=dtype.id, apply=True)
+        gui_db.session.commit()
+
+    assert totals['deleted'] == 1
+    db_session.expunge_all()
+    assert db_session.get(AnimalData, row_id) is None

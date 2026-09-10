@@ -204,6 +204,20 @@ class _UploadableEarDescription(DataTypeDescription):
 
 
 # The registry shape the production loader expects: a module-level
+class _RaisingAnimalDescription(_FilenameAnimalDescription):
+    """Animal-target description whose ``parse()`` blows up on some files.
+
+    Any stem containing ``BOOM`` raises; everything else parses normally.
+    Used by the prune tests to confirm a parser *error* is never treated
+    as "this row would not be ingested" and never deletes a row.
+    """
+
+    def parse(self):
+        if 'BOOM' in self.path.stem:
+            raise RuntimeError('parser exploded')
+        return super().parse()
+
+
 # ``DESCRIPTION_CLASSES`` dict mapping short keys to subclasses.
 DESCRIPTION_CLASSES = {
     'fake_animal_event': _FilenameAnimalEventDescription,
@@ -217,4 +231,5 @@ DESCRIPTION_CLASSES = {
     'fake_multi_animal': _MultiAnimalDescription,
     'fake_ratable': _RatableAnimalDescription,
     'fake_analyzed': _AnalyzedAnimalDescription,
+    'fake_raising': _RaisingAnimalDescription,
 }

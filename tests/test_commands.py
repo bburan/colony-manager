@@ -30,6 +30,19 @@ def test_rehash_dry_run_ok(app, db_session):
     assert 'rehash:' in result.output
 
 
+def test_prune_defaults_to_reporting_only(app, db_session):
+    """Unlike the other subcommands, prune needs --apply to write."""
+    result = _run(app, 'prune')
+    assert result.exit_code == 0
+    assert 'prune:' in result.output
+
+
+def test_prune_apply_ok(app, db_session):
+    result = _run(app, 'prune', '--apply')
+    assert result.exit_code == 0
+    assert 'prune:' in result.output
+
+
 def test_refresh_dry_run_runs_sync_then_skips_rating(app, db_session):
     result = _run(app, 'refresh', '--dry-run')
     assert result.exit_code == 0

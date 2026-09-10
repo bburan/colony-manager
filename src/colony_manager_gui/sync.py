@@ -14,7 +14,9 @@ from datetime import datetime
 from sqlalchemy import func as sa_func, select
 from sqlalchemy.orm import joinedload
 
-from colony_manager.datatypes import load_description_class
+from colony_manager.datatypes import (
+    load_description_class, is_upload_capable,
+)
 from colony_manager.enums import DataStatus
 from colony_manager.models import (
     DataLocation, Data, Animal, AnimalEvent, Ear,
@@ -770,6 +772,146 @@ def rematch_datatype(datatype_id, force=False, dry_run=False):
         counts['auto_created'], counts['skipped'], counts['failed'],
     )
     return counts
+
+
+# ---------------------------------------------------------------------------
+# Prune
+# ---------------------------------------------------------------------------
+
+def _prune_location(location, apply=False):
+    """Drop rows in ``location`` that the current parser would not ingest.
+
+    Returns counts dict.
+    """
+    counts = {'walked': 0, 'deleted': 0, 'kept': 0, 'absent': 0, 'failed': 0,
+              'skipped': 0}
+
+    datatype = location.datatype
+    if not datatype.description_class:
+        log.info('[%s] Skipping: no description_class configured.', datatype.name)
+        return counts
+    try:
+        desc_cls = load_description_class(datatype.description_class)
+    except Exception as e:
+        log.error('[%s] Could not import description_class %r: %s',
+                  datatype.name, datatype.description_class, e)
+        return counts
+
+    data_class = DATA_SUBCLASSES.get(datatype.target_type)
+    if data_class is None:
+        log.error('[%s] Unknown target_type %r.', datatype.name, datatype.target_type)
+        return counts
+
+    rows = db.session.scalars(
+        select(data_class).where(data_class.location_id == location.id)
+    ).all()
+
+    if is_upload_capable(desc_cls):
+        # Uploaded rows never went through ``parse()``: ``handle_upload``
+        # names the file via ``upload_filename()`` and takes its targets
+        # from the form, and ``upload_filename`` is under no obligation to
+        # produce something ``parse()`` can read back. So for an
+        # upload-capable datatype "doesn't parse" does not mean "stale" —
+        # it's the normal state of a UI upload, and pruning here would
+        # delete real files' rows. There's no provenance column to
+        # separate the two (see ``services/uploads.py`` — uploads are
+        # deliberately indistinguishable from sync-discovered rows), so
+        # the whole datatype is off limits.
+        log.info('[%s] Skipping %d row(s): description class accepts uploads, '
+                 'so an unparseable row may be a legitimate upload.',
+                 datatype.name, len(rows))
+        counts['skipped'] += len(rows)
+        return counts
+
+    for row in rows:
+        counts['walked'] += 1
+        full = os.path.join(location.base_path, row.relative_path)
+        if not os.path.exists(full):
+            # Gone from disk, which is the missing-pass's job, not ours —
+            # a MISSING row may just be an unmounted share.
+            counts['absent'] += 1
+            continue
+        try:
+            parsed = desc_cls(full).parse()
+        except Exception as e:
+            # Never delete on a parser error: an exception means we don't
+            # know the answer, which is not the same as "would not ingest".
+            log.warning('  [WARN] %s: parser raised %r', row.relative_path, e)
+            counts['failed'] += 1
+            continue
+        if parsed and not _is_test_acquisition(parsed):
+            counts['kept'] += 1
+            continue
+        log.info('  [PRUNE] %s', row.relative_path)
+        if apply:
+            # ORM delete, not a bulk DELETE: the target/candidate m2m tables
+            # carry plain FKs with no ON DELETE CASCADE, so their association
+            # rows have to be cleared through the mapper.
+            db.session.delete(row)
+        counts['deleted'] += 1
+
+    if apply:
+        db.session.commit()
+    log.info(
+        '[%s] Prune %s — walked=%d deleted=%d kept=%d absent=%d failed=%d',
+        datatype.name, 'applied' if apply else 'dry-run',
+        counts['walked'], counts['deleted'], counts['kept'],
+        counts['absent'], counts['failed'],
+    )
+    return counts
+
+
+def prune_locations(filter_datatype_id=None, apply=False):
+    """Delete Data rows whose on-disk file no longer parses.
+
+    ``sync_locations`` short-circuits any file whose ``relative_path`` is
+    already in the DB, so tightening a description class's ``parse()``
+    only stops *future* ingestion — rows matched under the old, looser
+    rule stay forever, since their files are still on disk and the
+    missing-pass never touches them. This is the cleanup half: re-parse
+    every existing row and drop the ones the current parser rejects.
+
+    Only rows whose file still exists are considered, and a parser
+    *exception* is never grounds for deletion — both cases are counted
+    and left alone. Rows that now parse as a test acquisition are dropped
+    too, matching what ingestion would do with them today.
+
+    Upload-capable datatypes are skipped wholesale: a UI-uploaded row
+    legitimately never parsed, and nothing on the row distinguishes it
+    from one ingested by an old, looser parser.
+
+    Parameters
+    ----------
+    filter_datatype_id : int or None
+        Restrict to locations belonging to this DataType. ``None`` walks
+        every DataLocation in the system.
+    apply : bool, default False
+        Actually delete. The default reports what would be dropped
+        without writing, since this is the one data-file op that
+        destroys rows.
+
+    Returns
+    -------
+    dict
+        Aggregated counts: ``walked``, ``deleted``, ``kept``, ``absent``,
+        ``failed``, ``skipped``.
+    """
+    stmt = select(DataLocation).options(joinedload(DataLocation.datatype))
+    if filter_datatype_id is not None:
+        stmt = stmt.where(DataLocation.datatype_id == filter_datatype_id)
+    locations = db.session.scalars(stmt).all()
+
+    totals = {'walked': 0, 'deleted': 0, 'kept': 0, 'absent': 0, 'failed': 0,
+              'skipped': 0}
+    if not locations:
+        log.info('No DataLocations found%s.',
+                 f' for datatype {filter_datatype_id}' if filter_datatype_id else '')
+        return totals
+
+    for location in locations:
+        for k, v in _prune_location(location, apply=apply).items():
+            totals[k] += v
+    return totals
 
 
 # ---------------------------------------------------------------------------

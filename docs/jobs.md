@@ -49,6 +49,7 @@ All data-file operations are subcommands of the `flask data` group
 flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [--debug] [-v]
 flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run] [-v]
 flask --app colony_manager_gui:create_app data rehash       [--dry-run] [-v]
+flask --app colony_manager_gui:create_app data prune        [--datatype NAME|ID] [--apply] [-v]
 flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
 flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID] [--dry-run] [-v]
 ```
@@ -58,8 +59,23 @@ flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID]
 | `sync` | Walk DataLocations and ingest new / moved files. |
 | `rematch` | Re-parse + re-match existing rows for one DataType; `--force` re-links every row (not just unmatched). |
 | `rehash` | Re-hash rows whose stored hash isn't xxh3_128 (legacy hashes). |
+| `prune` | Delete rows whose on-disk file no longer parses — cleanup after tightening a description class's `parse()`. Reports only unless `--apply`. |
 | `sync-rating` | Refresh rating status (`is_rated` / `rating_note` / `raters` / `rater_count`) for rows whose description class supports rating. |
 | `refresh` | `sync` then `sync-rating` — the single entrypoint for a scheduled full refresh. |
+
+`prune` is the odd one out: it's the only subcommand that deletes rows, so it
+reports by default and needs `--apply` to write, and it is deliberately *not*
+part of `refresh` (nothing scheduled should be able to delete data). It never
+touches a row whose file is missing from disk (that's the sync missing-pass's
+job — the share may just be unmounted) or one whose parser raised, since an
+exception means "unknown", not "would not ingest".
+
+It also skips **upload-capable** datatypes wholesale (those whose description
+class defines `upload_filename`). A UI-uploaded row never went through
+`parse()` — `handle_upload` names the file itself and takes targets from the
+form — so "doesn't parse" is that row's normal state, and no column
+distinguishes it from one ingested by an old, looser parser (see
+`docs/uploads.md`). Pruning there would delete real files' rows.
 
 `--datatype` accepts a DataType name or numeric id; `-v` surfaces
 per-item progress logging. There is no standalone sync script — `flask

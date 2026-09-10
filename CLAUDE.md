@@ -57,9 +57,12 @@ python -m colony_manager_gui.worker          # RQ worker (needs REDIS_URL; won't
 flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [-v]
 flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run]
 flask --app colony_manager_gui:create_app data rehash       [--dry-run]
+flask --app colony_manager_gui:create_app data prune        [--datatype NAME|ID] [--apply]
 flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
 flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID]   # sync + sync-rating; the cron entrypoint
 ```
+
+`prune` is the counterpart to a tightened `parse()`: `sync` skips any file whose `relative_path` is already in the DB, so rows ingested under the old, looser rule survive forever. It re-parses every row whose file is still on disk and deletes the ones the current parser rejects — the only `flask data` subcommand that destroys rows, hence `--apply` rather than `--dry-run`. Upload-capable datatypes are skipped wholesale — a UI-uploaded row never parsed in the first place, and nothing on it says whether it came from an upload or a stale ingestion.
 
 There is no standalone sync script — `flask data <cmd>` is the only CLI surface. Nothing runs these on a schedule; a nightly refresh must be wired via cron/systemd (or rq-scheduler, see `docs/jobs.md`) calling `flask data refresh`.
 

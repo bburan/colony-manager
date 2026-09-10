@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, Response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, make_response, abort, Response
 
 from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
@@ -264,10 +264,25 @@ def create_confocal_image(ear_id) -> Response | str:
         flash_form_errors(form, title="Error adding images")
     return redirect(request.referrer or url_for('histology.list_histology'))
 
+# ``ConfocalImage.status`` is a plain String column, not a DB enum, so
+# nothing below the route layer rejects a bogus value. Historically that let
+# the *label* ('poor histology') reach the column instead of the value
+# ('region_bad'), leaving rows the templates can't render: status_colors /
+# status_labels miss, and the square falls through to an unlabeled red.
+_VALID_IMAGE_STATUSES = frozenset(s.value for s in ConfocalImageStatus)
+
+
 @histology_bp.route('/confocal_images/<int:image_id>/update', methods=['POST'])
 def update_confocal_image(image_id) -> Response | str:
     img = get_or_404(ConfocalImage, image_id)
-    img.status = request.form['status']
+    status = request.form['status']
+    if status not in _VALID_IMAGE_STATUSES:
+        # The modal's select only offers enum values, so anything else is a
+        # malformed request. Reject it rather than persist an unrenderable
+        # status; the modal's htmx:after-request handler turns the non-2xx
+        # into the select's error state.
+        abort(400, f'Invalid confocal image status: {status!r}')
+    img.status = status
     img.notes = request.form['notes']
     db.session.commit()
     if request.headers.get('HX-Request'):

@@ -520,3 +520,42 @@ def test_conflicts_only_filter_keeps_region_missing_without_files_out(
     response = logged_in_client.get('/histology/grid?conflicts_only=1')
     assert response.status_code == 200
     assert b'G-RMOK' not in response.data
+
+
+# ---------------------------------------------------------------------------
+# Status validation on update
+# ---------------------------------------------------------------------------
+
+def test_update_confocal_image_accepts_a_valid_status(
+    logged_in_client, db_session,
+):
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.IMAGED, custom_id='G-V1',
+    )
+    response = logged_in_client.post(
+        f'/histology/confocal_images/{img.id}/update',
+        data={'status': ConfocalImageStatus.REGION_BAD, 'notes': ''},
+    )
+    assert response.status_code in (200, 302)
+    db_session.expire_all()
+    assert db_session.get(ConfocalImage, img.id).status == 'region_bad'
+
+
+def test_update_confocal_image_rejects_a_status_outside_the_enum(
+    logged_in_client, db_session,
+):
+    """Regression: posting the display label used to be persisted verbatim.
+
+    27 rows hold 'poor histology' (the label) instead of 'region_bad' (the
+    value), which the grid templates can't map to a color or a name.
+    """
+    _, img = _grid_ear_with_image(
+        db_session, status=ConfocalImageStatus.IMAGED, custom_id='G-V2',
+    )
+    response = logged_in_client.post(
+        f'/histology/confocal_images/{img.id}/update',
+        data={'status': 'poor histology', 'notes': ''},
+    )
+    assert response.status_code == 400
+    db_session.expire_all()
+    assert db_session.get(ConfocalImage, img.id).status == 'imaged'

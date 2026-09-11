@@ -97,6 +97,7 @@
 {% set fa_icon, status_class, status_title = {
     'reviewed': ('fa-circle-check', 'reviewed', 'Reviewed'),
     'exclude': ('fa-circle-xmark', 'excluded', 'Excluded'),
+    'missing': ('fa-circle-exclamation', 'missing', 'Missing — file not found on disk'),
 }.get(data_file.status, ('fa-circle', 'unreviewed', 'Unreviewed')) %}
 <i class="fas {{ fa_icon }} df-status-icon {{ status_class }} flex-shrink-0"
    data-data-id="{{ data_file.id }}"

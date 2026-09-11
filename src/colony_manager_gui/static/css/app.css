@@ -121,6 +121,7 @@ th {
 .df-status-icon.reviewed { color: #198754; }
 .df-status-icon.excluded { color: #b02a37; }
 .df-status-icon.unreviewed { color: #adb5bd; }
+.df-status-icon.missing { color: #dc3545; }
 .df-note-indicator { color: #6c757d; font-size: var(--fs-xs); }
 .df-rating-indicator { font-size: var(--fs-xs); }
 .df-rating-indicator.rated   { color: #198754; }

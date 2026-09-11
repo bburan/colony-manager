@@ -571,9 +571,13 @@ document.addEventListener('click', async function(e) {
                     document.querySelectorAll(
                         '.df-status-icon[data-data-id="' + dataId + '"]'
                     ).forEach(function (icon) {
-                        icon.classList.remove('reviewed', 'excluded', 'unreviewed');
+                        // 'missing' is never a *target* status (the buttons
+                        // only set the three above), but it can be the status
+                        // being cleared, so it has to be removable here.
+                        icon.classList.remove('reviewed', 'excluded', 'unreviewed', 'missing');
                         icon.classList.add(statusClass);
-                        icon.classList.remove('fa-circle', 'fa-circle-check', 'fa-circle-xmark');
+                        icon.classList.remove('fa-circle', 'fa-circle-check',
+                                              'fa-circle-xmark', 'fa-circle-exclamation');
                         icon.classList.add(faClass);
                         icon.setAttribute('title', tooltipTitle);
                         icon.setAttribute('data-bs-original-title', tooltipTitle);

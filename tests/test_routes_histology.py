@@ -14,7 +14,7 @@ from datetime import date
 
 from sqlalchemy import select
 
-from colony_manager.enums import ConfocalImageStatus
+from colony_manager.enums import ConfocalImageStatus, DataStatus
 from colony_manager.models import (
     ConfocalImage, ConfocalImageData, ConfocalImageType, Ear, EarData,
     ImmunolabelingPanel,
@@ -597,6 +597,32 @@ def test_ear_page_always_renders_the_unmatched_wrapper(logged_in_client, db_sess
     assert b'id="ear-unmatched-images"' in response.data
     # Nothing unmatched, so the card itself is absent.
     assert b'Unmatched Images' not in response.data
+
+
+def test_ear_page_marks_a_missing_file_missing(logged_in_client, db_session):
+    """A file deleted from disk must not read as an ordinary unreviewed one.
+
+    ``render_status_indicator`` maps only reviewed/exclude explicitly, so a
+    missing file used to fall through to the grey Unreviewed circle and sat
+    on the ear page indistinguishable from a healthy file.
+    """
+    animal = make_animal(db_session, custom_id='MS-1')
+    ear = make_ear(db_session, animal=animal, side='Left')
+    dtype = make_ear_data_type(db_session)
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = EarData(
+        datatype_id=dtype.id, location_id=location.id, target_type='ear',
+        relative_path='MS-1_left.csv', name='MS-1_left.csv',
+        status=DataStatus.MISSING,
+    )
+    db_session.add(row)
+    row.ears = [ear]
+    db_session.commit()
+
+    html = logged_in_client.get(
+        f'/histology/ears/{ear.id}').get_data(as_text=True)
+    assert 'fa-circle-exclamation df-status-icon missing' in html
+    assert 'df-status-icon unreviewed' not in html
 
 
 def test_create_confocal_image_returns_oob_unmatched_card(logged_in_client, db_session):

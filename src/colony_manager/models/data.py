@@ -4,6 +4,8 @@
 ConfocalImage, etc. via lazy imports inside the method body to avoid
 circular imports at module load time.
 """
+from pathlib import Path
+
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
     String, Text, UniqueConstraint, func,
@@ -467,6 +469,10 @@ class Data(VersionedModel):
         mutation site opts in explicitly.
         """
         self.has_unmatched_animals = bool(self.unmatched_animal_ids)
+
+    @property
+    def path(self):
+        return Path(self.location.base_path) / self.relative_path
 
 
 class AnimalEventData(Data):

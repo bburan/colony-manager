@@ -253,7 +253,17 @@ def create_confocal_image(ear_id) -> Response | str:
             resync_confocal_image(img)
         db.session.commit()
         if request.headers.get('HX-Request'):
-            html = render_template('partials/confocal_image_table.html', ear=ear)
+            # The new images link some of the ear's unmatched confocal
+            # files (resync_confocal_image above), but that card sits
+            # outside this response's swap target, so it would keep
+            # listing them until the next full page load. Append it as an
+            # OOB swap. Harmless on any page that doesn't render the
+            # wrapper — HTMX drops an OOB fragment whose id is absent.
+            html = (
+                render_template('partials/confocal_image_table.html', ear=ear)
+                + render_template('partials/ear_unmatched_images.html',
+                                  ear=ear, oob=True)
+            )
             response = make_response(html)
             response.headers['HX-Trigger'] = 'closeModal'
             return response

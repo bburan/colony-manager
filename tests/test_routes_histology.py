@@ -559,3 +559,64 @@ def test_update_confocal_image_rejects_a_status_outside_the_enum(
     assert response.status_code == 400
     db_session.expire_all()
     assert db_session.get(ConfocalImage, img.id).status == 'imaged'
+
+
+# ---------------------------------------------------------------------------
+# Unmatched-images card (OOB refresh)
+# ---------------------------------------------------------------------------
+
+def test_unmatched_confocal_files_lists_only_unlinked(db_session):
+    """The property behind the card: candidate, confocal, and not yet linked."""
+    animal = make_animal(db_session, custom_id='UM-1')
+    ear = make_ear(db_session, animal=animal, side='Left')
+    image_type = _make_image_type(db_session, name='UM-Type')
+    image = make_confocal_image(db_session, ear=ear, image_type=image_type)
+
+    unlinked = make_confocal_image_data(db_session)
+    unlinked.candidate_ears = [ear]
+    linked = make_confocal_image_data(db_session, confocal_image=image)
+    linked.candidate_ears = [ear]
+    db_session.commit()
+
+    assert ear.unmatched_confocal_files == [unlinked]
+
+
+def test_ear_page_always_renders_the_unmatched_wrapper(logged_in_client, db_session):
+    """The wrapper must exist even with nothing unmatched.
+
+    HTMX can only swap an id already in the DOM, so an ear with no
+    unmatched files still needs the empty wrapper for the create-image
+    response to have something to replace.
+    """
+    animal = make_animal(db_session, custom_id='UM-2')
+    ear = make_ear(db_session, animal=animal, side='Left')
+    response = logged_in_client.get(f'/histology/ears/{ear.id}')
+    assert response.status_code == 200
+    assert b'id="ear-unmatched-images"' in response.data
+    # Nothing unmatched, so the card itself is absent.
+    assert b'Unmatched Images' not in response.data
+
+
+def test_create_confocal_image_returns_oob_unmatched_card(logged_in_client, db_session):
+    """Creating an image must also refresh the unmatched card.
+
+    The card sits outside the response's swap target, so without the OOB
+    fragment it keeps listing files the new image just linked until the
+    page is reloaded by hand.
+    """
+    animal = make_animal(db_session, custom_id='UM-3')
+    ear = make_ear(db_session, animal=animal, side='Left')
+    image_type = _make_image_type(db_session, name='UM-Type-3')
+
+    response = logged_in_client.post(
+        f'/histology/ears/{ear.id}/confocal_images/create',
+        data={'frequencies': ['8'], 'image_type': str(image_type.id),
+              'notes': ''},
+        headers={'HX-Request': 'true'},
+    )
+    assert response.status_code == 200
+    body = response.data
+    # Both the primary swap and the out-of-band card come back.
+    assert b'id="confocal-image-table-container"' in body
+    assert b'id="ear-unmatched-images"' in body
+    assert b'hx-swap-oob="outerHTML"' in body

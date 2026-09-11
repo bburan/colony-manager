@@ -1,0 +1,34 @@
+{# Files that name this ear but haven't linked to a ConfocalImage row.
+
+   The wrapper always renders, even with nothing to show: creating an image
+   links some of these files, and the create route swaps this element
+   out-of-band so the card updates without a page reload. HTMX can only
+   target an id that is already in the DOM, so an empty wrapper is how the
+   card disappears — dropping the element entirely would leave the stale
+   card on screen with nothing able to replace it. #}
+<div id="ear-unmatched-images"{% if oob %} hx-swap-oob="outerHTML"{% endif %}>
+{% set unmatched_confocal = ear.unmatched_confocal_files %}
+{% if unmatched_confocal %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase mb-0">
+                    Unmatched Images
+                    <span class="badge bg-secondary ms-2">{{ unmatched_confocal|length }}</span>
+                </h2>
+                <small class="text-muted">
+                    Files that mention this ear but didn't link to a configured ConfocalImage row
+                    (likely an unknown frequency or image type).
+                </small>
+            </div>
+            <div class="card-body">
+                {% with files=unmatched_confocal, animal=ear.animal %}
+                    {% include 'partials/entity_data_files.html' %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+</div>

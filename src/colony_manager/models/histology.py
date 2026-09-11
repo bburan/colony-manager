@@ -68,6 +68,27 @@ class Ear(VersionedModel):
         return f'{self.animal.custom_id} {self.side}'
 
     @property
+    def unmatched_confocal_files(self):
+        """Files naming this ear that never linked to a ConfocalImage row.
+
+        Sync/rematch nominates a confocal file as a *candidate* of the ear
+        as soon as the filename names the animal and side, but the file
+        only acquires a target once a ConfocalImage exists for its
+        frequency and image type. This is the gap between those two: "the
+        file says this ear" and "the file found its image".
+
+        The same predicate drives
+        ``services.data_linking.resync_confocal_image``, which links these
+        rows when an image is created, so the card and the linker agree on
+        what counts as unmatched by construction.
+        """
+        return sorted(
+            (f for f in self.candidate_data_files
+             if f.target_type == 'confocal_image' and not f.confocal_images),
+            key=lambda f: f.name or '',
+        )
+
+    @property
     def events(self):
         """AnimalEvents tagged with this ear's side."""
         return [e for e in self.animal.events if e.side == self.side]

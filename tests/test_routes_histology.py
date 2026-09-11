@@ -16,12 +16,14 @@ from sqlalchemy import select
 
 from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
-    ConfocalImage, ConfocalImageType, Ear, ImmunolabelingPanel,
+    ConfocalImage, ConfocalImageData, ConfocalImageType, Ear, EarData,
+    ImmunolabelingPanel,
 )
 
 from .factories import (
     make_animal, make_confocal_image, make_confocal_image_data,
-    make_confocal_image_type, make_ear,
+    make_confocal_image_type, make_data_location, make_ear,
+    make_ear_data_type, make_termination_reason,
 )
 
 
@@ -650,3 +652,132 @@ def test_delete_confocal_image_returns_oob_unmatched_card(logged_in_client, db_s
     db_session.expire_all()
     ear = db_session.get(Ear, ear_id)
     assert [f.id for f in ear.unmatched_confocal_files] == [file_id]
+
+
+# ---------------------------------------------------------------------------
+# Creating an ear picks up the files that already named it
+# ---------------------------------------------------------------------------
+
+def _ear_data_naming(db_session, animal, side, name='dissection.jpg'):
+    """An EarData row that names ``animal`` + ``side`` but links nothing.
+
+    The shape sync leaves behind when the file was ingested before the ear
+    row existed: the animal is a candidate, the ear is nowhere.
+    """
+    dtype = make_ear_data_type(db_session)
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp/re')
+    row = EarData(
+        datatype_id=dtype.id, location_id=location.id, target_type='ear',
+        relative_path=name, name=name,
+        parsed_metadata={'animal_id': [animal.custom_id], 'side': [side]},
+    )
+    db_session.add(row)
+    row.candidate_animals = [animal]
+    row.recompute_unmatched_flag()
+    db_session.commit()
+    return row
+
+
+def test_create_ear_links_ear_files_that_named_it(logged_in_client, db_session):
+    """The gap "create the missing ear" is supposed to close.
+
+    Sync matches ear targets by animal + side, so a file synced before the
+    ear existed never linked. Creating the ear used to leave it that way
+    until a full rematch ran, so the new ear's page showed nothing.
+    """
+    animal = make_animal(db_session, custom_id='RE-1')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    row = _ear_data_naming(db_session, animal, 'Right')
+    assert row.has_unmatched_animals is True
+
+    response = logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Right'},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    ear = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id, Ear.side == 'Right')
+    ).one()
+    row = db_session.get(EarData, row.id)
+    assert row.ears == [ear]
+    assert row.candidate_ears == [ear]
+    # The file now has its target, so it drops off the unmatched-data page.
+    assert row.has_unmatched_animals is False
+
+
+def test_create_ear_leaves_the_other_side_alone(logged_in_client, db_session):
+    """Only the side the file names is attached."""
+    animal = make_animal(db_session, custom_id='RE-2')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    row = _ear_data_naming(db_session, animal, 'Right')
+
+    logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Left'},
+        follow_redirects=False,
+    )
+    db_session.expire_all()
+    row = db_session.get(EarData, row.id)
+    assert row.ears == []
+    assert row.candidate_ears == []
+
+
+def test_create_ear_surfaces_confocal_files_on_the_unmatched_card(
+    logged_in_client, db_session,
+):
+    """Confocal files are nominated, not linked — their target is an image.
+
+    Candidacy is what the Unmatched Images card reads, so without it a
+    freshly created ear renders no card at all even though files naming it
+    are sitting in the database.
+    """
+    animal = make_animal(db_session, custom_id='RE-3')
+    animal.terminate(termination_date=date.today())
+    db_session.commit()
+    data_file = make_confocal_image_data(db_session)
+    data_file.parsed_metadata = {'animal_id': [animal.custom_id], 'ear': 'Left'}
+    data_file.candidate_animals = [animal]
+    db_session.commit()
+
+    logged_in_client.post(
+        f'/histology/animals/{animal.id}/ears/create',
+        data={'side': 'Left'},
+        follow_redirects=False,
+    )
+    db_session.expire_all()
+    ear = db_session.scalars(
+        select(Ear).where(Ear.animal_id == animal.id, Ear.side == 'Left')
+    ).one()
+    assert [f.id for f in ear.unmatched_confocal_files] == [data_file.id]
+    # Still unlinked: an image has to exist first.
+    assert db_session.get(ConfocalImageData, data_file.id).confocal_images == []
+
+    response = logged_in_client.get(f'/histology/ears/{ear.id}')
+    assert b'Unmatched Images' in response.data
+
+
+def test_terminate_animal_attaches_files_to_the_new_ears(
+    logged_in_client, db_session,
+):
+    """Termination creates the ear rows, so it has the same gap to close."""
+    animal = make_animal(db_session, custom_id='RE-4')
+    reason = make_termination_reason(db_session)
+    row = _ear_data_naming(db_session, animal, 'Left')
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/terminate',
+        data={
+            'termination_date': date.today().isoformat(),
+            'termination_reason': str(reason.id),
+            'ears_extracted': 'Both',
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db_session.expire_all()
+    row = db_session.get(EarData, row.id)
+    assert [e.side for e in row.ears] == ['Left']

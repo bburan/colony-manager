@@ -178,6 +178,54 @@ def resync_confocal_image(image: ConfocalImage) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Ear linking
+# ---------------------------------------------------------------------------
+
+def resync_ear(ear: Ear) -> tuple[int, int]:
+    """Attach the files that already name *ear* to a freshly created ear row.
+
+    Sync resolves both ear targets and candidate ears by looking the Ear
+    up by animal and side, so a file synced before the ear existed carries
+    only the *animal* as a candidate and knows nothing of the ear. An ear
+    created afterwards therefore starts out empty: its Files card has
+    nothing linked and its Unmatched Images card -- which reads the ear's
+    own candidates -- doesn't render at all, even though the files that
+    name it are sitting right there. That lasted until someone ran a full
+    rematch, which is exactly the wait "create the missing ear" from the
+    Unmatched-Data page is meant to save.
+
+    Walks the animal's candidate files and, for each whose parser assigns
+    this ear's side to this animal, nominates the ear as a candidate and
+    -- for ear-targeted datatypes -- links it as the target, which is what
+    ``EarDataType.match_targets`` would have returned had the ear existed.
+    Confocal files are only nominated, by design: their target is a
+    ConfocalImage, so candidacy is what surfaces them on the Unmatched
+    Images card, where creating an image links them through
+    :func:`resync_confocal_image`.
+
+    Returns ``(nominated, linked)``. Does not commit.
+    """
+    animal_custom_id = ear.animal.custom_id
+    nominated = linked = 0
+    for f in ear.animal.candidate_data_files:
+        sides = parsed_animal_sides(f, animal_custom_id)
+        if not sides or ear.side not in sides:
+            continue
+        touched = False
+        if ear not in f.candidate_ears:
+            f.candidate_ears.append(ear)
+            nominated += 1
+            touched = True
+        if f.target_type == 'ear' and ear not in f.ears:
+            f.ears.append(ear)
+            linked += 1
+            touched = True
+        if touched:
+            f.recompute_unmatched_flag()
+    return nominated, linked
+
+
+# ---------------------------------------------------------------------------
 # Animal-event file linking
 # ---------------------------------------------------------------------------
 

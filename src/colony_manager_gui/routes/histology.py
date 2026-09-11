@@ -12,7 +12,7 @@ from .. import db
 from ..forms.histology import ConfocalImageForm, HistologyForm
 from ..forms.common import NoteForm
 from .util import flash_form_errors, get_or_404, render_error_alert, is_htmx, render_modal
-from ..services.data_linking import resync_confocal_image
+from ..services.data_linking import resync_confocal_image, resync_ear
 from ..services.histology_queries import (
     parse_ear_filters, apply_ear_filters, apply_ear_sort,
     get_ear_filter_options, get_filtered_ears,
@@ -359,9 +359,21 @@ def create_ear(animal_id) -> Response | str:
         flash(f'{animal.display_id} already has a {side} ear.', 'warning')
         return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
-    db.session.add(Ear(animal_id=animal.id, side=side))
+    ear = Ear(animal_id=animal.id, side=side)
+    db.session.add(ear)
+    # Flush so the ear has an id and a loaded .animal before resync walks
+    # the files that named it: sync could only match the ear rows that
+    # existed when it ran, so an ear created now starts out with nothing
+    # attached until something re-runs that match for it.
+    db.session.flush()
+    nominated, linked = resync_ear(ear)
     db.session.commit()
-    flash(f'{side} ear created for {animal.display_id}.', 'success')
+    msg = f'{side} ear created for {animal.display_id}.'
+    if linked:
+        msg += f' Linked {linked} file(s) that named it.'
+    if nominated > linked:
+        msg += f' {nominated - linked} more await a matching image.'
+    flash(msg, 'success')
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
 

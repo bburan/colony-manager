@@ -28,7 +28,8 @@ from .util import (
     render_modal,
 )
 from ..services.data_linking import (
-    parsed_animal_sides, resync_event_files, auto_create_animal_event,
+    parsed_animal_sides, resync_ear, resync_event_files,
+    auto_create_animal_event,
 )
 from ..services.animal_queries import get_filtered_animals, get_animal_filter_options
 
@@ -214,6 +215,13 @@ def terminate_animal(animal_id) -> Response | str:
             return redirect(request.referrer or url_for('animals.list_animals'))
         for ear in new_ears:
             db.session.add(ear)
+        # Same gap the ear page's create button has: files synced before
+        # termination named these ears but could not match a row that did
+        # not exist yet. Flush first so each ear has an id and a loaded
+        # .animal for resync to walk.
+        db.session.flush()
+        for ear in new_ears:
+            resync_ear(ear)
         db.session.commit()
         flash(f'Animal {animal.display_id} has been marked as terminated.', 'success')
     else:

@@ -5,6 +5,7 @@ ConfocalImage, etc. via lazy imports inside the method body to avoid
 circular imports at module load time.
 """
 from pathlib import Path
+import os
 from typing import NamedTuple
 
 from sqlalchemy import (
@@ -330,6 +331,18 @@ class Data(VersionedModel):
         'polymorphic_on': target_type,
         'polymorphic_identity': 'data',
     }
+
+    @property
+    def full_path(self):
+        """Where this file actually lives: its location's base + relative path.
+
+        The UI lists files by ``name`` alone, which is not enough to go
+        find one on disk, so every listing hangs this off a hover title.
+        Purely for display — code that opens the file joins the same two
+        parts itself, since it needs the path before the row is loaded.
+        """
+        base = self.location.base_path if self.location is not None else ''
+        return os.path.join(base, self.relative_path or '')
 
     def get_description(self):
         """Return a DataTypeDescription instance for this file, or None."""

@@ -26,7 +26,7 @@
             <tbody>
                 {% for data_file, animals in shared_files %}
                 <tr>
-                    <td class="small text-muted">{{ data_file.relative_path }}</td>
+                    <td class="small text-muted" title="{{ data_file.full_path }}">{{ data_file.relative_path }}</td>
                     <td><span class="badge bg-secondary">{{ data_file.datatype.name }}</span></td>
                     <td>
                         {% for animal in animals %}

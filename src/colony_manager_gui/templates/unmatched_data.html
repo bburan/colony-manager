@@ -192,7 +192,7 @@ Unmatched Data Files
                     </td>
                     <td><span class="badge bg-secondary">{{ f.datatype.name }}</span></td>
                     <td><span class="badge bg-info text-dark">{{ f.datatype.TARGET_LABEL }}</span></td>
-                    <td><span class="small text-muted">{{ f.relative_path }}</span></td>
+                    <td><span class="small text-muted" title="{{ f.full_path }}">{{ f.relative_path }}</span></td>
                     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
                     {# One pill per object (animal or ear) the file names but
                        hasn't linked. Objects that resolve to a real row link to

@@ -52,7 +52,7 @@
                 {% for f in data_files %}
                 <div class="border rounded p-2">
                     <div class="d-flex gap-1 mb-1 align-items-start">
-                        <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;" title="{{ f.relative_path }}">{{ f.name }}</span>
+                        <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;" title="{{ f.full_path }}">{{ f.name }}</span>
                         <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
                     </div>
                     {% with data_file=f, animal=img.ear.animal, show_header=False %}

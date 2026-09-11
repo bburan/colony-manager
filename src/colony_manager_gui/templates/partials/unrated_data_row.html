@@ -40,7 +40,7 @@
             {% endfor %}
         {% endif %}
     </td>
-    <td><span class="small text-muted">{{ f.relative_path }}</span></td>
+    <td><span class="small text-muted" title="{{ f.full_path }}">{{ f.relative_path }}</span></td>
     <td>{{ f.date.strftime('%Y-%m-%d') if f.date else '&mdash;'|safe }}</td>
     <td class="small">
         {% for r in f.raters or [] %}

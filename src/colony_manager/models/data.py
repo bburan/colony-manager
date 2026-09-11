@@ -359,6 +359,38 @@ class Data(VersionedModel):
         return [aid for aid in parsed_ids if aid not in matched]
 
     @property
+    def parsed_ear_sides(self):
+        """``{animal_id: side}`` for the sides the parser named, if any.
+
+        Description classes disagree on how they spell this, so all the
+        shapes in the wild are accepted: confocal images write ``ear``
+        (``'Left'``), ear-targeted files write ``side`` as a *list*
+        (``['Left']``), and psi-derived event files carry both, lowercased.
+        A scalar applies to every animal the filename names (the common
+        single-animal case); a list is zipped positionally against
+        ``parsed_animal_ids``, matching how ``animal_id`` is itself stored.
+
+        Sides come back title-cased so they compare and render against
+        ``Ear.side`` regardless of which parser produced them.
+        """
+        parsed = self.parsed_metadata or {}
+        ids = self.parsed_animal_ids
+        if not ids or not isinstance(parsed, dict):
+            return {}
+        for key in ('ear', 'side'):
+            raw = parsed.get(key)
+            if not raw:
+                continue
+            if isinstance(raw, (list, tuple)):
+                pairs = zip(ids, raw)
+            else:
+                pairs = ((aid, raw) for aid in ids)
+            sides = {aid: str(side).title() for aid, side in pairs if side}
+            if sides:
+                return sides
+        return {}
+
+    @property
     def unmatched_objects(self):
         """Objects named in the filename but not yet linked, for display.
 
@@ -381,9 +413,19 @@ class Data(VersionedModel):
         return objects
 
     def _ear_unmatched_objects(self, linked_ear_ids):
-        """Shared body for ear-targeted subclasses: the still-unlinked ears
-        (at side granularity), plus any named animal id that resolves to no
-        unlinked ear (a typo, or an existing animal missing that ear row).
+        """Shared body for ear-targeted subclasses: the still-unlinked ears,
+        at side granularity.
+
+        The target of these datatypes is an ear, so a name the file hasn't
+        linked is reported as an *ear* whenever the filename says which
+        side -- including when no such ear row exists. "B047-3 Right is
+        missing" is the actionable fact; "B047-3 is missing" is misleading
+        when the animal is right there and only its Right ear isn't.
+
+        An ear that exists but was never made a candidate still resolves
+        here, so it renders as a link rather than a dead name. Only when
+        the filename names no side at all is there nothing more specific
+        to offer than the animal.
         """
         objects = []
         covered_cids = set()
@@ -393,11 +435,27 @@ class Data(VersionedModel):
             objects.append(('ear', ear, ear.full_display))
             covered_cids.add(ear.animal.custom_id)
         by_cid = {a.custom_id: a for a in self.candidate_animals}
+        sides = self.parsed_ear_sides
         for aid in self.unmatched_animal_ids:
             if aid in covered_cids:
                 continue
             animal = by_cid.get(aid)
-            objects.append(('animal', animal, animal.display_id if animal else aid))
+            side = sides.get(aid)
+            if side is None:
+                objects.append(
+                    ('animal', animal, animal.display_id if animal else aid))
+                continue
+            ear = None
+            if animal is not None:
+                ear = next((e for e in animal.ears
+                            if (e.side or '').casefold() == side.casefold()),
+                           None)
+            if ear is not None and ear.id in linked_ear_ids:
+                continue
+            # ``aid`` rather than ``display_id``: it is the custom_id that
+            # matched, which is what ``Ear.full_display`` would render.
+            objects.append(
+                ('ear', ear, ear.full_display if ear else f'{aid} {side}'))
         return objects
 
     def recompute_unmatched_flag(self):

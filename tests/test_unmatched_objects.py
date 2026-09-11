@@ -4,7 +4,9 @@ Unmatched-Data page's "Unlinked objects" column.
 Each entry is a ``(kind, obj, label)`` tuple: resolved rows carry their ORM
 object (linked in the UI, dark pill); unresolved names carry ``None`` (grey,
 unlinked pill). Animal-targeted files yield animals; ear/confocal files yield
-ears at side granularity, falling back to animal/typo pills.
+ears at side granularity -- including ears that don't exist yet, since the
+target of those datatypes is an ear. Only a file naming no side at all falls
+back to an animal pill.
 """
 from colony_manager.models import AnimalData, EarData
 
@@ -82,11 +84,92 @@ def test_ear_objects_exclude_already_linked_ear(db_session):
     assert row.unmatched_objects == []
 
 
-def test_ear_file_typo_falls_back_to_grey_pill(db_session):
+def test_ear_file_typo_names_the_ear_not_the_animal(db_session):
+    """A typo still yields a grey pill, but an ear-shaped one.
+
+    The datatype's target is an ear, so naming the animal alone would
+    understate what is missing even when nothing resolves.
+    """
     row = _make_ear_data(
         db_session,
         parsed={'animal_id': ['G999-9'], 'side': 'Left'},  # no such animal/ear
         candidate_animals=[],
         candidate_ears=[],
     )
-    assert row.unmatched_objects == [('animal', None, 'G999-9')]
+    assert row.unmatched_objects == [('ear', None, 'G999-9 Left')]
+
+
+def test_existing_animal_missing_that_ear_reports_the_ear(db_session):
+    """The real-world B047-3R case: animal is present, its Right ear is not.
+
+    Reporting ``B047-3`` here is actively misleading -- the animal is fine
+    and linkable; it is the Right ear row that does not exist.
+    """
+    a = make_animal(db_session, custom_id='B047-3')
+    make_ear(db_session, animal=a, side='Left')      # only the other side
+    row = _make_ear_data(
+        db_session,
+        parsed={'animal_id': ['B047-3'], 'ear': 'Right'},
+        candidate_animals=[a],
+        candidate_ears=[],
+    )
+    assert row.unmatched_objects == [('ear', None, 'B047-3 Right')]
+
+
+def test_ear_resolves_even_when_not_a_candidate(db_session):
+    """An ear that exists but was never made a candidate still links.
+
+    Matching failed to nominate it, but the row is right there, so the
+    pill should reach its detail page rather than render as a dead name.
+    """
+    a = make_animal(db_session, custom_id='B047-4')
+    ear = make_ear(db_session, animal=a, side='Right')
+    row = _make_ear_data(
+        db_session,
+        parsed={'animal_id': ['B047-4'], 'ear': 'Right'},
+        candidate_animals=[a],
+        candidate_ears=[],                            # matcher missed it
+    )
+    assert row.unmatched_objects == [('ear', ear, ear.full_display)]
+
+
+def test_side_spelled_as_a_list_is_zipped_against_animals(db_session):
+    """Ear Dissection Notes store ``side`` as a list, one per animal."""
+    a1 = make_animal(db_session, custom_id='G020-1')
+    a2 = make_animal(db_session, custom_id='G020-2')
+    row = _make_ear_data(
+        db_session,
+        parsed={'animal_id': ['G020-1', 'G020-2'], 'side': ['Left', 'Right']},
+        candidate_animals=[a1, a2],
+        candidate_ears=[],
+    )
+    assert row.unmatched_objects == [
+        ('ear', None, 'G020-1 Left'),
+        ('ear', None, 'G020-2 Right'),
+    ]
+
+
+def test_lowercase_side_matches_an_existing_ear(db_session):
+    """psi-derived files lowercase the side; ``Ear.side`` is capitalised."""
+    a = make_animal(db_session, custom_id='G021-1')
+    ear = make_ear(db_session, animal=a, side='Left')
+    row = _make_ear_data(
+        db_session,
+        parsed={'animal_id': ['G021-1'], 'side': 'left'},
+        candidate_animals=[a],
+        candidate_ears=[],
+    )
+    assert row.unmatched_objects == [('ear', ear, ear.full_display)]
+
+
+def test_no_side_in_filename_still_falls_back_to_the_animal(db_session):
+    """Without a side there is nothing more specific than the animal."""
+    a = make_animal(db_session, custom_id='G022-1')
+    make_ear(db_session, animal=a, side='Left')
+    row = _make_ear_data(
+        db_session,
+        parsed={'animal_id': ['G022-1']},              # no ear/side key
+        candidate_animals=[a],
+        candidate_ears=[],
+    )
+    assert row.unmatched_objects == [('animal', a, a.display_id)]

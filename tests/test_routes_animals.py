@@ -11,6 +11,8 @@ get their own coverage via a seeded animal with at least one event.
 """
 from datetime import date, timedelta
 
+import pytest
+
 from sqlalchemy import select
 
 from colony_manager.enums import DataStatus
@@ -21,9 +23,9 @@ from colony_manager.models import (
 
 from .factories import (
     make_animal, make_animal_event_data_type, make_breeding_pair,
-    make_cage, make_data_location, make_ear_data_type, make_event, make_feed,
-    make_feed_log, make_procedure, make_procedure_target, make_species,
-    make_termination_reason, make_weight_log,
+    make_cage, make_data_location, make_ear, make_ear_data_type, make_event,
+    make_feed, make_feed_log, make_procedure, make_procedure_target,
+    make_species, make_termination_reason, make_weight_log,
 )
 
 
@@ -765,12 +767,102 @@ def test_list_unmatched_data_animal_event_filter(logged_in_client):
     assert response.status_code == 200
 
 
-def test_list_unmatched_data_missing_status_filter(logged_in_client):
-    """``missing`` is one of the status options exposed by the dropdown."""
-    response = logged_in_client.get(
-        '/animals/unmatched-data?status=missing'
-    )
+@pytest.mark.parametrize('issue', [
+    'all', 'unresolved_target', 'missing_all', 'missing_linked',
+    'missing_unlinked',
+])
+def test_list_unmatched_data_issue_filters_render(logged_in_client, issue):
+    """Every option the Issue dropdown offers is a valid query."""
+    response = logged_in_client.get(f'/animals/unmatched-data?issue={issue}')
     assert response.status_code == 200
+
+
+def _make_missing_ear_file(db_session, *, name, link_ear):
+    """A Data row whose file is gone from disk, linked to its ear or not."""
+    animal = make_animal(db_session, custom_id=name.split('_')[0])
+    dtype = make_ear_data_type(db_session)
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = EarData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        target_type='ear',
+        relative_path=name,
+        name=name,
+        status=DataStatus.MISSING,
+        parsed_metadata={'animal_id': [animal.custom_id], 'side': 'Left'},
+    )
+    db_session.add(row)
+    if link_ear:
+        row.ears = [make_ear(db_session, animal=animal, side='Left')]
+    db_session.commit()
+    row.recompute_unmatched_flag()
+    db_session.commit()
+    return row
+
+
+def test_missing_linked_isolates_the_fully_matched_missing_file(
+    logged_in_client, db_session,
+):
+    """The case that motivated the split: a file that matched its target and
+    was later deleted from disk is invisible under ``unresolved_target``, so
+    it needs its own filter to be reachable (and deletable) at all.
+    """
+    linked = _make_missing_ear_file(
+        db_session, name='B901-1_left.csv', link_ear=True)
+    unlinked = _make_missing_ear_file(
+        db_session, name='B902-1_left.csv', link_ear=False)
+
+    def names(issue):
+        response = logged_in_client.get(
+            f'/animals/unmatched-data?issue={issue}&per_page=200')
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        return {r.name for r in (linked, unlinked) if r.name in html}
+
+    assert names('missing_linked') == {linked.name}
+    assert names('missing_unlinked') == {unlinked.name}
+    assert names('missing_all') == {linked.name, unlinked.name}
+    assert names('unresolved_target') == {unlinked.name}
+    # 'all' is the union — the linked file is only an issue because it's gone.
+    assert names('all') == {linked.name, unlinked.name}
+
+
+def test_issue_column_names_each_issue_the_row_has(
+    logged_in_client, db_session,
+):
+    """The Issue column reports the row's actual problems, not Data.status.
+    A linked-but-gone file carries only ``Missing``; an unlinked one carries
+    both badges.
+    """
+    # Match the badge markup, not the bare text — both phrases also appear
+    # as <option> labels in the Issue dropdown.
+    missing_badge = '>Missing</span>'
+    unresolved_badge = '>Unresolved target</span>'
+
+    _make_missing_ear_file(db_session, name='B904-1_left.csv', link_ear=True)
+    linked = logged_in_client.get(
+        '/animals/unmatched-data?issue=missing_linked').get_data(as_text=True)
+    assert missing_badge in linked
+    assert unresolved_badge not in linked
+
+    _make_missing_ear_file(db_session, name='B905-1_left.csv', link_ear=False)
+    unlinked = logged_in_client.get(
+        '/animals/unmatched-data?issue=missing_unlinked').get_data(as_text=True)
+    assert missing_badge in unlinked
+    assert unresolved_badge in unlinked
+
+
+def test_missing_filters_expose_bulk_delete(logged_in_client, db_session):
+    """Delete-selected is gated on the Missing filters, not on Status."""
+    _make_missing_ear_file(db_session, name='B903-1_left.csv', link_ear=True)
+
+    missing = logged_in_client.get(
+        '/animals/unmatched-data?issue=missing_linked').get_data(as_text=True)
+    assert 'Delete selected' in missing
+
+    unresolved = logged_in_client.get(
+        '/animals/unmatched-data?issue=unresolved_target').get_data(as_text=True)
+    assert 'Delete selected' not in unresolved
 
 
 def test_unmatched_data_missing_ear_renders_split_pill(

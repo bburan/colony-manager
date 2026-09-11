@@ -767,38 +767,27 @@ def reassign_data(animal_id, data_id) -> Response | str:
 
 @animals_bp.route('/unmatched-data')
 def list_unmatched_data() -> Response | str:
-    """Files where the sync script could not link to any target."""
+    """Files with an issue: an unresolved target, or gone from disk."""
     from colony_manager.models import DataType, DATA_SUBCLASSES
     from sqlalchemy import union_all
-    from datetime import datetime
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     target_type_filter = request.args.get('target_type', 'all')
     datatype_id_filter = request.args.get('datatype_id', None, type=int)
-    status_filter = request.args.get('status', 'all')
-    # Which incompleteness to show:
-    #   'all' (default)     — either of the below.
-    #   'no_target'         — files that linked to nothing at all.
-    #   'unmatched_animals' — files where at least one animal named in the
-    #                         filename has no linked target (covers typos
-    #                         not in the colony *and* named-but-not-yet-
-    #                         linked animals on partially-matched files).
+    # Which issue to show. Every option is a *problem* filter — this page
+    # is not a general data browser.
+    #   'all' (default)     — either kind of issue below.
+    #   'unresolved_target' — linked to nothing at all, or names an
+    #                         animal/ear it never linked to.
+    #   'missing_*'         — file is gone from disk; ``linked`` are the
+    #                         ones whose targets all resolved (invisible
+    #                         under 'unresolved_target', and the reason
+    #                         this split exists), ``unlinked`` the rest.
     issue_filter = request.args.get('issue', 'all')
     search_filter = (request.args.get('q', '') or '').strip()
-    date_from_raw = (request.args.get('date_from', '') or '').strip()
-    date_to_raw = (request.args.get('date_to', '') or '').strip()
     sort = request.args.get('sort', 'date')
     direction = request.args.get('dir', 'desc')
-
-    def _parse_date(raw):
-        try:
-            return datetime.strptime(raw, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            return None
-
-    date_from = _parse_date(date_from_raw)
-    date_to = _parse_date(date_to_raw)
 
     # Ids of files that linked to *no* target, scoped to the chosen
     # target_type when one is selected.
@@ -818,15 +807,24 @@ def list_unmatched_data() -> Response | str:
             select(EarData.id).where(~EarData.ears.any()),
         ).subquery())
 
-    no_target_cond = Data.id.in_(no_target_ids)
-    unmatched_animals_cond = Data.has_unmatched_animals.is_(True)
+    # ``is_(True)`` rather than ``== True`` so the NULL rows fold into
+    # false and ``~unresolved_cond`` stays a real complement.
+    unresolved_cond = or_(
+        Data.id.in_(no_target_ids),
+        Data.has_unmatched_animals.is_(True),
+    )
+    missing_cond = Data.status == DataStatus.MISSING
 
-    if issue_filter == 'no_target':
-        stmt = select(Data).where(no_target_cond)
-    elif issue_filter == 'unmatched_animals':
-        stmt = select(Data).where(unmatched_animals_cond)
-    else:  # 'all' — either kind of incomplete match
-        stmt = select(Data).where(or_(no_target_cond, unmatched_animals_cond))
+    if issue_filter == 'unresolved_target':
+        stmt = select(Data).where(unresolved_cond)
+    elif issue_filter == 'missing_all':
+        stmt = select(Data).where(missing_cond)
+    elif issue_filter == 'missing_linked':
+        stmt = select(Data).where(missing_cond, ~unresolved_cond)
+    elif issue_filter == 'missing_unlinked':
+        stmt = select(Data).where(missing_cond, unresolved_cond)
+    else:  # 'all' — any issue at all
+        stmt = select(Data).where(or_(unresolved_cond, missing_cond))
 
     if target_type_filter in ('animal_event', 'confocal_image', 'animal', 'ear'):
         stmt = stmt.where(Data.target_type == target_type_filter)
@@ -834,23 +832,14 @@ def list_unmatched_data() -> Response | str:
     if datatype_id_filter:
         stmt = stmt.where(Data.datatype_id == datatype_id_filter)
 
-    if status_filter and status_filter != 'all':
-        stmt = stmt.where(Data.status == status_filter)
-
     if search_filter:
         like = f'%{search_filter}%'
         stmt = stmt.where(or_(Data.name.ilike(like), Data.relative_path.ilike(like)))
-
-    if date_from is not None:
-        stmt = stmt.where(Data.date >= date_from)
-    if date_to is not None:
-        stmt = stmt.where(Data.date <= date_to)
 
     sort_columns = {
         'date': Data.date,
         'name': Data.name,
         'datatype': DataType.name,
-        'status': Data.status,
     }
     sort_col = sort_columns.get(sort, Data.date)
     if sort == 'datatype':
@@ -874,10 +863,7 @@ def list_unmatched_data() -> Response | str:
             'datatype_id': datatype_id_filter,
             'issue': issue_filter,
             'per_page': per_page,
-            'status': status_filter,
             'q': search_filter,
-            'date_from': date_from_raw,
-            'date_to': date_to_raw,
             'sort': sort,
             'dir': direction,
         },

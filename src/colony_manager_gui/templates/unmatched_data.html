@@ -10,10 +10,7 @@ Unmatched Data Files
     'datatype_id': filters.datatype_id or '',
     'issue': filters.issue,
     'per_page': filters.per_page,
-    'status': filters.status,
     'q': filters.q,
-    'date_from': filters.date_from,
-    'date_to': filters.date_to,
     'sort': filters.sort,
     'dir': filters.dir,
 } %}
@@ -66,9 +63,11 @@ Unmatched Data Files
                 <div class="col-auto">
                     <label class="form-label small mb-1">Issue</label>
                     <select name="issue" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="all" {% if filters.issue == 'all' %}selected{% endif %}>All incomplete</option>
-                        <option value="no_target" {% if filters.issue == 'no_target' %}selected{% endif %}>No linked target</option>
-                        <option value="unmatched_animals" {% if filters.issue == 'unmatched_animals' %}selected{% endif %}>Unresolved animal IDs</option>
+                        <option value="all" {% if filters.issue == 'all' %}selected{% endif %}>All issues</option>
+                        <option value="unresolved_target" {% if filters.issue == 'unresolved_target' %}selected{% endif %}>Unresolved target</option>
+                        <option value="missing_all" {% if filters.issue == 'missing_all' %}selected{% endif %}>Missing (all)</option>
+                        <option value="missing_linked" {% if filters.issue == 'missing_linked' %}selected{% endif %}>Missing (linked)</option>
+                        <option value="missing_unlinked" {% if filters.issue == 'missing_unlinked' %}selected{% endif %}>Missing (unlinked)</option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -91,26 +90,6 @@ Unmatched Data Files
                     </select>
                 </div>
                 <div class="col-auto">
-                    <label class="form-label small mb-1">Status</label>
-                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="all" {% if filters.status == 'all' %}selected{% endif %}>All</option>
-                        <option value="unreviewed" {% if filters.status == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
-                        <option value="reviewed" {% if filters.status == 'reviewed' %}selected{% endif %}>Reviewed</option>
-                        <option value="ignored" {% if filters.status == 'ignored' %}selected{% endif %}>Ignored</option>
-                        <option value="missing" {% if filters.status == 'missing' %}selected{% endif %}>Missing</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Date from</label>
-                    <input type="date" name="date_from" value="{{ filters.date_from }}"
-                           class="form-control form-control-sm" onchange="this.form.submit()">
-                </div>
-                <div class="col-auto">
-                    <label class="form-label small mb-1">Date to</label>
-                    <input type="date" name="date_to" value="{{ filters.date_to }}"
-                           class="form-control form-control-sm" onchange="this.form.submit()">
-                </div>
-                <div class="col-auto">
                     <label class="form-label small mb-1">Per page</label>
                     <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
                         {% for n in [25, 50, 100, 200] %}
@@ -128,22 +107,26 @@ Unmatched Data Files
    are dispatched via per-button ``formaction``:
    * Auto-create events — always offered (server filters non-applicable
      files: non-animal_event, no candidates, etc.).
-   * Delete selected — gated on the Missing status filter, since
-     deleting Data rows in other states is rarely what the operator
-     wants. #}
-{% set show_bulk_delete = filters.status == 'missing' %}
+   * Delete selected — gated on the Missing issue filters, since
+     deleting Data rows whose file is still on disk is rarely what the
+     operator wants. #}
+{% set show_bulk_delete = filters.issue in ('missing_all', 'missing_linked', 'missing_unlinked') %}
 <form method="POST"
       action="{{ url_for('animals.auto_create_unmatched_data') }}">
     {{ csrf_only_form.csrf_token }}
 <div class="card shadow-sm">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">
-            {% if filters.issue == 'unmatched_animals' %}
-                Files with animals not yet linked
-            {% elif filters.issue == 'no_target' %}
-                Files that did not link to a target
+            {% if filters.issue == 'unresolved_target' %}
+                Files with an unresolved target
+            {% elif filters.issue == 'missing_all' %}
+                Missing files
+            {% elif filters.issue == 'missing_linked' %}
+                Missing files (targets all linked)
+            {% elif filters.issue == 'missing_unlinked' %}
+                Missing files (target unresolved)
             {% else %}
-                Files needing review (incomplete match)
+                Files needing review
             {% endif %}
         </h2>
         <div class="d-flex align-items-center gap-2">
@@ -180,7 +163,7 @@ Unmatched Data Files
                     <th>{{ sort_header('Location', 'name') }}</th>
                     <th>{{ sort_header('Date', 'date') }}</th>
                     <th>Unlinked objects</th>
-                    <th>{{ sort_header('Status', 'status') }}</th>
+                    <th>Issue</th>
                 </tr>
             </thead>
             <tbody>
@@ -224,10 +207,21 @@ Unmatched Data Files
                             <span class="text-muted">&mdash;</span>
                         {% endfor %}
                     </td>
+                    {# Mirrors the Issue filter's two conditions; a row can
+                       carry both. ``is_unmatched`` is the per-row form of the
+                       no-target subquery, ``has_unmatched_animals`` the
+                       persisted flag for named-but-unlinked objects. #}
+                    {% set unresolved = f.is_unmatched or f.has_unmatched_animals %}
                     <td>
-                        <span class="badge bg-{{ 'success' if f.status == 'reviewed' else 'warning text-dark' if f.status == 'unreviewed' else 'danger' }}">
-                            {{ f.status|capitalize }}
-                        </span>
+                        {% if f.status == 'missing' %}
+                        <span class="badge bg-danger" title="{{ f.full_path }} is no longer on disk">Missing</span>
+                        {% endif %}
+                        {% if unresolved %}
+                        <span class="badge bg-warning text-dark">Unresolved target</span>
+                        {% endif %}
+                        {% if not unresolved and f.status != 'missing' %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -235,7 +229,7 @@ Unmatched Data Files
         </table>
         {% else %}
         <div class="p-4">
-            <p class="text-muted mb-0">No unmatched files found for the current filters.</p>
+            <p class="text-muted mb-0">No files found for the current filters.</p>
         </div>
         {% endif %}
     </div>

@@ -5,6 +5,7 @@ ConfocalImage, etc. via lazy imports inside the method body to avoid
 circular imports at module load time.
 """
 from pathlib import Path
+from typing import NamedTuple
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
@@ -251,6 +252,25 @@ class DataLocation(VersionedModel):
 # Data polymorphic hierarchy
 # ---------------------------------------------------------------------------
 
+class UnmatchedObject(NamedTuple):
+    """One pill in the Unmatched-Data page's "Unlinked objects" column.
+
+    *kind* is ``'animal'`` or ``'ear'``; *obj* is the ORM row the named
+    thing resolves to, or ``None`` when no such row exists yet; *label*
+    is the pill text for the whole name. *animal* and *side* carry the
+    two halves of an ear name separately so the page can render a hybrid
+    pill -- a linked animal beside the side that has no ``Ear`` row --
+    when the animal exists but its ear doesn't. *animal* is the resolved
+    ``Animal`` (or ``None`` for a name that matches nothing); *side* is
+    ``None`` for animal-kind entries.
+    """
+    kind:   str
+    obj:    object
+    label:  str
+    animal: object = None
+    side:   str | None = None
+
+
 class Data(VersionedModel):
     """Polymorphic base for files discovered by the sync script."""
     __tablename__ = 'data'
@@ -396,13 +416,13 @@ class Data(VersionedModel):
     def unmatched_objects(self):
         """Objects named in the filename but not yet linked, for display.
 
-        Returns a list of ``(kind, obj, label)`` tuples where *kind* is
-        ``'animal'`` or ``'ear'``, *obj* is the ORM row when the named
-        thing resolves to a real one (``None`` for typos with no matching
-        row), and *label* is the pill text. The Unmatched-Data page links
-        resolved objects and greys out the unresolved rest. The base walks
-        animals; ear/confocal subclasses override to yield ``Ear`` rows at
-        side granularity via :meth:`_ear_unmatched_objects`.
+        Returns a list of :class:`UnmatchedObject` records, which the
+        Unmatched-Data page renders as pills: a thing that resolves to a
+        real row links to its detail page, a name that resolves to
+        nothing greys out, and an ear whose animal exists but whose
+        ``Ear`` row does not renders as a hybrid of the two. The base
+        walks animals; ear/confocal subclasses override to yield ``Ear``
+        rows at side granularity via :meth:`_ear_unmatched_objects`.
         """
         return self._animal_unmatched_objects()
 
@@ -411,7 +431,9 @@ class Data(VersionedModel):
         objects = []
         for aid in self.unmatched_animal_ids:
             animal = by_cid.get(aid)
-            objects.append(('animal', animal, animal.display_id if animal else aid))
+            objects.append(UnmatchedObject(
+                'animal', animal, animal.display_id if animal else aid,
+                animal=animal))
         return objects
 
     def _ear_unmatched_objects(self, linked_ear_ids):
@@ -425,16 +447,20 @@ class Data(VersionedModel):
         when the animal is right there and only its Right ear isn't.
 
         An ear that exists but was never made a candidate still resolves
-        here, so it renders as a link rather than a dead name. Only when
-        the filename names no side at all is there nothing more specific
-        to offer than the animal.
+        here, so it renders as a link rather than a dead name. When only
+        the animal resolves, it still rides along on the entry so the page
+        can link to it -- that page is where the missing ear gets created.
+        Only when the filename names no side at all is there nothing more
+        specific to offer than the animal.
         """
         objects = []
         covered_cids = set()
         for ear in sorted(self.candidate_ears):
             if ear.id in linked_ear_ids:
                 continue
-            objects.append(('ear', ear, ear.full_display))
+            objects.append(UnmatchedObject(
+                'ear', ear, ear.full_display,
+                animal=ear.animal, side=ear.side))
             covered_cids.add(ear.animal.custom_id)
         by_cid = {a.custom_id: a for a in self.candidate_animals}
         sides = self.parsed_ear_sides
@@ -444,8 +470,9 @@ class Data(VersionedModel):
             animal = by_cid.get(aid)
             side = sides.get(aid)
             if side is None:
-                objects.append(
-                    ('animal', animal, animal.display_id if animal else aid))
+                objects.append(UnmatchedObject(
+                    'animal', animal, animal.display_id if animal else aid,
+                    animal=animal))
                 continue
             ear = None
             if animal is not None:
@@ -456,8 +483,9 @@ class Data(VersionedModel):
                 continue
             # ``aid`` rather than ``display_id``: it is the custom_id that
             # matched, which is what ``Ear.full_display`` would render.
-            objects.append(
-                ('ear', ear, ear.full_display if ear else f'{aid} {side}'))
+            objects.append(UnmatchedObject(
+                'ear', ear, ear.full_display if ear else f'{aid} {side}',
+                animal=animal, side=ear.side if ear else side))
         return objects
 
     def recompute_unmatched_flag(self):

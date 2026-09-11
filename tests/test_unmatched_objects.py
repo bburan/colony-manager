@@ -1,14 +1,17 @@
 """Tests for ``Data.unmatched_objects`` — the per-row list that drives the
 Unmatched-Data page's "Unlinked objects" column.
 
-Each entry is a ``(kind, obj, label)`` tuple: resolved rows carry their ORM
-object (linked in the UI, dark pill); unresolved names carry ``None`` (grey,
-unlinked pill). Animal-targeted files yield animals; ear/confocal files yield
-ears at side granularity -- including ears that don't exist yet, since the
-target of those datatypes is an ear. Only a file naming no side at all falls
-back to an animal pill.
+Each entry is an ``UnmatchedObject(kind, obj, label, animal, side)``:
+resolved rows carry their ORM object (linked in the UI, dark pill);
+unresolved names carry ``None`` (grey, unlinked pill). Animal-targeted
+files yield animals; ear/confocal files yield ears at side granularity --
+including ears that don't exist yet, since the target of those datatypes
+is an ear. Such an entry still carries the resolved ``animal`` and the
+``side``, which the page renders as a split dark/light pill linking to
+the animal. Only a file naming no side at all falls back to an animal
+pill.
 """
-from colony_manager.models import AnimalData, EarData
+from colony_manager.models import AnimalData, EarData, UnmatchedObject
 
 from .factories import (
     make_animal, make_animal_data_type, make_data_location, make_ear,
@@ -54,8 +57,8 @@ def test_animal_objects_link_when_resolved_grey_when_typo(db_session):
         candidates=[a1],
     )
     assert row.unmatched_objects == [
-        ('animal', a1, a1.display_id),
-        ('animal', None, 'B0828-4'),
+        UnmatchedObject('animal', a1, a1.display_id, a1, None),
+        UnmatchedObject('animal', None, 'B0828-4', None, None),
     ]
 
 
@@ -68,7 +71,8 @@ def test_ear_objects_yield_unlinked_ears_at_side_granularity(db_session):
         candidate_animals=[a],
         candidate_ears=[ear],
     )
-    assert row.unmatched_objects == [('ear', ear, ear.full_display)]
+    assert row.unmatched_objects == [
+        UnmatchedObject('ear', ear, ear.full_display, ear.animal, ear.side)]
 
 
 def test_ear_objects_exclude_already_linked_ear(db_session):
@@ -96,14 +100,17 @@ def test_ear_file_typo_names_the_ear_not_the_animal(db_session):
         candidate_animals=[],
         candidate_ears=[],
     )
-    assert row.unmatched_objects == [('ear', None, 'G999-9 Left')]
+    assert row.unmatched_objects == [
+        UnmatchedObject('ear', None, 'G999-9 Left', None, 'Left')]
 
 
 def test_existing_animal_missing_that_ear_reports_the_ear(db_session):
     """The real-world B047-3R case: animal is present, its Right ear is not.
 
     Reporting ``B047-3`` here is actively misleading -- the animal is fine
-    and linkable; it is the Right ear row that does not exist.
+    and linkable; it is the Right ear row that does not exist. The animal
+    rides along on the entry so the page can render a split pill whose
+    linked half reaches the page where that ear gets created.
     """
     a = make_animal(db_session, custom_id='B047-3')
     make_ear(db_session, animal=a, side='Left')      # only the other side
@@ -113,7 +120,8 @@ def test_existing_animal_missing_that_ear_reports_the_ear(db_session):
         candidate_animals=[a],
         candidate_ears=[],
     )
-    assert row.unmatched_objects == [('ear', None, 'B047-3 Right')]
+    assert row.unmatched_objects == [
+        UnmatchedObject('ear', None, 'B047-3 Right', a, 'Right')]
 
 
 def test_ear_resolves_even_when_not_a_candidate(db_session):
@@ -130,7 +138,8 @@ def test_ear_resolves_even_when_not_a_candidate(db_session):
         candidate_animals=[a],
         candidate_ears=[],                            # matcher missed it
     )
-    assert row.unmatched_objects == [('ear', ear, ear.full_display)]
+    assert row.unmatched_objects == [
+        UnmatchedObject('ear', ear, ear.full_display, ear.animal, ear.side)]
 
 
 def test_side_spelled_as_a_list_is_zipped_against_animals(db_session):
@@ -144,8 +153,8 @@ def test_side_spelled_as_a_list_is_zipped_against_animals(db_session):
         candidate_ears=[],
     )
     assert row.unmatched_objects == [
-        ('ear', None, 'G020-1 Left'),
-        ('ear', None, 'G020-2 Right'),
+        UnmatchedObject('ear', None, 'G020-1 Left', a1, 'Left'),
+        UnmatchedObject('ear', None, 'G020-2 Right', a2, 'Right'),
     ]
 
 
@@ -159,7 +168,8 @@ def test_lowercase_side_matches_an_existing_ear(db_session):
         candidate_animals=[a],
         candidate_ears=[],
     )
-    assert row.unmatched_objects == [('ear', ear, ear.full_display)]
+    assert row.unmatched_objects == [
+        UnmatchedObject('ear', ear, ear.full_display, ear.animal, ear.side)]
 
 
 def test_no_side_in_filename_still_falls_back_to_the_animal(db_session):
@@ -172,4 +182,5 @@ def test_no_side_in_filename_still_falls_back_to_the_animal(db_session):
         candidate_animals=[a],
         candidate_ears=[],
     )
-    assert row.unmatched_objects == [('animal', a, a.display_id)]
+    assert row.unmatched_objects == [
+        UnmatchedObject('animal', a, a.display_id, a, None)]

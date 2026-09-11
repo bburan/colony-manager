@@ -198,17 +198,27 @@ Unmatched Data Files
                        hasn't linked. Objects that resolve to a real row link to
                        their detail page in the dark secondary color like the
                        datatype pills; names with no matching row (e.g. typos)
-                       get a muted, unlinked pill. #}
+                       get a muted, unlinked pill. An ear whose animal exists
+                       but whose Ear row doesn't gets a split pill — dark,
+                       linked animal half plus light side half — so one click
+                       lands on the page where that ear is created. #}
                     <td class="small">
-                        {% for kind, obj, label in f.unmatched_objects %}
-                            {% if obj and kind == 'ear' %}
-                                <a href="{{ url_for('histology.view_ear', ear_id=obj.id) }}"
-                                   class="badge bg-secondary text-decoration-none">{{ label }}</a>
-                            {% elif obj %}
-                                <a href="{{ url_for('animals.view_animal', animal_id=obj.id) }}"
-                                   class="badge bg-secondary text-decoration-none">{{ label }}</a>
+                        {% for o in f.unmatched_objects %}
+                            {% if o.kind == 'ear' and o.obj %}
+                                <a href="{{ url_for('histology.view_ear', ear_id=o.obj.id) }}"
+                                   class="badge bg-secondary text-decoration-none">{{ o.label }}</a>
+                            {% elif o.kind == 'ear' and o.animal %}
+                                <span class="d-inline-flex align-middle rounded overflow-hidden"
+                                      title="{{ o.animal.display_id }} exists; its {{ o.side }} ear does not">
+                                    <a href="{{ url_for('animals.view_animal', animal_id=o.animal.id, _anchor='animal-ears-body') }}"
+                                       class="badge bg-secondary text-decoration-none rounded-0">{{ o.animal.display_id }}</a>
+                                    <span class="badge bg-light text-dark rounded-0">{{ o.side }}</span>
+                                </span>
+                            {% elif o.obj %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=o.obj.id) }}"
+                                   class="badge bg-secondary text-decoration-none">{{ o.label }}</a>
                             {% else %}
-                                <span class="badge bg-light text-dark">{{ label }}</span>
+                                <span class="badge bg-light text-dark">{{ o.label }}</span>
                             {% endif %}
                         {% else %}
                             <span class="text-muted">&mdash;</span>

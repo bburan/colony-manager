@@ -87,6 +87,7 @@ from .data import (
     EarDataType,
     DATATYPE_SUBCLASSES,
     DataLocation,
+    UnmatchedObject,
     Data,
     AnimalEventData,
     ConfocalImageData,

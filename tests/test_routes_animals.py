@@ -15,14 +15,14 @@ from sqlalchemy import select
 
 from colony_manager.enums import DataStatus
 from colony_manager.models import (
-    Animal, AnimalEvent, AnimalEventData, Data, DataLocation, FeedLog,
-    WeightLog,
+    Animal, AnimalEvent, AnimalEventData, Data, DataLocation, EarData,
+    FeedLog, WeightLog,
 )
 
 from .factories import (
     make_animal, make_animal_event_data_type, make_breeding_pair,
-    make_cage, make_data_location, make_event, make_feed, make_feed_log,
-    make_procedure, make_procedure_target, make_species,
+    make_cage, make_data_location, make_ear_data_type, make_event, make_feed,
+    make_feed_log, make_procedure, make_procedure_target, make_species,
     make_termination_reason, make_weight_log,
 )
 
@@ -771,6 +771,36 @@ def test_list_unmatched_data_missing_status_filter(logged_in_client):
         '/animals/unmatched-data?status=missing'
     )
     assert response.status_code == 200
+
+
+def test_unmatched_data_missing_ear_renders_split_pill(
+    logged_in_client, db_session,
+):
+    """An ear file naming an existing animal's non-existent ear renders a
+    hybrid pill: a dark, linked animal half (pointing at the ears card,
+    where that ear gets created) beside a light, unlinked side half.
+    """
+    animal = make_animal(db_session, custom_id='B901-1')
+    dtype = make_ear_data_type(db_session)
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = EarData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        target_type='ear',
+        relative_path='B901-1_right.csv',
+        name='B901-1_right.csv',
+        parsed_metadata={'animal_id': ['B901-1'], 'side': 'Right'},
+    )
+    db_session.add(row)
+    row.candidate_animals = [animal]
+    db_session.commit()
+
+    response = logged_in_client.get('/animals/unmatched-data?target_type=ear')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert f'/animals/{animal.id}#animal-ears-body' in html
+    assert 'B901-1</a>' in html
+    assert 'badge bg-light text-dark rounded-0">Right</span>' in html
 
 
 def _make_unmatched_data_row(db_session, *, status=DataStatus.MISSING, name='f.txt'):

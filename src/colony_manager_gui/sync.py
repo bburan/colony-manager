@@ -828,7 +828,10 @@ def _prune_location(location, apply=False):
         full = os.path.join(location.base_path, row.relative_path)
         if not os.path.exists(full):
             # Gone from disk, which is the missing-pass's job, not ours —
-            # a MISSING row may just be an unmounted share.
+            # a MISSING row may just be an unmounted share. Named under -v
+            # so the count is actionable: absent=19 otherwise says nothing
+            # about which 19.
+            log.info('  [ABSENT] %s', row.relative_path)
             counts['absent'] += 1
             continue
         try:

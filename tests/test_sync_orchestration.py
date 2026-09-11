@@ -1157,3 +1157,21 @@ def test_prune_drops_rows_that_now_parse_as_test_acquisitions(
     assert totals['deleted'] == 1
     db_session.expunge_all()
     assert db_session.get(AnimalData, row_id) is None
+
+
+def test_prune_names_the_absent_rows_in_the_log(db_session, app, tmp_path, caplog):
+    """``absent=19`` says nothing about which 19; -v has to name them."""
+    import logging
+    from colony_manager_gui.sync import prune_locations
+
+    dtype = make_animal_data_type(db_session)
+    dtype.description_class = 'fake_animal'
+    db_session.commit()
+    location = make_data_location(db_session, datatype=dtype, base_path=tmp_path)
+    _stale_row(db_session, dtype, location, 'never-written.txt')
+
+    with caplog.at_level(logging.INFO, logger='colony_manager_gui.sync'):
+        with app.app_context():
+            prune_locations(filter_datatype_id=dtype.id, apply=True)
+
+    assert '[ABSENT] never-written.txt' in caplog.text

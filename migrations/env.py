@@ -11,9 +11,13 @@ from alembic import context
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# disable_existing_loggers=False: the default (True) silently disables
+# every logger that already exists and isn't named in alembic.ini --
+# including the app's own colony_manager_gui.* loggers whenever a
+# migration runs in a process that has already imported them, which is
+# how 'flask data ... -v' ends up printing nothing.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 from colony_manager import models
 

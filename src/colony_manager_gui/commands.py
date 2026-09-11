@@ -58,11 +58,27 @@ def _echo_counts(label, counts):
 
 
 def _enable_info_logging(verbose):
-    """Surface sync.py's per-item INFO logging when ``-v`` is passed."""
-    if verbose:
-        logging.basicConfig(level=logging.INFO,
-                            format='%(asctime)s %(levelname)-8s %(message)s')
-        logging.getLogger('colony_manager_gui.sync').setLevel(logging.INFO)
+    """Surface the package's per-item INFO logging when ``-v`` is passed.
+
+    ``logging.basicConfig`` is a no-op once anything has already given the
+    root logger a handler -- which a description-class dependency may well
+    have done by the time a command body runs -- so routing -v through it
+    meant the flag silently did nothing but change the format, and only
+    when it happened to run first. Configure the package logger directly
+    instead, and add a handler only when no ancestor has one, since an
+    existing root handler already prints what propagates to it (adding a
+    second would print every line twice).
+    """
+    if not verbose:
+        return
+    pkg = logging.getLogger('colony_manager_gui')
+    pkg.setLevel(logging.INFO)
+    if pkg.handlers or logging.root.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s %(levelname)-8s %(message)s'))
+    pkg.addHandler(handler)
 
 
 _datatype_option = click.option(
@@ -140,6 +156,11 @@ def prune(datatype, apply_, verbose):
     Use after tightening a description class's parse(): `sync` skips files
     already in the DB, so rows ingested under the old rule stay behind.
     Reports without deleting unless --apply is passed.
+
+    Only rows whose file is still on disk are candidates. A row whose file
+    is gone counts as 'absent' and is never deleted, even with --apply:
+    flagging those is the missing-pass in 'flask data sync', and an absent
+    file may only mean an unmounted share.
     """
     from colony_manager_gui.sync import prune_locations
     _enable_info_logging(verbose)
@@ -148,6 +169,16 @@ def prune(datatype, apply_, verbose):
     _echo_counts('prune', counts)
     if counts['deleted'] and not apply_:
         click.echo('Dry run — re-run with --apply to delete these rows.')
+    if counts['absent']:
+        # --apply leaves these behind by design, which reads like a bug
+        # when the count is all you see. Say what they are and where they
+        # get dealt with.
+        click.echo(
+            f"{counts['absent']} row(s) left alone: their file is not on "
+            'disk. prune only drops rows whose file is present but no '
+            'longer parses; run `flask data sync` to flag absent files '
+            "Missing, then delete them from the Unmatched Data page's "
+            'Missing filter.')
 
 
 @data_cli.command('sync-rating')

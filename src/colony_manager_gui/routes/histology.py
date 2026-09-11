@@ -305,13 +305,30 @@ def update_confocal_image(image_id) -> Response | str:
 @histology_bp.route('/confocal_images/<int:image_id>/delete', methods=['POST'])
 def delete_confocal_image(image_id) -> Response | str:
     img = get_or_404(ConfocalImage, image_id)
+    ear = img.ear
+    # Files linked to this image become unmatched again. Unlink them
+    # explicitly instead of leaving it to the secondary-table cascade, so
+    # the in-memory rows are right immediately, then refresh the queryable
+    # flag the Unmatched-Data page filters on -- Data.recompute_unmatched_flag
+    # is deliberately not an ORM event, so every mutation site has to call it.
+    orphaned = list(img.data_files)
     try:
+        for f in orphaned:
+            f.confocal_images.remove(img)
         db.session.delete(img)
+        db.session.flush()
+        for f in orphaned:
+            f.recompute_unmatched_flag()
         db.session.commit()
         if request.headers.get('HX-Request'):
-            return '', 200
+            # OOB-only body: HTMX lifts the fragment out for its own swap
+            # and the empty remainder drives the row's outerHTML swap,
+            # which is what removes the row -- same as the bare '' this
+            # returned before. The card regains the files the image held.
+            return render_template('partials/ear_unmatched_images.html',
+                                   ear=ear, oob=True)
         flash('Image record deleted successfully.', 'info')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         if request.headers.get('HX-Request'):
             return 'Error deleting record', 500

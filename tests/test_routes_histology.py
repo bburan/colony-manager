@@ -620,3 +620,33 @@ def test_create_confocal_image_returns_oob_unmatched_card(logged_in_client, db_s
     assert b'id="confocal-image-table-container"' in body
     assert b'id="ear-unmatched-images"' in body
     assert b'hx-swap-oob="outerHTML"' in body
+
+def test_delete_confocal_image_returns_oob_unmatched_card(logged_in_client, db_session):
+    """Deleting an image unmatches its files, so the card must catch up.
+
+    Mirror of the create case: the row's own swap removes it from the
+    table, and the card comes back out-of-band so the files the image was
+    holding reappear without a reload.
+    """
+    animal = make_animal(db_session, custom_id='UM-4')
+    ear = make_ear(db_session, animal=animal, side='Left')
+    image_type = _make_image_type(db_session, name='UM-Type-4')
+    image = make_confocal_image(db_session, ear=ear, image_type=image_type)
+    data_file = make_confocal_image_data(db_session, confocal_image=image)
+    data_file.candidate_ears = [ear]
+    db_session.commit()
+    ear_id, image_id, file_id = ear.id, image.id, data_file.id
+    # Linked, so it is not in the card to begin with.
+    assert ear.unmatched_confocal_files == []
+
+    response = logged_in_client.post(
+        f'/histology/confocal_images/{image_id}/delete',
+        headers={'HX-Request': 'true'},
+    )
+    assert response.status_code == 200
+    assert b'id="ear-unmatched-images"' in response.data
+    assert b'hx-swap-oob="outerHTML"' in response.data
+
+    db_session.expire_all()
+    ear = db_session.get(Ear, ear_id)
+    assert [f.id for f in ear.unmatched_confocal_files] == [file_id]

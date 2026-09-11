@@ -5,7 +5,11 @@ Studies
 {% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
+{# overflow-hidden: the flush list group below is the card's last child, so
+   its square, opaque item corners paint over the card's rounded bottom
+   border and the card reads as cut off. Same fix as the animal page's
+   Studies card and the scoreboard cards. #}
+<div class="card shadow-sm overflow-hidden">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Studies</h2>
         <button class="btn btn-sm btn-icon" hx-get="{{ url_for('studies.create_study_modal') }}" hx-target="#modalBody"><span class="fa-icon-badge"><i class="fas fa-clipboard"></i><i class="fas fa-plus fa-badge"></i></span></button>

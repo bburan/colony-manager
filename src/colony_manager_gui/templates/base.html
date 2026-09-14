@@ -84,9 +84,9 @@
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_unmatched_data' }}"
                                    href="{{ url_for('animals.list_unmatched_data') }}">Unmatched</a></li>
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_unrated_data' }}"
-                                   href="{{ url_for('animals.list_unrated_data') }}">Rating Review</a></li>
+                                   href="{{ url_for('animals.list_unrated_data') }}">Needs Analysis</a></li>
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'animals.list_analysis_scoreboard' }}"
-                                   href="{{ url_for('animals.list_analysis_scoreboard') }}">Scoreboard</a></li>
+                                   href="{{ url_for('animals.list_analysis_scoreboard') }}">Analysis Scoreboard</a></li>
                         </ul>
                     </li>
                     {% for endpoint, label in nav_items_after %}

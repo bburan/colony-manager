@@ -1,0 +1,5 @@
+# core.autocrlf is on for these checkouts, so without this the entrypoint
+# would be checked out with CRLF and its `#!/bin/sh` line would fail inside
+# the Linux container. The Dockerfile is pinned for the same reason.
+*.sh text eol=lf
+Dockerfile text eol=lf

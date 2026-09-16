@@ -128,3 +128,48 @@ def test_non_subclass_value_rejected(monkeypatch):
     finally:
         reset_registry_cache()
         sys.modules.pop('_bad_registry', None)
+
+
+# ---------------------------------------------------------------------------
+# DataType.uses_folders
+# ---------------------------------------------------------------------------
+
+def test_uses_folders_comes_from_the_description_class(db_session, monkeypatch):
+    """The class decides, not the column -- a folder-based description
+    configured with is_folder unticked used to make sync walk files, whose
+    parse() all return None, producing a "successful" sync of nothing."""
+    from colony_manager.datatypes import reset_registry_cache
+    from colony_manager.models import AnimalEventDataType
+
+    monkeypatch.setenv(
+        'COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes',
+    )
+    reset_registry_cache()
+    try:
+        dt = AnimalEventDataType(name='DT-FolderFromClass')
+        dt.description_class = 'fake_folder'
+        dt.is_folder = False          # stale column, deliberately disagreeing
+        db_session.add(dt)
+        db_session.commit()
+        assert dt.uses_folders is True
+
+        dt.description_class = 'fake_animal_event'   # file-based fake
+        dt.is_folder = True           # stale the other way
+        assert dt.uses_folders is False
+    finally:
+        reset_registry_cache()
+
+
+def test_uses_folders_falls_back_to_the_column_without_a_class(db_session):
+    """A DataType with no description class cannot sync anyway, so the
+    fallback never really decides anything -- but it must not explode."""
+    from colony_manager.models import AnimalEventDataType
+
+    dt = AnimalEventDataType(name='DT-NoClass')
+    dt.is_folder = True
+    db_session.add(dt)
+    db_session.commit()
+    assert dt.uses_folders is True
+
+    dt.is_folder = False
+    assert dt.uses_folders is False

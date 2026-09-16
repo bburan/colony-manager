@@ -65,6 +65,26 @@ class DataType(VersionedModel):
         except Exception:
             return {}
 
+    @property
+    def uses_folders(self):
+        """Whether ``sync`` should walk directories rather than files.
+
+        The description class decides -- it is the only thing that knows
+        whether its ``parse()`` expects a directory. The ``is_folder``
+        column is kept in step on save purely so list views can show the
+        badge without resolving the registry, and is the fallback when the
+        class is absent or unresolvable. A DataType with no description
+        class cannot sync at all, so that fallback never really decides
+        anything.
+        """
+        try:
+            cls = self.get_description_class()
+        except Exception:
+            cls = None
+        if cls is None:
+            return bool(self.is_folder)
+        return bool(getattr(cls, 'is_folder', False))
+
     def match_targets(self, session, parsed):
         return []
 

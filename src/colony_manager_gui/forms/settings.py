@@ -64,7 +64,6 @@ class DataTypeForm(FlaskForm):
         validators=[Optional()],
         filters=[lambda v: v or None],
     )
-    is_folder = BooleanField('Is Folder?')
 
     def __init__(self, *args, obj=None, **kwargs):
         super().__init__(*args, obj=obj, **kwargs)

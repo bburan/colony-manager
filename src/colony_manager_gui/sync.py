@@ -296,7 +296,7 @@ def _sync_location(location, dry_run=False, debug=False):
 
     parsed_items = []  # list of (relative_path, item_name, full_path, parsed, desc, file_hash)
     for root, dirs, files in os.walk(base_path):
-        items_to_check = dirs if datatype.is_folder else files
+        items_to_check = dirs if datatype.uses_folders else files
         for item_name in items_to_check:
             counts['examined'] += 1
             full_path = os.path.join(root, item_name)

@@ -265,6 +265,22 @@ class DataTypeDescription(ABC):
         """
         ...
 
+    # -- What sync should walk -----------------------------------------------
+
+    is_folder: bool = False
+    """Set to ``True`` on subclasses whose ``parse()`` expects a directory
+    rather than a file.
+
+    Only the description class can answer this: a folder-based description
+    resolves its outputs as siblings *inside* the folder (psiexperiment run
+    folders, cochleogram folders keyed on a ``*_frequency_map.pdf``), while a
+    file-based one parses the file itself. ``sync_locations`` reads it via
+    ``DataType.uses_folders`` to decide whether to walk ``dirs`` or ``files``.
+
+    This used to be an admin-set checkbox on the DataType row, which made it
+    possible to point a folder-based class at files: every ``parse()`` then
+    returns ``None`` and the sync reports success having ingested nothing."""
+
     # -- Rating / scoring status ---------------------------------------------
 
     supports_rating: bool = False

@@ -218,6 +218,12 @@ class _RaisingAnimalDescription(_FilenameAnimalDescription):
         return super().parse()
 
 
+
+class _FolderDescription(_FilenameAnimalEventDescription):
+    """Folder-based description, for DataType.uses_folders tests."""
+
+    is_folder = True
+
 # ``DESCRIPTION_CLASSES`` dict mapping short keys to subclasses.
 DESCRIPTION_CLASSES = {
     'fake_animal_event': _FilenameAnimalEventDescription,
@@ -232,4 +238,5 @@ DESCRIPTION_CLASSES = {
     'fake_ratable': _RatableAnimalDescription,
     'fake_analyzed': _AnalyzedAnimalDescription,
     'fake_raising': _RaisingAnimalDescription,
+    'fake_folder': _FolderDescription,
 }

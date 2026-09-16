@@ -541,3 +541,37 @@ def test_create_datatype_modal_ignores_a_key_outside_the_registry(
     )
     assert response.status_code == 200
     assert b'os.path' not in response.data
+
+
+def test_navbar_settings_dropdown_links_to_both_settings_pages(logged_in_client):
+    """The Settings nav entry is a dropdown (General + Data Types), so the
+    sub-page is reachable without going via /settings first."""
+    response = logged_in_client.get('/')
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert '/settings/datatypes"' in body
+    assert '/settings"' in body
+
+
+def test_navbar_settings_dropdown_hidden_from_non_admins(client, db_session):
+    """/settings/* is admin-gated, so the dropdown must not advertise it."""
+    from .factories import make_user
+
+    peon = make_user(
+        db_session, email='navpeon@example.com', active=True, admin=False,
+    )
+    with client.session_transaction() as sess:
+        sess['_user_id'] = str(peon.id)
+        sess['_fresh'] = True
+
+    response = client.get('/')
+    assert response.status_code == 200
+    assert '/settings/datatypes"' not in response.data.decode()
+
+
+def test_sync_jobs_panel_precedes_the_datatype_roster(logged_in_client, db_session):
+    db_session.add(AnimalEventDataType(name='DT-Ordering'))
+    db_session.commit()
+
+    body = logged_in_client.get('/settings/datatypes').data.decode()
+    assert body.index('id="setting-jobs"') < body.index('id="setting-datatypes"')

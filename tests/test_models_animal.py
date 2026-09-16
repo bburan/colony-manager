@@ -352,3 +352,80 @@ def test_baseline_from_weights_ignores_null_weights(db_session):
         _weight(animal.id, 2, 22.0, baseline=True),
     ]
     assert Animal._baseline_from_weights(weights) == pytest.approx(21.0)
+
+
+# ---------------------------------------------------------------------------
+# Age stops at termination
+# ---------------------------------------------------------------------------
+
+def test_age_is_frozen_at_termination(db_session):
+    """A terminated animal's age is its age at euthanasia, not a
+    chronological age that keeps growing past death."""
+    dob = date.today() - timedelta(days=100)
+    animal = make_animal(db_session, dob=dob)
+    animal.terminate(termination_date=dob + timedelta(days=60))
+    db_session.commit()
+
+    assert animal.age_in_days == 60          # not 100
+    assert animal.age_in_weeks == pytest.approx(60 / 7)
+    assert animal.age_in_months == pytest.approx(60 / 30)
+    assert animal.age_display('day') == '60.0 days (t)'
+
+
+def test_age_is_nan_when_termination_date_is_unknown(db_session):
+    """Terminated with no date recorded: the age is unknowable, so it is
+    nan rather than a plausible-looking number."""
+    from math import isnan
+
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=100))
+    animal.terminate(termination_date=None)
+    db_session.commit()
+
+    assert animal.termination_date is None
+    assert isnan(animal.age_in_days)
+    assert isnan(animal.age_in_weeks)
+    assert isnan(animal.age_in_months)
+    assert animal.age_display('day') == 'Unknown (t)'
+
+
+def test_unknown_age_never_satisfies_a_threshold(db_session):
+    """nan compares false both ways, so an unknown age cannot slip through
+    an age filter in either direction."""
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=100))
+    animal.terminate(termination_date=None)
+    db_session.commit()
+
+    assert not (animal.age_in_days > 0)
+    assert not (animal.age_in_days < 0)
+    assert not (animal.age_in_days == animal.age_in_days)
+
+
+def test_living_animal_age_still_tracks_today(db_session):
+    animal = make_animal(db_session, dob=date.today() - timedelta(days=70))
+    assert animal.age_in_days == 70
+    assert animal.age_display('day') == '70.0 days'
+
+
+def test_cage_age_display_skips_animals_with_unknown_age(db_session):
+    """nan would sort unpredictably and render as "nan", so the cage range
+    is built from the animals whose age is knowable."""
+    cage = make_cage(db_session)
+    known = make_animal(db_session, cage=cage,
+                        dob=date.today() - timedelta(days=30))
+    unknown = make_animal(db_session, cage=cage,
+                          dob=date.today() - timedelta(days=90))
+    unknown.terminate(termination_date=None)
+    db_session.commit()
+
+    assert cage.age_display('day') == '30.0 days'
+    assert 'nan' not in cage.age_display('day').lower()
+
+
+def test_cage_age_display_is_na_when_no_age_is_knowable(db_session):
+    cage = make_cage(db_session)
+    animal = make_animal(db_session, cage=cage,
+                         dob=date.today() - timedelta(days=90))
+    animal.terminate(termination_date=None)
+    db_session.commit()
+
+    assert cage.age_display('day') == 'N/A'

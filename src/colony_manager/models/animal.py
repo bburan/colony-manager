@@ -10,6 +10,7 @@ Feed, WeightLog, FeedLog, and Study.
 time.
 """
 from datetime import date, datetime, timedelta
+from math import isnan
 from statistics import mean
 
 from sqlalchemy import (
@@ -147,7 +148,19 @@ class Cage(VersionedModel):
         return ''
 
     def age_display(self, unit='day'):
-        ages = sorted({getattr(a, f'age_in_{unit}s') for a in self.animals})
+        """Age range across this cage's animals.
+
+        Animals whose age is unknown (terminated with no termination date,
+        so ``age_in_*`` is ``nan``) are skipped: nan sorts unpredictably,
+        never compares equal to itself so it survives the de-duplicating
+        set, and would render as "nan". A cage where no animal has a
+        knowable age reports ``N/A``.
+        """
+        ages = sorted(
+            age for age in {
+                getattr(a, f'age_in_{unit}s') for a in self.animals
+            } if not isnan(age)
+        )
         if not ages:
             return 'N/A'
         elif len(ages) == 1:
@@ -266,6 +279,24 @@ class Animal(VersionedModel):
 
     @property
     def age_in_days(self):
+        """Age in days, frozen at termination.
+
+        A terminated animal's age stops on its termination date. A
+        chronological age that keeps growing past death is wrong everywhere
+        it is shown, so this reports the age *at* euthanasia.
+
+        When the animal is terminated but the date was never recorded the
+        age is genuinely unknowable, so this is ``nan`` rather than a
+        plausible-looking number. It propagates through ``age_in_weeks`` /
+        ``age_in_months`` for free, and compares false against any
+        threshold, so an unknown age cannot satisfy an age filter by
+        accident. Callers that aggregate must skip it — see
+        ``Cage.age_display``.
+        """
+        if self.terminated:
+            if self.termination_date is None:
+                return float('nan')
+            return (self.termination_date - self.dob).days
         return (date.today() - self.dob).days
 
     @property
@@ -386,20 +417,16 @@ class Animal(VersionedModel):
     def age_display(self, unit='day'):
         """Human-readable age in ``unit``s.
 
-        For a terminated (euthanized) animal this reports the age *at
-        euthanasia* rather than a chronological age that keeps growing past
-        death, flagged with a trailing ``(t)``. If the animal is terminated
-        but the euthanasia date was never recorded, the age is unknowable,
-        so it renders as ``Unknown (t)``.
+        Formats whatever ``age_in_{unit}s`` reports, which already stops at
+        termination. A terminated animal is flagged with a trailing ``(t)``,
+        and the ``nan`` a missing termination date yields renders as
+        ``Unknown (t)``.
         """
-        if self.terminated:
-            if self.termination_date is None:
-                return 'Unknown (t)'
-            age_days = (self.termination_date - self.dob).days
-            age = age_days / _AGE_UNIT_DAYS[unit]
-            return f'{age:.1f} {unit}s (t)'
         age = getattr(self, f'age_in_{unit}s')
-        return f'{age:.1f} {unit}s'
+        suffix = ' (t)' if self.terminated else ''
+        if isnan(age):
+            return f'Unknown{suffix}'
+        return f'{age:.1f} {unit}s{suffix}'
 
     @property
     def display_id(self):

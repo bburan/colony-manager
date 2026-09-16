@@ -19,6 +19,7 @@ The thread-spawning predecessor allowed parallel execution and
 relied on DB unique constraints alone to prevent corruption.
 """
 import json
+import traceback
 import logging
 from datetime import datetime
 
@@ -63,7 +64,14 @@ def _execute_job(job_id, work):
     except Exception as exc:  # noqa: BLE001 — defensive: persist + reraise
         log.exception('SyncJob %s failed', job_id)
         job.status = SyncJobStatus.FAILED
-        job.error = f'{type(exc).__name__}: {exc}'
+        # One-line summary first, full traceback after a blank line. The
+        # panel shows only the first line; the job-detail modal shows the
+        # rest. Persisting it here means diagnosing a failed job no longer
+        # requires shell access to the worker's container logs. ``error`` is
+        # an unbounded Text column, so this needs no migration.
+        trace = ''.join(traceback.format_exception(
+            type(exc), exc, exc.__traceback__)).rstrip()
+        job.error = f'{type(exc).__name__}: {exc}\n\n{trace}'
         raise
     finally:
         job.finished_at = datetime.utcnow()

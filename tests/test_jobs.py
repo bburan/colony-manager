@@ -121,7 +121,11 @@ def test_work_function_failure_records_error(app, db_session, monkeypatch):
     db_session.expire_all()
     job = db_session.get(SyncJob, job_id)
     assert job.status == SyncJobStatus.FAILED
-    assert job.error == 'RuntimeError: boom'
+    # error is "<Type>: <msg>" on the first line, then the full traceback --
+    # the panel shows the headline, the job-detail modal shows the rest.
+    assert job.error.splitlines()[0] == 'RuntimeError: boom'
+    assert 'Traceback (most recent call last)' in job.error
+    assert 'in explode' in job.error
     assert job.finished_at is not None
 
 
@@ -396,3 +400,29 @@ def test_enqueue_sync_all_is_not_scoped_to_a_datatype(app, db_session):
     job = db_session.get(SyncJob, job_id)
     assert job.kind == SyncJobKind.SYNC
     assert job.datatype_id is None
+
+
+# ---------------------------------------------------------------------------
+# Job detail
+# ---------------------------------------------------------------------------
+
+def test_job_detail_route_renders_counts_and_error(logged_in_client, db_session):
+    job = SyncJob(
+        kind=SyncJobKind.SYNC, status=SyncJobStatus.FAILED,
+        summary=json.dumps({'added': 0, 'examined': 42, 'rejected': 42}),
+        error='ValueError: boom\n\nTraceback (most recent call last):\n  ...',
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = logged_in_client.get(f'/settings/jobs/{job.id}')
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert 'Traceback (most recent call last)' in body
+    assert '42' in body
+    # The zero-added-but-things-examined case gets an explicit hint.
+    assert 'Is Folder?' in body
+
+
+def test_job_detail_route_404s_for_unknown_job(logged_in_client):
+    assert logged_in_client.get('/settings/jobs/999999').status_code == 404

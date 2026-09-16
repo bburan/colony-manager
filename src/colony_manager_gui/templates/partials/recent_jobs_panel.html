@@ -1,5 +1,8 @@
 {# Recent sync/rematch jobs. Polled every 5s by view_settings.html.
 
+   Each row opens partials/job_detail_modal.html, which carries the full
+   counts and, for a failure, the persisted traceback.
+
    Args:
      recent_jobs (list of SyncJob)
      parse_summary (callable: SyncJob -> dict) — decodes JSON summary
@@ -14,7 +17,11 @@
         'success': 'success',
         'failed': 'danger',
     }.get(job.status, 'secondary') %}
-    <li class="list-group-item d-flex align-items-center gap-3">
+    <li class="list-group-item list-group-item-action d-flex align-items-center gap-3"
+        role="button" style="cursor: pointer;"
+        title="Show full job detail"
+        hx-get="{{ url_for('main.view_job_detail', job_id=job.id) }}"
+        hx-target="#modalBody">
         <span class="badge bg-{{ status_class }}-subtle text-{{ status_class }}-emphasis flex-shrink-0"
               style="min-width: 5em;">
             {% if job.status == 'running' %}<i class="fas fa-spinner fa-spin fa-xs me-1"></i>{% endif %}
@@ -38,7 +45,8 @@
                 {{ parts|join(', ') if parts else 'no changes' }}
             </span>
             {% elif job.status == 'failed' and job.error %}
-            <span class="text-danger ms-2" title="{{ job.error }}">{{ job.error|truncate(80) }}</span>
+            {% set headline = job.error.splitlines()[0] if job.error.splitlines() else job.error %}
+            <span class="text-danger ms-2" title="{{ headline }}">{{ headline|truncate(80) }}</span>
             {% endif %}
         </span>
         {% if job.finished_at and job.started_at %}

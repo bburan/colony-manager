@@ -256,7 +256,8 @@ def _sync_location(location, dry_run=False, debug=False):
     N×ear) ≈ 4N queries for N files; now it's ≈ 4 queries regardless
     of N (plus whatever ``match_targets`` issues, which we leave alone).
     """
-    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'recovered': 0}
+    counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'recovered': 0,
+              'examined': 0, 'rejected': 0}
 
     datatype = location.datatype
     base_path = location.base_path
@@ -297,6 +298,7 @@ def _sync_location(location, dry_run=False, debug=False):
     for root, dirs, files in os.walk(base_path):
         items_to_check = dirs if datatype.is_folder else files
         for item_name in items_to_check:
+            counts['examined'] += 1
             full_path = os.path.join(root, item_name)
             relative_path = os.path.relpath(full_path, base_path).replace("\\", "/")
 
@@ -322,10 +324,12 @@ def _sync_location(location, dry_run=False, debug=False):
                 parsed = desc.parse()
             except Exception as e:
                 log.warning('  [WARN] %s: parser raised %r', relative_path, e)
+                counts['rejected'] += 1
                 if debug:
                     raise
                 continue
             if not parsed:
+                counts['rejected'] += 1
                 continue
             if _is_test_acquisition(parsed):
                 log.info('  [SKIP] %s: test animal_id, not ingesting',
@@ -535,12 +539,12 @@ def _sync_location(location, dry_run=False, debug=False):
         db.session.commit()
 
     log.info(
-        '[%s] %s — added=%d moved=%d recovered=%d unmatched=%d '
-        'auto_created=%d skipped=%d missing=%d',
+        '[%s] %s — examined=%d added=%d moved=%d recovered=%d unmatched=%d '
+        'auto_created=%d skipped=%d missing=%d rejected=%d',
         datatype.name, 'dry-run' if dry_run else 'done',
-        counts['added'], counts['moved'], counts['recovered'],
+        counts['examined'], counts['added'], counts['moved'], counts['recovered'],
         counts['unmatched'], counts['auto_created'], counts['skipped'],
-        counts[DataStatus.MISSING],
+        counts[DataStatus.MISSING], counts['rejected'],
     )
     return counts
 
@@ -567,7 +571,8 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
         stmt = stmt.where(DataLocation.datatype_id == filter_datatype_id)
     locations = db.session.scalars(stmt).all()
 
-    totals = {'added': 0, 'moved': 0, 'recovered': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'rematched': 0}
+    totals = {'added': 0, 'moved': 0, 'recovered': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'rematched': 0,
+              'examined': 0, 'rejected': 0}
     if not locations:
         log.info('No DataLocations found%s.',
                  f' for datatype {filter_datatype_id}' if filter_datatype_id else '')

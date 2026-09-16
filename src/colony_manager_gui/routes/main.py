@@ -397,6 +397,21 @@ def list_recent_jobs() -> Response | str:
     )
 
 
+@main_bp.route('/settings/jobs/<int:job_id>')
+def view_job_detail(job_id) -> Response | str:
+    """Modal showing everything a SyncJob recorded.
+
+    The panel row is deliberately terse; this is where the full counts and,
+    for a failure, the persisted traceback live. Before this, diagnosing a
+    failed job meant reading the worker container's logs over ssh.
+    """
+    job = get_or_404(models.SyncJob, job_id)
+    return render_template(
+        'partials/job_detail_modal.html',
+        job=job, summary=parse_summary(job),
+    )
+
+
 def _render_nested_section(item_type):
     """Re-render the whole settings section for a nested-tag setting. Every
     mutation (create/update/delete) returns this so htmx swaps the entire

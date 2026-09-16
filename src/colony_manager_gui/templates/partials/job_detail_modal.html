@@ -1,0 +1,106 @@
+{# Full detail for one SyncJob.
+
+   Args:
+     job (SyncJob)
+     summary (dict) — already decoded by parse_summary
+#}
+{% set status_class = {
+    'pending': 'secondary',
+    'running': 'primary',
+    'success': 'success',
+    'failed': 'danger',
+}.get(job.status, 'secondary') %}
+<div class="modal-header">
+    <h5 class="modal-title">
+        Job #{{ job.id }}
+        <span class="badge bg-{{ status_class }}-subtle text-{{ status_class }}-emphasis ms-1">{{ job.status }}</span>
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+    <dl class="row small mb-3">
+        <dt class="col-sm-3 text-muted fw-normal">Kind</dt>
+        <dd class="col-sm-9"><span class="badge bg-light text-dark border">{{ job.kind }}</span></dd>
+
+        <dt class="col-sm-3 text-muted fw-normal">Data Type</dt>
+        <dd class="col-sm-9">
+            {% if job.datatype %}{{ job.datatype.name }}
+            {% else %}<em class="text-muted">all datatypes</em>{% endif %}
+        </dd>
+
+        <dt class="col-sm-3 text-muted fw-normal">Queued</dt>
+        <dd class="col-sm-9" style="font-variant-numeric: tabular-nums;">
+            {{ job.enqueued_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        </dd>
+
+        {% if job.started_at %}
+        <dt class="col-sm-3 text-muted fw-normal">Started</dt>
+        <dd class="col-sm-9" style="font-variant-numeric: tabular-nums;">
+            {{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        </dd>
+        {% endif %}
+
+        {% if job.finished_at and job.started_at %}
+        <dt class="col-sm-3 text-muted fw-normal">Duration</dt>
+        <dd class="col-sm-9" style="font-variant-numeric: tabular-nums;">
+            {{ '%.1f'|format((job.finished_at - job.started_at).total_seconds()) }}s
+        </dd>
+        {% endif %}
+
+        {% if job.rq_job_id %}
+        <dt class="col-sm-3 text-muted fw-normal">RQ id</dt>
+        <dd class="col-sm-9"><code class="small">{{ job.rq_job_id }}</code></dd>
+        {% endif %}
+    </dl>
+
+    {% if summary %}
+    <h6 class="small fw-bold text-uppercase text-secondary">Counts</h6>
+    {# examined/rejected explain a run that "succeeded" while doing nothing:
+       a walk that saw files none of which the parser accepted looks
+       identical to an empty folder without them. #}
+    {% if summary.get('examined') is not none and not summary.get('added')
+          and summary.get('rejected') %}
+    <div class="alert alert-warning small py-2">
+        Walked {{ summary.examined }} item(s) and the parser accepted none of
+        them. Usually the <strong>Is Folder?</strong> setting does not match
+        what the description class expects, or the location points at the
+        wrong level of the tree.
+    </div>
+    {% elif summary.get('examined') == 0 %}
+    <div class="alert alert-warning small py-2">
+        Nothing was walked at all — check the Data Type's locations exist and
+        are readable from the container.
+    </div>
+    {% endif %}
+    <div class="table-responsive mb-3">
+        <table class="table table-sm small mb-0">
+            <tbody>
+                {% for key, value in summary.items()|sort %}
+                <tr>
+                    <td class="text-muted" style="width: 12rem;">{{ key|replace('_', ' ') }}</td>
+                    <td class="font-monospace">{{ value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if job.error %}
+    <h6 class="small fw-bold text-uppercase text-danger">Error</h6>
+    <pre class="small bg-body-secondary border rounded p-2 mb-0"
+         style="max-height: 24rem; overflow: auto; white-space: pre;">{{ job.error }}</pre>
+    {% elif job.status == 'failed' %}
+    <p class="small text-muted mb-0">No error text was recorded for this job.</p>
+    {% endif %}
+
+    {% if not summary and not job.error %}
+    <p class="small text-muted mb-0">
+        {% if job.status in ('pending', 'running') %}Still {{ job.status }} — nothing recorded yet.
+        {% else %}Nothing was recorded for this job.{% endif %}
+    </p>
+    {% endif %}
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+</div>

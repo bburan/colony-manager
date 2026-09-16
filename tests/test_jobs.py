@@ -326,3 +326,73 @@ def test_rematch_force_htmx_returns_jobs_panel(logged_in_client, db_session):
     )
     assert response.status_code == 200
     assert 'Location' not in response.headers
+
+
+# ---------------------------------------------------------------------------
+# Sync-all
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def fake_registry_env(monkeypatch):
+    """Point the description registry at the orchestration fakes."""
+    from colony_manager.datatypes import reset_registry_cache
+    monkeypatch.setenv(
+        'COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes',
+    )
+    reset_registry_cache()
+    yield
+    reset_registry_cache()
+
+
+def test_sync_all_route_enqueues_one_unscoped_job(
+    logged_in_client, db_session, fake_registry_env,
+):
+    """One job with a null datatype_id -- the same shape as `flask data sync`
+    with no --datatype, not a fan-out of one job per DataType."""
+    procedure = make_procedure(db_session)
+    for i in range(3):
+        dtype = make_animal_event_data_type(
+            db_session, name=f'DT-SyncAll-{i}', default_procedure=procedure,
+        )
+        dtype.description_class = 'fake_animal_event'
+        make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    db_session.commit()
+
+    response = logged_in_client.post(
+        '/settings/datatypes/sync', follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    db_session.expire_all()
+    jobs_made = db_session.scalars(
+        select(SyncJob).where(SyncJob.kind == SyncJobKind.SYNC)
+    ).all()
+    assert len(jobs_made) == 1
+    assert jobs_made[0].datatype_id is None
+
+
+def test_sync_all_route_refuses_when_nothing_is_configured(
+    logged_in_client, db_session,
+):
+    """A DataType with no description class or location cannot be synced, so
+    a sweep over only those would queue a job that could do nothing."""
+    make_animal_event_data_type(db_session, name='DT-NotConfigured')
+    db_session.commit()
+
+    response = logged_in_client.post(
+        '/settings/datatypes/sync', follow_redirects=False,
+    )
+    assert response.status_code in (200, 302)
+
+    db_session.expire_all()
+    assert db_session.scalars(select(SyncJob)).all() == []
+
+
+def test_enqueue_sync_all_is_not_scoped_to_a_datatype(app, db_session):
+    with app.app_context():
+        job_id = jobs.enqueue_sync_all()
+
+    db_session.expire_all()
+    job = db_session.get(SyncJob, job_id)
+    assert job.kind == SyncJobKind.SYNC
+    assert job.datatype_id is None

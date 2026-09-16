@@ -131,6 +131,19 @@ def enqueue_datatype_sync(datatype_id):
     return _enqueue(SyncJobKind.SYNC, datatype_id, run_sync_job, datatype_id)
 
 
+def enqueue_sync_all():
+    """Queue one ``sync_locations`` run covering every DataType.
+
+    The same shape as ``flask data sync`` with no ``--datatype``: a single
+    job with a null ``datatype_id``, which the jobs panel already renders as
+    "all". Deliberately one job rather than one per DataType --
+    ``sync_locations`` walks them all in a single pass anyway, and a fan-out
+    would bury the 10-row panel while splitting one logical sweep into
+    pieces that can half-succeed.
+    """
+    return _enqueue(SyncJobKind.SYNC, None, run_sync_job, None)
+
+
 def enqueue_datatype_rematch(datatype_id, force=False):
     """Queue a ``rematch_datatype`` run for one DataType."""
     return _enqueue(

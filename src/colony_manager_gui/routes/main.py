@@ -23,7 +23,7 @@ from colony_manager.datatypes import (
     load_description_class, get_allowed_description_classes,
 )
 from ..jobs import (
-    enqueue_datatype_sync, enqueue_datatype_rematch,
+    enqueue_datatype_sync, enqueue_datatype_rematch, enqueue_sync_all,
     recent_jobs, parse_summary,
 )
 from .. import queries
@@ -734,6 +734,39 @@ def update_datatype(datatype_id) -> Response | str:
         trigger='datatype-updated',
         flash_message='DataType updated successfully!',
         redirect_to=list_url,
+    )
+
+
+@main_bp.route('/settings/datatypes/sync', methods=['POST'])
+def sync_all_datatypes() -> Response | str:
+    """Queue one sync covering every configured DataType.
+
+    The per-DataType buttons remain for targeted runs; this is the "files
+    landed somewhere on the share" sweep, and the UI equivalent of
+    ``flask data sync`` with no ``--datatype``.
+    """
+    syncable = [
+        dt for dt in db.session.scalars(select(models.DataType)).all()
+        if dt.description_class and dt.locations
+    ]
+    if not syncable:
+        return htmx_error(
+            message='Nothing to sync: no DataType has both a description '
+                    'class and at least one location.',
+            retarget='#error-datatypes',
+            flash_title='Nothing to sync',
+            redirect_to=url_for('main.list_datatypes'),
+        )
+
+    enqueue_sync_all()
+    return htmx_or_redirect(
+        partial='partials/recent_jobs_panel.html',
+        context={'recent_jobs': recent_jobs(limit=10),
+                 'parse_summary': parse_summary},
+        flash_message=f'Sync queued for all {len(syncable)} configured '
+                      f'datatypes. See status below.',
+        flash_category='info',
+        redirect_to=url_for('main.list_datatypes', _anchor='setting-jobs'),
     )
 
 

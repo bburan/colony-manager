@@ -135,9 +135,10 @@ def test_non_subclass_value_rejected(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_uses_folders_comes_from_the_description_class(db_session, monkeypatch):
-    """The class decides, not the column -- a folder-based description
-    configured with is_folder unticked used to make sync walk files, whose
-    parse() all return None, producing a "successful" sync of nothing."""
+    """The class is the only source -- there is no longer a column to
+    disagree with it. A folder-based description that walked files used to
+    make every parse() return None, producing a "successful" sync of
+    nothing."""
     from colony_manager.datatypes import reset_registry_cache
     from colony_manager.models import AnimalEventDataType
 
@@ -148,28 +149,25 @@ def test_uses_folders_comes_from_the_description_class(db_session, monkeypatch):
     try:
         dt = AnimalEventDataType(name='DT-FolderFromClass')
         dt.description_class = 'fake_folder'
-        dt.is_folder = False          # stale column, deliberately disagreeing
         db_session.add(dt)
         db_session.commit()
         assert dt.uses_folders is True
 
         dt.description_class = 'fake_animal_event'   # file-based fake
-        dt.is_folder = True           # stale the other way
         assert dt.uses_folders is False
     finally:
         reset_registry_cache()
 
 
-def test_uses_folders_falls_back_to_the_column_without_a_class(db_session):
-    """A DataType with no description class cannot sync anyway, so the
-    fallback never really decides anything -- but it must not explode."""
+def test_uses_folders_is_false_without_a_resolvable_class(db_session):
+    """A DataType with no description class cannot sync at all, so False
+    costs nothing -- it must just not raise."""
     from colony_manager.models import AnimalEventDataType
 
     dt = AnimalEventDataType(name='DT-NoClass')
-    dt.is_folder = True
     db_session.add(dt)
     db_session.commit()
-    assert dt.uses_folders is True
+    assert dt.uses_folders is False
 
-    dt.is_folder = False
+    dt.description_class = 'no-such-key-in-any-registry'
     assert dt.uses_folders is False

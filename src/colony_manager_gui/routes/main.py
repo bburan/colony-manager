@@ -640,22 +640,6 @@ def _suggested_datatype_name(description_class):
     return (tail or description_class).strip()
 
 
-def _sync_is_folder_column(dt):
-    """Copy the description class's ``is_folder`` onto the row.
-
-    The column stopped being authoritative when ``DataType.uses_folders``
-    started reading the class, but keeping it in step means list views (and
-    anything reading the table directly) still see the right value without
-    resolving the registry.
-    """
-    try:
-        cls = dt.get_description_class()
-    except Exception:
-        return
-    if cls is not None:
-        dt.is_folder = bool(getattr(cls, 'is_folder', False))
-
-
 @main_bp.route('/settings/datatype/create_modal')
 def create_datatype_modal() -> Response | str:
     target_type = request.args.get('target_type')
@@ -708,7 +692,6 @@ def create_datatype() -> Response | str:
         dt_class = models.DATATYPE_SUBCLASSES[target_type]
         dt = dt_class()
         form.populate_obj(dt)
-        _sync_is_folder_column(dt)
         db.session.add(dt)
         db.session.flush()
         _save_datatype_children(dt)
@@ -751,7 +734,6 @@ def update_datatype(datatype_id) -> Response | str:
                           flash_title='Could not update DataType', redirect_to=list_url)
 
     form.populate_obj(dt)
-    _sync_is_folder_column(dt)
     _save_datatype_children(dt)
     try:
         db.session.commit()

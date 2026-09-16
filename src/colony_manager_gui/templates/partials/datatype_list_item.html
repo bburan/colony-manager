@@ -4,9 +4,6 @@
         <span class="badge bg-info text-dark ms-2">{{ dt.TARGET_LABEL }}</span>
         {% if dt.description %}<span class="text-muted ms-2 fst-italic">{{ dt.description }}</span>{% endif %}
         <div class="mt-1">
-            {% if dt.uses_folders %}
-            <span class="badge bg-secondary">Folder</span>
-            {% endif %}
             {% if dt.auto_create %}
             <span class="badge bg-success" data-bs-toggle="tooltip"
                   title="Auto-creates an event for unmatched files during sync.">

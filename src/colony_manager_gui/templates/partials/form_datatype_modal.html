@@ -89,20 +89,6 @@
         </div>
         {% endif %}
 
-        <div class="mb-3">
-            <label class="form-label fw-bold small text-muted">Walks</label>
-            <div class="small">
-                {% if dt %}
-                    <span class="badge bg-secondary">{{ 'Folders' if dt.uses_folders else 'Files' }}</span>
-                {% else %}
-                    <span class="text-muted">Set once the description class is chosen.</span>
-                {% endif %}
-                <div class="form-text small">
-                    Decided by the description class, not here &mdash; only it
-                    knows whether its parser expects a folder or a file.
-                </div>
-            </div>
-        </div>
 
         <div class="mb-4">
             <label class="form-label fw-bold small text-muted">Target Locations to Scan</label>

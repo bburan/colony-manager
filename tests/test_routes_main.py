@@ -412,3 +412,31 @@ def test_dashboard_confocal_groups_images_by_ear(logged_in_client, db_session):
     response = logged_in_client.get('/')
     assert response.status_code == 200
     assert b'DashCFGrp-A' in response.data
+
+
+# ---------------------------------------------------------------------------
+# Settings -> Datatypes sub-page
+# ---------------------------------------------------------------------------
+
+def test_list_datatypes_renders_the_datatype_roster(logged_in_client, db_session):
+    db_session.add(AnimalEventDataType(name='DT-OnSubPage'))
+    db_session.commit()
+
+    response = logged_in_client.get('/settings/datatypes')
+    assert response.status_code == 200
+    assert b'DT-OnSubPage' in response.data
+
+
+def test_list_settings_no_longer_carries_the_datatype_roster(
+    logged_in_client, db_session,
+):
+    """The datatype machinery moved to /settings/datatypes; /settings keeps
+    the colony vocabulary lists only."""
+    db_session.add(AnimalEventDataType(name='DT-NotOnMainSettings'))
+    db_session.add(Species(name='SpeciesStillHere'))
+    db_session.commit()
+
+    response = logged_in_client.get('/settings')
+    assert response.status_code == 200
+    assert b'SpeciesStillHere' in response.data
+    assert b'DT-NotOnMainSettings' not in response.data

@@ -342,17 +342,31 @@ def list_settings() -> Response | str:
         }
         for k, v in SETTINGS_MAP.items()
     }
-    jobs = recent_jobs(limit=10)
     return render_template(
         'view_settings.html',
         simple_add_form=SimpleAddForm(),
         simple_add_with_description_form=SimpleAddWithDescriptionForm(),
         settings=settings,
-        datatypes=db.session.scalars(select(models.DataType)).all(),
         dosage_protocols=db.session.scalars(
             select(models.DosageProtocol).order_by(models.DosageProtocol.name)
         ).all(),
-        recent_jobs=jobs,
+    )
+
+
+@main_bp.route('/settings/datatypes')
+def list_datatypes() -> Response | str:
+    """Settings -> Datatypes.
+
+    Split out of ``list_settings``: wiring up parsers, locations and sync
+    queues is a different job from maintaining the colony vocabulary lists
+    (species, strains, termination reasons) that make up the rest of
+    settings, and it had grown to dominate the page.
+    """
+    datatypes = db.session.scalars(select(models.DataType)).all()
+    return render_template(
+        'view_settings_datatypes.html',
+        datatypes=datatypes,
+        recent_jobs=recent_jobs(limit=10),
         parse_summary=parse_summary,
     )
 
@@ -602,7 +616,7 @@ def create_datatype_modal() -> Response | str:
 
 @main_bp.route('/settings/datatype/create', methods=['POST'])
 def create_datatype() -> Response | str:
-    list_url = url_for('main.list_settings')
+    list_url = url_for('main.list_datatypes')
     retarget = '#datatype-error'
 
     target_type = request.form.get('target_type')
@@ -654,11 +668,12 @@ def edit_datatype_modal(datatype_id) -> Response | str:
     )
 
 
+
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])
 def update_datatype(datatype_id) -> Response | str:
     dt = get_or_404(models.DataType, datatype_id)
     form = datatype_form_for(dt.target_type)
-    list_url = url_for('main.list_settings')
+    list_url = url_for('main.list_datatypes')
     retarget = '#datatype-error'
 
     if not form.validate_on_submit():
@@ -693,7 +708,7 @@ def sync_datatype(datatype_id) -> Response | str:
             message=f'Cannot sync "{dt.name}": needs a description class and at least one location.',
             retarget='#error-datatypes',
             flash_title=f'Cannot sync "{dt.name}"',
-            redirect_to=url_for('main.list_settings'),
+            redirect_to=url_for('main.list_datatypes'),
         )
     enqueue_datatype_sync(dt.id)
     return htmx_or_redirect(
@@ -701,7 +716,7 @@ def sync_datatype(datatype_id) -> Response | str:
         context={'recent_jobs': recent_jobs(limit=10), 'parse_summary': parse_summary},
         flash_message=f'Sync for "{dt.name}" queued. See status below.',
         flash_category='info',
-        redirect_to=url_for('main.list_settings', _anchor='setting-jobs'),
+        redirect_to=url_for('main.list_datatypes', _anchor='setting-jobs'),
     )
 
 
@@ -723,14 +738,14 @@ def rematch_datatype(datatype_id) -> Response | str:
         context={'recent_jobs': recent_jobs(limit=10), 'parse_summary': parse_summary},
         flash_message=f'{label} for "{dt.name}" queued in background.',
         flash_category='info',
-        redirect_to=url_for('main.list_settings', _anchor='setting-jobs'),
+        redirect_to=url_for('main.list_datatypes', _anchor='setting-jobs'),
     )
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/delete', methods=['POST'])
 def delete_datatype(datatype_id) -> Response | str:
     dt = get_or_404(models.DataType, datatype_id)
-    list_url = url_for('main.list_settings')
+    list_url = url_for('main.list_datatypes')
     if dt.data_files:
         return htmx_error(
             message='Cannot delete (linked to files).',

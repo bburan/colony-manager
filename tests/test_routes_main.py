@@ -6,6 +6,7 @@ the smoke baseline (`tests/test_routes_smoke.py`); this file targets
 the settings sub-routes and the create-setting duplicate-check path.
 """
 import json
+import pytest
 import re
 from datetime import date, timedelta
 
@@ -418,6 +419,18 @@ def test_dashboard_confocal_groups_images_by_ear(logged_in_client, db_session):
 # Settings -> Datatypes sub-page
 # ---------------------------------------------------------------------------
 
+@pytest.fixture
+def fake_description_registry(monkeypatch):
+    """Point the registry at ``tests._description_fakes`` for one test."""
+    from colony_manager.datatypes import reset_registry_cache
+    monkeypatch.setenv(
+        'COLONY_MANAGER_DESCRIPTION_REGISTRY', 'tests._description_fakes',
+    )
+    reset_registry_cache()
+    yield
+    reset_registry_cache()
+
+
 def test_list_datatypes_renders_the_datatype_roster(logged_in_client, db_session):
     db_session.add(AnimalEventDataType(name='DT-OnSubPage'))
     db_session.commit()
@@ -440,3 +453,91 @@ def test_list_settings_no_longer_carries_the_datatype_roster(
     assert response.status_code == 200
     assert b'SpeciesStillHere' in response.data
     assert b'DT-NotOnMainSettings' not in response.data
+
+
+def test_list_datatypes_offers_registry_keys_nothing_uses_yet(
+    logged_in_client, db_session, fake_description_registry,
+):
+    dt = AnimalEventDataType(name='DT-Configured')
+    dt.description_class = 'fake_animal_event'
+    db_session.add(dt)
+    db_session.commit()
+
+    response = logged_in_client.get('/settings/datatypes')
+    assert response.status_code == 200
+    body = response.data.decode()
+
+    # A registered class nothing points at is offered for setup...
+    assert 'description_class=fake_multi_animal"' in body
+    # ...while the one already wired up is not in the "not set up" list. The
+    # trailing quote matters: fake_animal_event is a prefix of
+    # fake_animal_event_hashed, which *is* unconfigured and does appear.
+    assert 'description_class=fake_animal_event"' not in body
+    assert 'description_class=fake_animal_event_hashed"' in body
+
+
+def test_unconfigured_description_classes_excludes_keys_in_use(
+    db_session, fake_description_registry,
+):
+    from colony_manager_gui.routes.main import unconfigured_description_classes
+
+    dt = AnimalEventDataType(name='DT-Helper')
+    dt.description_class = 'fake_animal'
+    db_session.add(dt)
+    db_session.commit()
+
+    result = unconfigured_description_classes([dt])
+    assert 'fake_animal' not in result
+    assert 'fake_ratable' in result
+    # A DataType with no description class must not swallow a None entry.
+    assert None not in result
+
+
+def test_create_datatype_modal_prefills_a_chosen_description_class(
+    logged_in_client, fake_description_registry,
+):
+    response = logged_in_client.get(
+        '/settings/datatype/create_modal',
+        query_string={'description_class': 'fake_animal',
+                      'target_type': 'animal'},
+    )
+    assert response.status_code == 200
+    body = response.data.decode()
+    # Attribute order is WTForms' business, so match per-tag rather than
+    # assuming value= precedes selected=.
+    name_input = next(
+        t for t in re.findall(r'<input[^>]*>', body) if 'name="name"' in t
+    )
+    assert 'value="fake_animal"' in name_input
+    chosen = next(
+        t for t in re.findall(r'<option[^>]*>', body)
+        if 'value="fake_animal"' in t
+    )
+    assert 'selected' in chosen
+
+
+def test_create_datatype_modal_carries_the_key_through_target_type_step(
+    logged_in_client, fake_description_registry,
+):
+    """Step 1 has no form yet; the key must survive into the step-2 links."""
+    response = logged_in_client.get(
+        '/settings/datatype/create_modal',
+        query_string={'description_class': 'fake_animal'},
+    )
+    assert response.status_code == 200
+    body = response.data.decode()
+    assert 'description_class=fake_animal' in body
+
+
+def test_create_datatype_modal_ignores_a_key_outside_the_registry(
+    logged_in_client, fake_description_registry,
+):
+    """description_class arrives as a query arg, and is exactly the column the
+    opaque-key indirection exists to keep un-arbitrary."""
+    response = logged_in_client.get(
+        '/settings/datatype/create_modal',
+        query_string={'description_class': 'os.path',
+                      'target_type': 'animal'},
+    )
+    assert response.status_code == 200
+    assert b'os.path' not in response.data

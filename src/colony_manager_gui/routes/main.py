@@ -19,7 +19,9 @@ from ..forms.settings import (
     datatype_form_for, DosageProtocolForm,
 )
 from .util import flash_form_errors, get_or_404, render_error_alert, htmx_or_redirect, htmx_error, is_htmx
-from colony_manager.datatypes import load_description_class
+from colony_manager.datatypes import (
+    load_description_class, get_allowed_description_classes,
+)
 from ..jobs import (
     enqueue_datatype_sync, enqueue_datatype_rematch,
     recent_jobs, parse_summary,
@@ -353,6 +355,19 @@ def list_settings() -> Response | str:
     )
 
 
+def unconfigured_description_classes(datatypes):
+    """Registry keys that no ``DataType`` points at yet.
+
+    The inverse of the ``(unregistered)`` label ``DataTypeForm`` adds to its
+    dropdown: that flags a DataType whose key has *left* the registry, this
+    flags a class the registry offers that nothing has been built on. The
+    usual cause is a class newly added to the host registry module, which
+    stays invisible until someone creates the DataType by hand.
+    """
+    in_use = {dt.description_class for dt in datatypes if dt.description_class}
+    return [k for k in get_allowed_description_classes() if k not in in_use]
+
+
 @main_bp.route('/settings/datatypes')
 def list_datatypes() -> Response | str:
     """Settings -> Datatypes.
@@ -366,6 +381,7 @@ def list_datatypes() -> Response | str:
     return render_template(
         'view_settings_datatypes.html',
         datatypes=datatypes,
+        unconfigured=unconfigured_description_classes(datatypes),
         recent_jobs=recent_jobs(limit=10),
         parse_summary=parse_summary,
     )
@@ -597,20 +613,42 @@ def _save_datatype_children(dt):
             db.session.delete(loc)
 
 
+def _suggested_datatype_name(description_class):
+    """Turn a registry key into a starting name for the DataType.
+
+    ``'CFTS: ABR IO (Freefield)'`` -> ``'ABR IO (Freefield)'``. The family
+    prefix groups classes in the registry and carries no meaning here, where
+    the datatype list is already flat. Only a starting point: the field stays
+    editable and uniqueness is still checked on save.
+    """
+    _, _, tail = description_class.partition(':')
+    return (tail or description_class).strip()
+
+
 @main_bp.route('/settings/datatype/create_modal')
 def create_datatype_modal() -> Response | str:
     target_type = request.args.get('target_type')
+    # Prefill from the "not configured yet" list. Carried through the
+    # target-type step, which comes first and would otherwise drop it.
+    # Anything not currently in the registry is ignored rather than trusted:
+    # this arrives as a query arg, and description_class is exactly the
+    # column the opaque-key indirection exists to keep un-arbitrary.
+    description_class = request.args.get('description_class') or None
+    if description_class not in get_allowed_description_classes():
+        description_class = None
+
+    form = None
     if target_type:
         form = datatype_form_for(target_type)
-        return render_template(
-            'partials/form_datatype_modal.html',
-            form=form, dt=None, target_type=target_type,
-            target_labels=DATATYPE_TARGET_LABELS,
-        )
+        if description_class:
+            form.description_class.data = description_class
+            form.name.data = _suggested_datatype_name(description_class)
+
     return render_template(
         'partials/form_datatype_modal.html',
-        form=None, dt=None, target_type=None,
+        form=form, dt=None, target_type=target_type if form else None,
         target_labels=DATATYPE_TARGET_LABELS,
+        description_class=description_class,
     )
 
 
@@ -665,8 +703,8 @@ def edit_datatype_modal(datatype_id) -> Response | str:
         'partials/form_datatype_modal.html',
         form=form, dt=dt, target_type=dt.target_type,
         target_labels=DATATYPE_TARGET_LABELS,
+        description_class=None,
     )
-
 
 
 @main_bp.route('/settings/datatype/<int:datatype_id>/update', methods=['POST'])

@@ -9,12 +9,19 @@
     <div id="datatype-error"></div>
 
     {% if not target_type %}
-    {# Step 1: pick a target type. HTMX swaps in the real form once chosen. #}
+    {# Step 1: pick a target type. HTMX swaps in the real form once chosen.
+       description_class rides along so a "Set up" click from the not-set-up
+       list survives this step. #}
+    {% if description_class %}
+    <p class="small mb-2">
+        Setting up <code>{{ description_class }}</code>.
+    </p>
+    {% endif %}
     <p class="small text-muted">What kind of object should files of this DataType be associated with?</p>
     <div class="d-grid gap-2">
         {% for tt, label in target_labels %}
         <button type="button" class="btn btn-outline-primary"
-                hx-get="{{ url_for('main.create_datatype_modal', target_type=tt) }}"
+                hx-get="{{ url_for('main.create_datatype_modal', target_type=tt, description_class=description_class) }}"
                 hx-target="#modalBody">
             {{ label }}
         </button>
@@ -53,7 +60,11 @@
         <div class="mb-3">
             <label class="form-label fw-bold small text-muted">Description Class</label>
             {{ form.description_class(class="form-select font-monospace") }}
-            <small class="text-muted">Pick a registered <code>DataTypeDescription</code>. Choices come from the host's registry module (see <code>COLONY_MANAGER_DESCRIPTION_REGISTRY</code>).</small>
+            <small class="text-muted">
+                {%- if description_class %}Prefilled from the not-set-up list; change it here if that was not what you meant.
+                {%- else %}Pick a registered <code>DataTypeDescription</code>. Choices come from the host's registry module (see <code>COLONY_MANAGER_DESCRIPTION_REGISTRY</code>).
+                {%- endif %}
+            </small>
         </div>
 
         {% if target_type == 'animal_event' %}

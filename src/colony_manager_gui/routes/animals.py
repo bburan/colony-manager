@@ -174,6 +174,54 @@ def update_animal(animal_id) -> Response | str:
     return redirect(request.referrer or url_for('animals.view_animal', animal_id=animal_id))
 
 
+@animals_bp.route('/<int:animal_id>/update_note', methods=['POST'])
+def update_animal_note(animal_id) -> Response | str:
+    """Notes-only edit, from the note modal.
+
+    Deliberately not routed through ``update_animal``. Posting a partial
+    form at the full handler looks safe because the form is bound with
+    ``obj=``, but WTForms only falls back to the object's value for field
+    types whose ``process_formdata`` no-ops on empty input. An absent
+    ``BooleanField`` becomes ``False`` and an absent
+    ``QuerySelectMultipleField`` becomes ``[]``, so a notes-only POST
+    silently un-terminated the animal -- which made ``AnimalForm`` clear the
+    termination date and reason too -- and dropped every tag.
+
+    Those coercions are *right* for the full form, where an unchecked box
+    and a deselected tag are real edits and indistinguishable from an absent
+    field. So the fix is to stop sharing the handler, not to weaken it.
+    """
+    animal = get_or_404(Animal, animal_id)
+    form = NoteForm()
+    if form.validate_on_submit():
+        animal.notes = form.notes.data
+        db.session.commit()
+        flash(f'Successfully updated {animal.display_id}', 'success')
+    else:
+        flash_form_errors(form, f'Error updating {animal.display_id}')
+    return redirect(request.referrer
+                    or url_for('animals.view_animal', animal_id=animal_id))
+
+
+@animals_bp.route('/<int:animal_id>/update_custom_id', methods=['POST'])
+def update_animal_custom_id(animal_id) -> Response | str:
+    """Animal-ID-only edit, from the assign-ID modal.
+
+    Separate from ``update_animal`` for the same reason as
+    ``update_animal_note`` -- see there.
+    """
+    animal = get_or_404(Animal, animal_id)
+    form = AnimalCustomIDForm(obj=animal)
+    if form.validate_on_submit():
+        animal.custom_id = form.custom_id.data or None
+        db.session.commit()
+        flash(f'Successfully updated {animal.display_id}', 'success')
+    else:
+        flash_form_errors(form, f'Error updating {animal.display_id}')
+    return redirect(request.referrer
+                    or url_for('animals.view_animal', animal_id=animal_id))
+
+
 @animals_bp.route('/<int:animal_id>/delete', methods=['POST'])
 def delete_animal(animal_id) -> Response | str:
     animal = get_or_404(Animal, animal_id)
@@ -417,7 +465,7 @@ def assign_animal_id_modal(animal_id) -> Response | str:
     form = AnimalCustomIDForm(custom_id=f'{animal.cage.custom_id}-')
     return render_modal(form, item=animal,
                         label=f'Assign ID for {animal.display_id}',
-                        submit_url=url_for('animals.update_animal', animal_id=animal.id))
+                        submit_url=url_for('animals.update_animal_custom_id', animal_id=animal.id))
 
 
 @animals_bp.route('/<int:animal_id>/edit_note_modal')
@@ -425,7 +473,7 @@ def edit_animal_note_modal(animal_id) -> Response | str:
     animal = get_or_404(Animal, animal_id)
     return render_modal(NoteForm(obj=animal), item=animal,
                         label=f'Edit note for {animal.display_id}',
-                        submit_url=url_for('animals.update_animal', animal_id=animal.id))
+                        submit_url=url_for('animals.update_animal_note', animal_id=animal.id))
 
 
 @animals_bp.route('/<int:animal_id>/terminate_modal')

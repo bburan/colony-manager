@@ -1214,3 +1214,136 @@ def test_refresh_data_rating_recomputes_single_row(logged_in_client, db_session,
         assert resp.status_code == 302
     finally:
         reset_registry_cache()
+
+
+# ---------------------------------------------------------------------------
+# Partial forms posted at the full update handler
+# ---------------------------------------------------------------------------
+
+def _terminated_animal_with_tags(db_session):
+    from colony_manager.models import AnimalTag
+
+    reason = make_termination_reason(db_session)
+    animal = make_animal(db_session, custom_id='PARTIAL-1')
+    tag_a = AnimalTag(name='TagKeepA')
+    tag_b = AnimalTag(name='TagKeepB')
+    db_session.add_all([tag_a, tag_b])
+    db_session.commit()
+
+    animal.tags = [tag_a, tag_b]
+    animal.terminated = True
+    animal.termination_date = date.today() - timedelta(days=3)
+    animal.termination_reason = reason
+    animal.notes = 'before'
+    db_session.commit()
+    return animal, reason
+
+
+def test_editing_a_note_preserves_the_rest_of_the_animal(
+    logged_in_client, db_session,
+):
+    """Regression: the note modal posts a notes-only form at update_animal.
+
+    WTForms' bind-obj-and-post-a-partial-form trick only holds for field
+    types whose process_formdata() no-ops on empty input. BooleanField
+    coerces an absent field to False and QuerySelectMultipleField to [], so
+    this POST used to clear 'terminated' and every tag -- and AnimalForm's
+    populate_obj then nulled termination_date and termination_reason
+    because 'terminated' had become False.
+    """
+    animal, reason = _terminated_animal_with_tags(db_session)
+    original_date = animal.termination_date
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update_note',
+        data={'notes': 'after'},
+        follow_redirects=False,
+    )
+    assert response.status_code in (200, 302)
+
+    db_session.expire_all()
+    animal = db_session.get(Animal, animal.id)
+    assert animal.notes == 'after'                       # the edit landed
+    assert animal.terminated is True                     # ...and nothing else moved
+    assert animal.termination_date == original_date
+    assert animal.termination_reason_id == reason.id
+    assert sorted(t.name for t in animal.tags) == ['TagKeepA', 'TagKeepB']
+    assert animal.custom_id == 'PARTIAL-1'
+
+
+def test_assigning_an_id_preserves_the_rest_of_the_animal(
+    logged_in_client, db_session,
+):
+    """The assign-ID modal posts at the same handler and has the same
+    exposure."""
+    animal, reason = _terminated_animal_with_tags(db_session)
+    original_date = animal.termination_date
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update_custom_id',
+        data={'custom_id': 'PARTIAL-RENAMED'},
+        follow_redirects=False,
+    )
+    assert response.status_code in (200, 302)
+
+    db_session.expire_all()
+    animal = db_session.get(Animal, animal.id)
+    assert animal.custom_id == 'PARTIAL-RENAMED'
+    assert animal.terminated is True
+    assert animal.termination_date == original_date
+    assert animal.termination_reason_id == reason.id
+    assert sorted(t.name for t in animal.tags) == ['TagKeepA', 'TagKeepB']
+    assert animal.notes == 'before'
+
+
+def test_full_edit_can_still_un_terminate_and_clear_tags(
+    logged_in_client, db_session,
+):
+    """The partial-submission guard must not break the full form: an edit
+    that really does submit 'terminated' unchecked still clears the date,
+    the reason, and any deselected tags."""
+    animal, _reason = _terminated_animal_with_tags(db_session)
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/update',
+        data={
+            'custom_id': 'PARTIAL-1',
+            'cage': str(animal.cage_id),
+            'species': str(animal.species_id),
+            'sex': animal.sex,
+            'dob': animal.dob.isoformat(),
+            'notes': 'full edit',
+            # 'terminated' omitted == unchecked, 'tags' omitted == none selected
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code in (200, 302)
+
+    db_session.expire_all()
+    animal = db_session.get(Animal, animal.id)
+    assert animal.notes == 'full edit'
+    assert animal.terminated is False
+    assert animal.termination_date is None
+    assert animal.termination_reason_id is None
+    assert animal.tags == []
+
+
+def test_partial_edit_modals_do_not_post_at_the_full_update_handler(
+    logged_in_client, db_session,
+):
+    """The structural half of the regression.
+
+    The two modals are safe only because they submit to their own handlers;
+    re-pointing either back at update_animal would silently reintroduce the
+    wipe, and the data assertions above would not catch it because they post
+    to the URL directly.
+    """
+    animal, _reason = _terminated_animal_with_tags(db_session)
+
+    note = logged_in_client.get(f'/animals/{animal.id}/edit_note_modal')
+    assert note.status_code == 200
+    assert f'/animals/{animal.id}/update_note' in note.data.decode()
+
+    assign = logged_in_client.get(f'/animals/{animal.id}/assign_id_modal')
+    assert assign.status_code == 200
+    assert f'/animals/{animal.id}/update_custom_id' in assign.data.decode()

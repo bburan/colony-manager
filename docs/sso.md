@@ -150,6 +150,13 @@ the round trip out to the provider and back — which is also why
 plain-HTTP dev instance, where a `Secure` cookie would never be sent at
 all.
 
+Both of these are part of a larger requirement: identity providers will
+not register an `http://` redirect URI, so the site has to be served over
+HTTPS before SSO can work at all. **`docs/https.md` covers that end of
+it** — where TLS terminates, the DSM reverse-proxy setup, closing the
+plain-HTTP port, and how to run the dev server over TLS to test this flow
+locally.
+
 ---
 
 ## Migration

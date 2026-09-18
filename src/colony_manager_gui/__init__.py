@@ -65,6 +65,74 @@ def _configure_rq(app):
     app.rq_queue = Queue('sync', connection=connection, is_async=is_async)
 
 
+def _configure_https(app):
+    """Canonical-URL redirect and transport-security headers.
+
+    The app never terminates TLS itself — a reverse proxy in front does
+    that (see ``docs/https.md``) — so "supporting https" here means three
+    narrower things: building https URLs when there's no request to take
+    a scheme from, not leaving the plain-http door quietly usable, and
+    telling the browser to stay on https.
+
+    ``CANONICAL_BASE_URL`` (e.g. ``https://colony.ohsu.edu``) is the one
+    worth setting. Any request arriving on a different scheme or host is
+    redirected to it, which matters more than it first looks: the
+    container publishes its own port, and that stays reachable over
+    plain http after a proxy goes in front. A user on the old URL would
+    otherwise hit a thoroughly confusing failure — the session cookie is
+    ``Secure``, so the browser never sends it, so the OIDC state never
+    comes back, so every sign-in dies with ``mismatching_state``.
+    Redirecting is much kinder than diagnosing that.
+
+    ``HSTS_SECONDS`` is off by default on purpose. Once a browser has
+    seen that header it refuses plain http to the host for the whole
+    max-age and the server cannot retract it, so it's the last switch to
+    flip, after https is known good.
+    """
+    from urllib.parse import urlsplit
+
+    canonical = os.environ.get('CANONICAL_BASE_URL', '').strip().rstrip('/')
+    hsts_seconds = int(os.environ.get('HSTS_SECONDS', '0'))
+
+    # Only consulted when a URL is built outside a request context (CLI
+    # commands, RQ jobs); inside a request the real scheme wins.
+    app.config['PREFERRED_URL_SCHEME'] = (
+        urlsplit(canonical).scheme if canonical
+        else os.environ.get('PREFERRED_URL_SCHEME', 'https')
+    )
+
+    if canonical:
+        target = urlsplit(canonical)
+
+        @app.before_request
+        def _redirect_to_canonical():
+            from flask import redirect, request
+
+            if request.scheme == target.scheme and request.host == target.netloc:
+                return
+            # 308 rather than 301: it preserves the method and body, so a
+            # POST landing on the wrong origin isn't silently turned into
+            # a GET of the same path.
+            path = request.full_path
+            if path.endswith('?'):
+                path = path[:-1]
+            return redirect(f'{canonical}{path}', code=308)
+
+    @app.after_request
+    def _security_headers(response):
+        from flask import request
+
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        response.headers.setdefault('Referrer-Policy', 'same-origin')
+        if hsts_seconds and request.is_secure:
+            response.headers.setdefault(
+                'Strict-Transport-Security',
+                f'max-age={hsts_seconds}; includeSubDomains',
+            )
+        return response
+
+
 def _validate_description_registry():
     """Fail fast at startup if the description registry is misconfigured.
 
@@ -124,6 +192,12 @@ def create_app():
         os.environ.get('SESSION_COOKIE_SECURE', 'true').strip().lower()
         not in ('0', 'false', 'no', 'off')
     )
+
+    # --- HTTPS posture ---
+    # Registered before the blueprints so the canonical-URL redirect runs
+    # ahead of ``check_login`` — a user on the wrong origin should be moved
+    # to the right one, not bounced to a login page there first.
+    _configure_https(app)
 
     # --- Single sign-on (OIDC) ---
     # No-op unless the deployment sets OIDC_CLIENT_ID/SECRET + a discovery

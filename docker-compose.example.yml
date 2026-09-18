@@ -59,6 +59,10 @@ services:
     restart: unless-stopped
     user: "1027:100"
     ports:
+      # Plain HTTP — TLS is terminated by the reverse proxy in front (see
+      # docs/https.md). Once that proxy is in place, prefer binding this
+      # to the loopback interface so the unencrypted port isn't on the
+      # LAN at all:  "127.0.0.1:9001:5000"
       - "9001:5000"
     volumes:
       - ./app:/app
@@ -82,9 +86,19 @@ services:
       - OIDC_DISCOVERY_URL=${OIDC_DISCOVERY_URL}
       - OIDC_PROVIDER_NAME=${OIDC_PROVIDER_NAME}
       - OIDC_ALLOWED_DOMAINS=${OIDC_ALLOWED_DOMAINS}
+      # --- HTTPS (see docs/https.md) ---
+      # Public origin. Requests arriving on any other scheme/host — e.g.
+      # the published port below — are 308-redirected here.
+      - CANONICAL_BASE_URL=${CANONICAL_BASE_URL}
       # Number of reverse proxies in front of gunicorn. Required for the
       # OIDC callback URI to come out https:// rather than http://.
+      # MUST be 0 if nothing is actually proxying: ProxyFix believes the
+      # X-Forwarded-* headers, and with no proxy a client can forge them.
       - TRUSTED_PROXY_COUNT=${TRUSTED_PROXY_COUNT:-1}
+      # HSTS, in seconds. Off by default — a browser that has seen this
+      # header refuses plain http for the full max-age and the server
+      # cannot take it back. Turn on only once HTTPS is known good.
+      - HSTS_SECONDS=${HSTS_SECONDS:-0}
 
   worker:
     container_name: rq-worker

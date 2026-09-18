@@ -105,6 +105,12 @@ The account-matching policy lives in `services/sso.py:resolve_user` and is the p
 
 Two deployment variables matter as much as the credentials: `TRUSTED_PROXY_COUNT` (without ProxyFix, `url_for(_external=True)` builds an `http://` callback the provider rejects) and `SESSION_COOKIE_SECURE` (the OAuth state/nonce ride in the session cookie; `SameSite` is `Lax` for that reason and must not be tightened to `Strict`). Full setup — including what to request from central IT — is in `docs/sso.md`.
 
+### HTTPS
+
+The app **never terminates TLS** — gunicorn serves plain HTTP inside the container and a reverse proxy in front handles TLS (on the mmm NAS, DSM's built-in one; a Caddy/nginx service can't be added to the compose stack because DSM already binds 80/443). `_configure_https` in the app factory owns what's left: `PREFERRED_URL_SCHEME` for URLs built outside a request, a 308 redirect to `CANONICAL_BASE_URL` for anything arriving on another origin, and `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` on every response. It's registered before the blueprints so the canonical redirect runs ahead of `check_login`.
+
+`ProxyFix` *believes* `X-Forwarded-*`, so **`TRUSTED_PROXY_COUNT` must describe the deployment, not the intention** — with no proxy actually in front, any client can forge `X-Forwarded-Proto: https`. `HSTS_SECONDS` is opt-in and off by default because the header can't be retracted once a browser caches it. Full deployment guide, including the DSM reverse-proxy fields and local TLS for testing SSO: `docs/https.md`.
+
 ### Session-scoped UI state
 
 A couple of nav-bar dropdowns (active species filter, default age-display unit) are stored in the Flask session and injected into every template via the `inject_global_vars` context processor in `colony_manager_gui/__init__.py`, rather than being passed explicitly by each route. Templates read `species`/`selected_species`/`age_unit` as ambient globals; a route only needs to pass them explicitly when overriding per-page (see how `animals.html`/`cages.html`'s own age-unit filter buttons shadow the session default).

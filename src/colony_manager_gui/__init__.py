@@ -7,6 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from colony_manager import models  # noqa: F401  (imported for side effects)
 from colony_manager import db as _cm_db
 from colony_manager.datatypes import cache_root
+from colony_manager_gui.oidc import init_oidc
 
 
 class _DBProxy:
@@ -111,6 +112,40 @@ def create_app():
         'NAVBAR_DEBUG_COLOR', '#ffda6a'
     )
 
+    # Session cookie hardening. The OIDC round trip bounces the browser
+    # out to the identity provider and back, and the state/nonce that
+    # secures that exchange rides in this cookie — SameSite=Strict would
+    # drop it on the return leg, so Lax is the tightest setting the flow
+    # allows. ``Secure`` defaults on and is only worth clearing for a
+    # plain-http dev instance.
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = (
+        os.environ.get('SESSION_COOKIE_SECURE', 'true').strip().lower()
+        not in ('0', 'false', 'no', 'off')
+    )
+
+    # --- Single sign-on (OIDC) ---
+    # No-op unless the deployment sets OIDC_CLIENT_ID/SECRET + a discovery
+    # URL; see colony_manager_gui/oidc.py and docs/sso.md.
+    init_oidc(app)
+
+    # Behind the reverse proxy that terminates TLS, Flask otherwise sees
+    # plain http on an internal hostname and builds an ``http://`` redirect
+    # URI — which the identity provider rejects, because the registered one
+    # is ``https://``. ProxyFix makes url_for(_external=True) honour the
+    # X-Forwarded-* headers the proxy sets. Count how many proxies are in
+    # front of the app; 0 disables the shim entirely for a direct-exposure
+    # deployment (trusting these headers unconditionally would let a client
+    # forge them).
+    proxy_hops = int(os.environ.get('TRUSTED_PROXY_COUNT', '1'))
+    if proxy_hops:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=proxy_hops, x_proto=proxy_hops,
+            x_host=proxy_hops, x_port=proxy_hops,
+        )
+
     # --- RQ queue wiring ---
     # REDIS_URL points at a real Redis in prod (set by docker-compose);
     # if unset, fall back to fakeredis with synchronous execution so
@@ -164,8 +199,11 @@ def create_app():
         age_unit = session.get('age_unit', 'day')
         if age_unit not in ('day', 'week', 'month'):
             age_unit = 'day'
+        oidc = app.config.get('OIDC') or {'enabled': False}
         return {
             'datetime': datetime,
+            'oidc_enabled': bool(oidc.get('enabled')),
+            'oidc_provider_name': oidc.get('provider_name', 'Single Sign-On'),
             'species': db.session.scalars(select(Species)).all(),
             'selected_species': selected_species,
             'selected_species_id': species_id,

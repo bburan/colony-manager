@@ -281,6 +281,11 @@ def app(test_db):
     app = create_app()
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
+    # The app defaults ``SESSION_COOKIE_SECURE`` on (see the app factory),
+    # but the test client talks plain http://localhost — Werkzeug's cookie
+    # jar would then refuse to store the session cookie and every logged-in
+    # test would silently fall back to anonymous.
+    app.config['SESSION_COOKIE_SECURE'] = False
     yield app
 
 

@@ -40,6 +40,21 @@
                 <div class="tab-content">
                     <div class="tab-pane fade {{ 'show active' if active_tab == 'login' }}"
                          id="login-pane" role="tabpanel" aria-labelledby="login-tab">
+                        {# Institutional SSO sits above the password form: it's the
+                           path most people should take, and the one that needs no
+                           separately-remembered password. Rendered only when the
+                           deployment has configured an OIDC provider. #}
+                        {% if oidc_enabled %}
+                        <a class="btn btn-outline-primary w-100 mb-3"
+                           href="{{ url_for('auth.sso_login', next=next_page) if next_page else url_for('auth.sso_login') }}">
+                            <i class="fas fa-university me-2"></i>Sign in with {{ oidc_provider_name }}
+                        </a>
+                        <div class="d-flex align-items-center text-muted small mb-3">
+                            <hr class="flex-grow-1 my-0">
+                            <span class="px-2">or use a local password</span>
+                            <hr class="flex-grow-1 my-0">
+                        </div>
+                        {% endif %}
                         <form action="{{ url_for('auth.login_user') }}" method="POST">
                             {{ login_form.hidden_tag() }}
                             {% for field in login_form if field.widget.input_type != 'hidden' %}
@@ -65,6 +80,11 @@
                         </form>
                         <p class="text-muted small mb-0 mt-3">
                             New accounts require admin approval before you can sign in.
+                            {% if oidc_enabled %}
+                            Once approved you can sign in either with this password or
+                            with {{ oidc_provider_name }} — both reach the same account,
+                            as long as the email addresses match.
+                            {% endif %}
                         </p>
                     </div>
                 </div>

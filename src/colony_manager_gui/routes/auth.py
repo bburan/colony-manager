@@ -2,11 +2,17 @@ from urllib.parse import urlparse, urljoin
 
 import sqlalchemy
 from sqlalchemy import select, text
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, Response
+from flask import (
+    Blueprint, render_template, request, redirect, url_for, flash, abort,
+    current_app, Response,
+)
+import flask
 import flask_login
 
 from colony_manager_gui import db
 from colony_manager_gui.auth_decorators import public
+from colony_manager_gui.oidc import end_session_url, get_oidc_client, oidc_config
+from colony_manager_gui.services.sso import SSOError, resolve_user
 from colony_manager_gui.routes.util import flash_form_errors, get_or_404, render_modal
 from colony_manager_gui.forms.auth import (
     UserLoginForm, UserCreateForm, UserEditForm, ChangePasswordForm,
@@ -17,7 +23,10 @@ auth_bp = Blueprint('auth', __name__)
 
 # Endpoints inside the auth blueprint that should remain accessible without
 # admin privileges. Everything else (user list/view/edit) requires admin.
-_AUTH_PUBLIC_ENDPOINTS = {'auth.login_user', 'auth.add_user', 'auth.logout_user'}
+_AUTH_PUBLIC_ENDPOINTS = {
+    'auth.login_user', 'auth.add_user', 'auth.logout_user',
+    'auth.sso_login', 'auth.sso_callback',
+}
 
 # Endpoints any *authenticated* user may reach to manage their own account
 # (login required, but admin is not).
@@ -45,10 +54,119 @@ def is_safe_url(target):
     return test_url.scheme in ('http', 'https') and \
            ref_url.netloc == test_url.netloc
 
+# Where to land after login, parked in the session across the redirect to
+# the IdP and back. The ``next`` query arg can't survive that round trip:
+# the provider only echoes back the state it was given.
+_SSO_NEXT_KEY = '_sso_next'
+# The raw ID token, kept only when RP-initiated logout is switched on �
+# providers want it back as ``id_token_hint`` to end the session cleanly.
+_SSO_ID_TOKEN_KEY = '_sso_id_token'
+
+
 @auth_bp.route('/logout')
 def logout_user() -> Response | str:
+    """Drop the local session, and optionally the one at the IdP too.
+
+    With ``OIDC_RP_LOGOUT`` off (the default) this is a purely local
+    logout: the next SSO sign-in will silently re-authenticate from the
+    provider's still-live session, which is usually what people expect
+    from a shared institutional login. Turn it on to sign out everywhere.
+    """
+    id_token = flask.session.pop(_SSO_ID_TOKEN_KEY, None)
+    was_sso = (
+        not flask_login.current_user.is_anonymous
+        and getattr(flask_login.current_user, 'is_sso_linked', False)
+    )
     flask_login.logout_user()
+    if was_sso:
+        provider_logout = end_session_url(
+            post_logout_redirect_uri=url_for('auth.login_user', _external=True),
+            id_token=id_token,
+        )
+        if provider_logout:
+            return redirect(provider_logout)
     return redirect(request.referrer or url_for('auth.login_user'))
+
+
+@auth_bp.route('/sso/login')
+@public
+def sso_login() -> Response | str:
+    """Kick off the authorization-code flow at the identity provider."""
+    # Validate the attacker-reachable input before anything else, so a
+    # hostile ``next`` is rejected on its merits rather than incidentally
+    # by whatever the provider config happens to be.
+    next_page = request.args.get('next')
+    if next_page and not is_safe_url(next_page):
+        return abort(400)
+
+    client = get_oidc_client()
+    if client is None:
+        flash('Single sign-on is not configured for this site.', 'danger')
+        return redirect(url_for('auth.login_user'))
+
+    flask.session[_SSO_NEXT_KEY] = next_page or ''
+
+    # ``_external=True`` must produce exactly the URI registered with the
+    # provider � behind a TLS-terminating proxy that needs ProxyFix (wired
+    # in the app factory) so the scheme comes out https, not http.
+    redirect_uri = url_for('auth.sso_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route('/sso/callback')
+@public
+def sso_callback() -> Response | str:
+    """Complete the flow: exchange the code, map claims onto an account.
+
+    Authlib validates the ``state``, the ID token signature against the
+    provider's JWKS, and the issuer/audience/nonce before returning, so
+    the claims reaching :func:`resolve_user` are already trustworthy.
+    """
+    client = get_oidc_client()
+    if client is None:
+        flash('Single sign-on is not configured for this site.', 'danger')
+        return redirect(url_for('auth.login_user'))
+
+    next_page = flask.session.pop(_SSO_NEXT_KEY, '') or None
+
+    try:
+        token = client.authorize_access_token()
+    except Exception as exc:  # noqa: BLE001 - Authlib raises a wide family
+        current_app.logger.warning('OIDC token exchange failed: %s', exc)
+        flash('Single sign-on failed. Please try again.', 'danger')
+        return redirect(url_for('auth.login_user'))
+
+    # Authlib parses the ID token into ``userinfo`` whenever the scope
+    # includes ``openid``; fall back to the userinfo endpoint for the rare
+    # provider that returns a thin ID token.
+    claims = dict(token.get('userinfo') or {})
+    if not claims.get('email'):
+        try:
+            claims.update(client.userinfo(token=token) or {})
+        except Exception as exc:  # noqa: BLE001
+            current_app.logger.warning('OIDC userinfo lookup failed: %s', exc)
+
+    try:
+        user = resolve_user(db.session, claims, oidc_config())
+    except SSOError as exc:
+        db.session.rollback()
+        flash(exc.message, exc.category)
+        return redirect(url_for('auth.login_user'))
+
+    if not user.is_active:
+        flash(
+            'Your account is not yet active. Please contact an administrator.',
+            'danger',
+        )
+        return redirect(url_for('auth.login_user'))
+
+    flask_login.login_user(user)
+    if oidc_config().get('rp_logout') and token.get('id_token'):
+        flask.session[_SSO_ID_TOKEN_KEY] = token['id_token']
+    flash('Logged in successfully.', 'success')
+    if next_page and not is_safe_url(next_page):
+        return abort(400)
+    return redirect(next_page or url_for('main.view_dashboard'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @public
@@ -76,7 +194,8 @@ def login_user() -> Response | str:
         else:
             flash('Not authorized to login. Please contact admin.', 'danger')
     return render_template('login.html', login_form=login_form,
-                           create_form=UserCreateForm(), active_tab='login')
+                           create_form=UserCreateForm(), active_tab='login',
+                           next_page=request.args.get('next'))
 
 @auth_bp.route('/add', methods=['GET', 'POST'])
 @public

@@ -17,6 +17,8 @@
 #   FLASK_ENV, FLASK_DEBUG
 #   COLONY_MANAGER_CACHE_DIR
 #   COLONY_MANAGER_DESCRIPTION_REGISTRY  (e.g. "mmm_db.registry")
+#   OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_DISCOVERY_URL  (optional;
+#     institutional single sign-on — see docs/sso.md)
 #
 # ``REDIS_URL`` is built into the compose file (points at the redis
 # service); the web + worker containers receive it directly.
@@ -72,6 +74,17 @@ services:
       - COLONY_MANAGER_CACHE_DIR=${COLONY_MANAGER_CACHE_DIR}
       - SECRET_KEY=${SECRET_KEY}
       - COLONY_MANAGER_DESCRIPTION_REGISTRY=${COLONY_MANAGER_DESCRIPTION_REGISTRY}
+      # --- Institutional single sign-on (optional; see docs/sso.md) ---
+      # Leave OIDC_CLIENT_ID unset to run with local passwords only.
+      # The worker needs none of these — background jobs don't authenticate.
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      - OIDC_DISCOVERY_URL=${OIDC_DISCOVERY_URL}
+      - OIDC_PROVIDER_NAME=${OIDC_PROVIDER_NAME}
+      - OIDC_ALLOWED_DOMAINS=${OIDC_ALLOWED_DOMAINS}
+      # Number of reverse proxies in front of gunicorn. Required for the
+      # OIDC callback URI to come out https:// rather than http://.
+      - TRUSTED_PROXY_COUNT=${TRUSTED_PROXY_COUNT:-1}
 
   worker:
     container_name: rq-worker

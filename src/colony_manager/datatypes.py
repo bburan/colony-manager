@@ -42,8 +42,10 @@ Use it::
 
 import importlib
 import os
+import re
 import tempfile
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
 
 import xxhash
@@ -288,6 +290,19 @@ class DataTypeDescription(ABC):
     has been scored or rated (e.g. peak-picked ABR waveforms).  The
     nightly ``flask data sync-rating`` job skips any DataTypeDescription
     whose class has this set to ``False``."""
+
+    # -- Help ----------------------------------------------------------------
+
+    help_topic: str | None = None
+    """Slug of the help topic that documents this kind of data.
+
+    The GUI turns this into a ``?`` button next to every DataType built on
+    the class (Settings → Data Types). The slug must name a topic the help
+    system can resolve — either one of the app's own topics or one the host
+    registry contributes through its ``HELP_TOPICS`` list (see
+    :func:`get_registry_help_topics`). A slug that resolves to nothing is
+    simply not rendered, so it is safe to point at a topic the deployment
+    has not written yet."""
 
     def get_rating_status(self):
         """Return rating completeness, or ``None`` if not applicable.
@@ -600,3 +615,134 @@ def is_upload_capable(description_cls):
         if 'upload_filename' in cls.__dict__:
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Registry-supplied help topics
+# ---------------------------------------------------------------------------
+#
+# The registry module may also expose a ``HELP_TOPICS`` sequence describing
+# the data it provides, so a deployment's help pages can document its own
+# experiment types without colony-manager knowing anything about them.
+# Everything here is optional: a registry with no ``HELP_TOPICS`` (or no
+# registry at all) simply contributes no topics.
+
+_REGISTRY_HELP_ATTR = 'HELP_TOPICS'
+
+_SLUG_RE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
+
+
+def get_registry_help_topics():
+    """Return the help topics contributed by the host registry module.
+
+    The registry may define a ``HELP_TOPICS`` sequence of mappings. Each
+    mapping describes one help page:
+
+    ==============  ========================================================
+    ``slug``        Required. Lowercase-and-hyphens identifier, unique
+                    within the deployment; becomes the URL and the value a
+                    description class's ``help_topic`` points at.
+    ``title``       Required. Heading shown in the help index.
+    ``body``        Markdown source. Mutually exclusive with ``path``.
+    ``path``        Path to a UTF-8 Markdown file. Mutually exclusive with
+                    ``body``; read on every call so edits show up without
+                    a restart.
+    ``summary``     Optional one-line blurb for the index.
+    ``section``     Optional index grouping; defaults to ``'Data types'``.
+    ``order``       Optional sort key within the section; defaults to 100.
+    ==============  ========================================================
+
+    Example::
+
+        # mmm_db/help.py
+        HELP_TOPICS = [
+            {'slug': 'mmm-db-cfts', 'title': 'CFTS physiology',
+             'path': Path(__file__).parent / 'help' / 'cfts.md'},
+        ]
+
+    Returns
+    -------
+    list of dict
+        Normalized topics, each with ``slug``, ``title``, ``summary``,
+        ``section``, ``order`` and ``body`` keys. Empty when the registry
+        is unset, unimportable, or contributes no topics.
+
+    Raises
+    ------
+    RuntimeError
+        If ``HELP_TOPICS`` exists but is malformed. A registry that ships
+        help is expected to ship *valid* help; failing loudly here beats a
+        page that silently drops a topic nobody notices is missing.
+    """
+    try:
+        module_path = os.environ.get(_REGISTRY_ENV_VAR, '').strip()
+        if not module_path:
+            return []
+        module = importlib.import_module(module_path)
+    except ImportError:
+        # Same reasoning as ``get_allowed_description_classes``: a broken
+        # registry must not take the help pages down with it.
+        return []
+
+    raw = getattr(module, _REGISTRY_HELP_ATTR, None)
+    if raw is None:
+        return []
+    if isinstance(raw, (str, bytes)) or not isinstance(raw, Iterable):
+        raise RuntimeError(
+            f'{module_path}.{_REGISTRY_HELP_ATTR} must be a sequence of '
+            f'mappings; got {type(raw).__name__}.'
+        )
+
+    topics = []
+    seen = set()
+    for entry in raw:
+        topics.append(_normalize_help_topic(entry, module_path, seen))
+    return topics
+
+
+def _normalize_help_topic(entry, module_path, seen):
+    """Validate one ``HELP_TOPICS`` entry and fill in its defaults."""
+    where = f'{module_path}.{_REGISTRY_HELP_ATTR}'
+    if not isinstance(entry, dict):
+        raise RuntimeError(f'{where} entries must be dicts; got {entry!r}.')
+
+    slug = entry.get('slug')
+    if not isinstance(slug, str) or not _SLUG_RE.match(slug):
+        raise RuntimeError(
+            f'{where}: {slug!r} is not a valid slug (lowercase letters, '
+            f'digits and single hyphens).'
+        )
+    if slug in seen:
+        raise RuntimeError(f'{where}: duplicate slug {slug!r}.')
+    seen.add(slug)
+
+    title = entry.get('title')
+    if not isinstance(title, str) or not title.strip():
+        raise RuntimeError(f'{where}[{slug!r}] needs a non-empty title.')
+
+    has_body = 'body' in entry
+    has_path = 'path' in entry
+    if has_body == has_path:
+        raise RuntimeError(
+            f'{where}[{slug!r}] must set exactly one of "body" or "path".'
+        )
+    if has_body:
+        body = entry['body']
+        if not isinstance(body, str):
+            raise RuntimeError(f'{where}[{slug!r}]: "body" must be a string.')
+    else:
+        try:
+            body = Path(entry['path']).read_text(encoding='utf-8')
+        except OSError as exc:
+            raise RuntimeError(
+                f'{where}[{slug!r}]: cannot read {entry["path"]!r}: {exc}'
+            ) from exc
+
+    return {
+        'slug': slug,
+        'title': title.strip(),
+        'summary': (entry.get('summary') or '').strip(),
+        'section': (entry.get('section') or 'Data types').strip(),
+        'order': int(entry.get('order', 100)),
+        'body': body,
+    }

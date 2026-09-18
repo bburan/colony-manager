@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block header %}
+Help
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <p class="mb-0 small text-muted">
+            Every page in Colony Manager has a
+            <i class="fas fa-circle-question"></i> button beside its title that
+            opens the topic covering that page. {{ total }} topics are
+            available below.
+        </p>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for section, topics in sections %}
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm h-100 overflow-hidden">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">{{ section }}</h2>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for topic in topics %}
+                <a href="{{ url_for('help.view_topic', slug=topic.slug) }}"
+                   class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-semibold small">{{ topic.title }}</div>
+                            {% if topic.summary %}
+                            <div class="text-muted small">{{ topic.summary }}</div>
+                            {% endif %}
+                        </div>
+                        {% if topic.source == 'registry' %}
+                        {# Contributed by the description registry rather than
+                           shipped with the app — worth flagging so a reader
+                           knows which docs move with the data plugin. #}
+                        <span class="badge bg-light text-secondary border fw-normal flex-shrink-0"
+                              title="Supplied by this deployment's data-type registry">plugin</span>
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info mb-0">No help topics are installed.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

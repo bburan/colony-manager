@@ -55,3 +55,43 @@ def test_list_views_return_ok_when_logged_in(logged_in_client, path):
 def test_calendar_view_returns_ok(logged_in_client):
     response = logged_in_client.get('/calendar')
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Help
+# ---------------------------------------------------------------------------
+
+def test_help_index_renders(logged_in_client):
+    response = logged_in_client.get('/help/')
+    assert response.status_code == 200
+    assert b'Help' in response.data
+
+
+def test_every_help_topic_renders_as_page_and_panel(logged_in_client):
+    """Render every shipped topic through both of its views.
+
+    The Markdown subset is exercised by unit tests; this catches the other
+    half — a topic whose slug, template context or ``see_also`` breaks only
+    once it goes through the real route.
+    """
+    from colony_manager_gui import helpdocs
+
+    slugs = sorted(helpdocs.load_topics(reload=True))
+    assert slugs, 'no help topics found'
+    for slug in slugs:
+        for path in (f'/help/{slug}', f'/help/{slug}/panel'):
+            response = logged_in_client.get(path)
+            assert response.status_code == 200, (
+                f'GET {path} returned {response.status_code}; first 500 bytes: '
+                f'{response.get_data(as_text=True)[:500]}'
+            )
+
+
+def test_unknown_help_topic_is_404(logged_in_client):
+    assert logged_in_client.get('/help/no-such-topic').status_code == 404
+
+
+def test_help_requires_login(client):
+    response = client.get('/help/', follow_redirects=False)
+    assert response.status_code == 302
+    assert '/auth/login' in response.headers['Location']

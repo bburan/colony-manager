@@ -5,6 +5,8 @@
 Animal Overview
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('animal-list') }}{% endblock %}
+
 {% set filter_options = {
         'sort_by': [('id', 'ID'), ('age', 'Age'), ('event_date', 'Last Event')],
         'status_filter': [('active', 'Active'), ('terminated', 'Terminated'), ('all', 'All')],

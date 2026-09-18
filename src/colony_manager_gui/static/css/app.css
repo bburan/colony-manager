@@ -272,3 +272,75 @@ th {
     transform: translateY(-2px);
     box-shadow: 0 0.5rem 1.25rem rgba(15, 23, 42, 0.12) !important;
 }
+
+/* --- In-app help ------------------------------------------------------- */
+/* Rendered Markdown (helpdocs.render_markdown) — the only place in the app
+   where prose, not chrome, is the content, so it gets real reading
+   measure and heading rhythm rather than the dense card styling. */
+.help-body {
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+.help-body > *:first-child { margin-top: 0; }
+.help-body > *:last-child { margin-bottom: 0; }
+.help-body h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 1rem; }
+.help-body h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.6rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+    scroll-margin-top: 1.5rem;
+}
+.help-body h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #495057;
+    margin: 1.25rem 0 0.4rem;
+    scroll-margin-top: 1.5rem;
+}
+.help-body p, .help-body ul, .help-body ol { margin-bottom: 0.85rem; }
+.help-body ul ul, .help-body ul ol,
+.help-body ol ul, .help-body ol ol { margin: 0.25rem 0 0.25rem; }
+.help-body li { margin-bottom: 0.2rem; }
+.help-body code {
+    background: #f1f3f5;
+    border-radius: 3px;
+    padding: 0.05rem 0.3rem;
+    font-size: 0.85em;
+    color: #b02a37;
+}
+.help-body pre.help-code {
+    background: #f8f9fa;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    margin-bottom: 0.85rem;
+}
+.help-body pre.help-code code { background: none; padding: 0; color: inherit; }
+.help-body blockquote.help-note {
+    border-left: 3px solid var(--accent, #0f766e);
+    background: rgba(15, 118, 110, 0.05);
+    padding: 0.5rem 0.9rem;
+    margin: 0 0 0.85rem;
+    border-radius: 0 4px 4px 0;
+}
+.help-body .help-table th {
+    font-size: var(--fs-label);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #6c757d;
+}
+
+/* The ``?`` buttons sit inside <h1> page headers, so keep them from
+   inheriting the heading's weight and size. */
+.help-btn {
+    font-size: 0.8rem;
+    font-weight: 400;
+    line-height: 1;
+    opacity: 0.55;
+    transition: opacity 0.12s ease;
+}
+.help-btn:hover, .help-btn:focus { opacity: 1; color: var(--accent) !important; }

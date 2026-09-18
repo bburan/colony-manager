@@ -1,7 +1,10 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 {% block header %}
 User Accounts
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('users') }}{% endblock %}
 
 {% block content %}
 <div class="card shadow-sm">

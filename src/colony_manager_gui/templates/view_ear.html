@@ -13,6 +13,8 @@
 Ear {{ ear.animal.custom_id }} {{ ear.side }}
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('ear-detail') }}{% endblock %}
+
 {% block content %}
 {% set ear_events_by_date = ear.events_by_date %}
 <div class="row g-4">

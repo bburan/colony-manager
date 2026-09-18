@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Analysis Scoreboard
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('analysis-scoreboard') }}{% endblock %}
 
 {% set window_label = ('all time' if filters.window == 'all' else 'last ' ~ filters.window ~ ' days') %}
 

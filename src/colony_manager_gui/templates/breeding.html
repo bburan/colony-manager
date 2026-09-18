@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Breeding Management
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('breeding-list') }}{% endblock %}
 
 {% block content %}
 <div class="card shadow-sm">

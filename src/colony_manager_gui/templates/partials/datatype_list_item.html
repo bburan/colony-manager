@@ -1,3 +1,4 @@
+{% import "macros.html" as macros %}
 <li class="list-group-item d-flex justify-content-between align-items-center py-3" id="datatype-{{ dt.id }}" data-name="{{ dt.name|lower }}">
     <div>
         <span class="fw-bold">{{ dt.name }}</span>
@@ -13,6 +14,11 @@
             <small class="text-muted ms-2"><i class="fas fa-map-marker-alt"></i> {{ dt.locations|length }} location(s)</small>
             {% if dt.description_class %}
                 <small class="text-muted ms-2 font-monospace" title="{{ dt.description_class }}"><i class="fas fa-code"></i> {{ dt.description_class.split('.')|last }}</small>
+                {# Help written by whoever supplies the parser, not by
+                   colony-manager — see the description class's
+                   ``help_topic``. Absent for a parser that ships none. #}
+                {% set dt_help = help_topic_for(dt.description_class) %}
+                {% if dt_help %}{{ macros.help_button(dt_help, label='About ' ~ dt.name) }}{% endif %}
             {% endif %}
         </div>
     </div>

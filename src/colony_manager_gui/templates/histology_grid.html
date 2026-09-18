@@ -5,6 +5,8 @@
 Histology Grid
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('histology-grid') }}{% endblock %}
+
 {% set status_colors = {
     'imaged': '#0dcaf0',
     'analyzed': '#198754',

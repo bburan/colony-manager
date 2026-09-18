@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Studies
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('study-list') }}{% endblock %}
 
 {% block content %}
 {# overflow-hidden: the flush list group below is the card's last child, so

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block breadcrumb %}
+{{ macros.breadcrumb([
+    ('Help', url_for('help.index')),
+    (topic.title, None),
+]) }}
+{% endblock %}
+
+{% block header %}
+{{ topic.title }}
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-12 col-lg-3 order-lg-2">
+        {% if topic.headings %}
+        <nav class="card shadow-sm mb-4 sticky-top" style="top: 1.5rem; z-index: 1;"
+             aria-label="On this page">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">On this page</h2>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for level, text, anchor in topic.headings %}
+                <a href="#{{ anchor }}"
+                   class="list-group-item list-group-item-action small {{ 'ps-4 text-muted' if level == 3 }}">{{ text }}</a>
+                {% endfor %}
+            </div>
+        </nav>
+        {% endif %}
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">All topics</h2>
+            </div>
+            <div class="card-body py-2">
+                {% for section, topics in sections %}
+                <div class="small fw-bold text-uppercase text-secondary mt-2">{{ section }}</div>
+                <ul class="list-unstyled small mb-2">
+                    {% for t in topics %}
+                    <li class="py-1">
+                        <a href="{{ url_for('help.view_topic', slug=t.slug) }}"
+                           class="text-decoration-none {{ 'fw-semibold' if t.slug == topic.slug }}">{{ t.title }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-9 order-lg-1">
+        <article class="card shadow-sm">
+            <div class="card-body help-body">
+                {{ topic.html }}
+            </div>
+            {% if see_also %}
+            <div class="card-footer small">
+                <span class="fw-bold text-uppercase text-secondary me-2">See also</span>
+                {% for t in see_also %}
+                <a href="{{ url_for('help.view_topic', slug=t.slug) }}"
+                   class="badge bg-light text-secondary border fw-normal text-decoration-none">{{ t.title }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </article>
+    </div>
+</div>
+{% endblock %}

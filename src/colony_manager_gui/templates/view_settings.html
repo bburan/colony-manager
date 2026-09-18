@@ -1,4 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
+
+{% block header %}
+Settings
+{% endblock %}
+
+{% block header_help %}{{ macros.help_button('settings-general') }}{% endblock %}
 
 {% block content %}
 <div class="row">

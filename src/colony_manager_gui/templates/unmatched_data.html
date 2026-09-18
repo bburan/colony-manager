@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Unmatched Data Files
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('unmatched-data') }}{% endblock %}
 
 {# Build a dict of all current filter values for pagination/sort links. #}
 {% set link_args = {

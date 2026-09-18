@@ -12,6 +12,8 @@
 Study {{ study.name }}
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('study-detail') }}{% endblock %}
+
 {% block content %}
 <div class="row g-4">
     <div class="col-8">

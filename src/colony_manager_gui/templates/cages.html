@@ -6,6 +6,8 @@
 Cages
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('cage-list') }}{% endblock %}
+
 {% set filter_options = {
         'status_filter': [('active', 'Active'), ('inactive', 'Inactive'), ('all', 'All')],
         'sex_filter': [('all', 'All'), ('male', 'M'), ('female', 'F'), ('mixed', 'Mixed')],

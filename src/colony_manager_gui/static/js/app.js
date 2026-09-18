@@ -744,3 +744,31 @@ function openVideoModal(url, title) {
         modalElement.removeEventListener('hidden.bs.modal', cleanup);
     });
 }
+
+// --- In-app help ---------------------------------------------------------
+// The ``?`` buttons (macros.help_button) fetch a help topic into the
+// shared #helpModal. A plain fetch rather than htmx keeps it clear of the
+// #modalBody/editModal flow above, which every form modal already owns —
+// opening help from inside a form modal must not replace the form.
+async function openHelpModal(url) {
+    const modalElement = document.getElementById('helpModal');
+    const contentEl = document.getElementById('helpModalContent');
+    contentEl.innerHTML = '<div class="d-flex justify-content-center p-5">'
+        + '<div class="spinner-border text-primary" role="status"></div></div>';
+    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    try {
+        const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!resp.ok) throw new Error('Help topic could not be loaded.');
+        contentEl.innerHTML = await resp.text();
+        // Deep link: scroll the modal body, not the window — the heading
+        // ids live inside an overflow container.
+        const scroller = document.getElementById('helpModalScroll');
+        const anchor = scroller && scroller.dataset.helpAnchor;
+        if (anchor) {
+            const target = scroller.querySelector('#' + CSS.escape(anchor));
+            if (target) scroller.scrollTop = target.offsetTop - scroller.offsetTop;
+        }
+    } catch (e) {
+        contentEl.innerHTML = '<div class="alert alert-danger m-3">' + e.message + '</div>';
+    }
+}

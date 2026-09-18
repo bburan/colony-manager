@@ -5,6 +5,8 @@
 Dashboard
 {% endblock %}
 
+{% block header_help %}{{ macros.help_button('dashboard') }}{% endblock %}
+
 {% set buttons = [
         ('breeding.list_breeding_pairs', 'fa-heart', 'Active Breeding Pairs', active_pairs),
         ('cages.list_cages', 'fa-box', 'Active Cages', active_cages),

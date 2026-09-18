@@ -71,3 +71,10 @@ write_to = "src/colony_manager/version.py"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The GUI package is mostly non-Python: Jinja templates, static
+# assets, and the Markdown help topics. The deployment installs
+# editable so this never mattered, but a built wheel needs them
+# declared or the app boots with no templates at all.
+[tool.setuptools.package-data]
+colony_manager_gui = ["templates/*.html", "templates/partials/*.html", "static/css/*.css", "static/js/*.js", "help/*.md"]

@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Needs Analysis
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('unrated-data') }}{% endblock %}
 
 {% set link_args = {
     'datatype_id': filters.datatype_id or '',

@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "macros.html" as macros %}
 
 {% block header %}
 Histology
 {% endblock %}
+
+{% block header_help %}{{ macros.help_button('histology-list') }}{% endblock %}
 
 {% block content %}
 {% with

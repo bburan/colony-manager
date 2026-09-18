@@ -1,0 +1,25 @@
+{# Modal body for a help topic. Fetched by openHelpModal() (app.js) into
+   #helpModalContent, which is the modal's whole .modal-content — hence the
+   header/body/footer here. ``anchor`` rides along as a data attribute
+   rather than an inline <script>, because innerHTML never runs scripts. #}
+<div class="modal-header">
+    <h5 class="modal-title h6 fw-bold text-uppercase text-secondary">
+        <i class="fas fa-circle-question me-2"></i>{{ topic.title }}
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body help-body"
+     id="helpModalScroll"
+     {% if anchor %}data-help-anchor="{{ anchor }}"{% endif %}
+     style="max-height: 70vh; overflow-y: auto;">
+    {{ topic.html }}
+</div>
+<div class="modal-footer justify-content-between">
+    <a href="{{ url_for('help.index') }}" class="small text-decoration-none text-muted">
+        <i class="fas fa-list me-1"></i>All help topics
+    </a>
+    <a href="{{ url_for('help.view_topic', slug=topic.slug) }}"
+       class="btn btn-sm btn-outline-primary">
+        Open as a page <i class="fas fa-arrow-up-right-from-square ms-1"></i>
+    </a>
+</div>

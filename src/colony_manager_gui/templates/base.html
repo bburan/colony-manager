@@ -98,6 +98,13 @@
                         </ul>
                     </li>
                     {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if request.blueprint == 'help' }}"
+                           href="{{ url_for('help.index') }}"
+                           title="Help and documentation">
+                            <i class="fas fa-circle-question me-1"></i>Help
+                        </a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
 							<i class="fas fa-paw me-1"></i>{{ selected_species|capitalize }}
@@ -175,8 +182,11 @@
     <div class="app-header py-4">
         <div class="container">
             {% block breadcrumb %}{% endblock %}
-            <h1 class="h3 mb-0 fw-bold text-dark">
+            <h1 class="h3 mb-0 fw-bold text-dark d-flex align-items-center gap-2">
                 {% block header %}{% endblock %}
+                {# Per-page help. Each template fills this with
+                   macros.help_button('<topic slug>'). #}
+                {% block header_help %}{% endblock %}
             </h1>
         </div>
     </div>
@@ -246,6 +256,16 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center p-3" id="imageModalBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-sm" id="helpModalContent">
+            <div class="d-flex justify-content-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
         </div>
       </div>
     </div>

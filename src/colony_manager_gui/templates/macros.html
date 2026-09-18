@@ -1,3 +1,26 @@
+{# ``?`` button opening one help topic in the shared help modal.
+
+   slug   — help topic to show (colony_manager_gui/help/<slug>.md, or one
+            contributed by the description registry).
+   anchor — optional heading id within the topic to scroll to, so a button
+            beside one control can land on the paragraph about it.
+   label  — tooltip text; defaults to a generic "help for this page".
+
+   Unknown slugs 404 from the route rather than failing here: the macro
+   can't see the topic list, and a help button is never worth breaking a
+   page render over. #}
+{% macro help_button(slug, anchor='', label='', size='sm') %}
+<button type="button"
+        class="btn btn-{{ size }} btn-icon text-secondary help-btn"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        title="{{ label or 'Help for this page' }}"
+        aria-label="{{ label or 'Help for this page' }}"
+        onclick="openHelpModal('{{ url_for('help.topic_panel', slug=slug, anchor=anchor) }}')">
+    <i class="fas fa-circle-question"></i>
+</button>
+{% endmacro %}
+
 {% macro filter_dropdown(name, label, filters, items, all_label='All', label_attr='display_name') %}
 <div class="col-auto">
     <label class="d-block small fw-bold text-muted text-uppercase mb-1 fs-label">
@@ -158,6 +181,11 @@
         </button>
         {% endif %}
     {% endfor %}
+    {# Help for this kind of data, when its description class names a
+       topic. Sits with the preview buttons because that is where the
+       question "what am I looking at?" actually gets asked. #}
+    {% set df_help = help_topic_for(data_file.datatype.description_class) %}
+    {% if df_help %}{{ help_button(df_help, label='About ' ~ data_file.datatype.name) }}{% endif %}
     </div>
     {% endif %}
 {% endmacro %}

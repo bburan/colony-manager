@@ -126,6 +126,7 @@ def create_app():
     from colony_manager_gui.routes.histology import histology_bp
     from colony_manager_gui.routes.studies import studies_bp
     from colony_manager_gui.routes.data_files import data_files_bp
+    from colony_manager_gui.routes.help import help_bp
     from colony_manager_gui.routes.util import get_or_404
 
     app.register_blueprint(main_bp)
@@ -136,9 +137,18 @@ def create_app():
     app.register_blueprint(histology_bp, url_prefix='/histology')
     app.register_blueprint(studies_bp, url_prefix='/studies')
     app.register_blueprint(data_files_bp)
+    app.register_blueprint(help_bp, url_prefix='/help')
 
     login_manager.init_app(app)
     csrf.init_app(app)
+
+    # Lets any template ask "does this kind of data document itself?" —
+    # the answer comes from the description class's ``help_topic``, which
+    # for this deployment is supplied by the data-plugin registry rather
+    # than by colony-manager. Returns None (render no button) for anything
+    # unresolvable, so templates need no guard beyond a truthiness check.
+    from colony_manager_gui.helpdocs import topic_for_description_class
+    app.jinja_env.globals['help_topic_for'] = topic_for_description_class
 
     # Return the scoped session to the registry at the end of each
     # request. Mirrors what Flask-SQLAlchemy used to do for us, but

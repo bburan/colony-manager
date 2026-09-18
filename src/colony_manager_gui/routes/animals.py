@@ -1033,6 +1033,33 @@ def refresh_data_rating(data_id) -> Response | str:
     return redirect(request.referrer or url_for('animals.list_unrated_data'))
 
 
+# Activity windows offered by the scoreboard, and the labels for them.
+# One list, read by both the dropdown and the "By analyst" badge. The
+# template used to hard-code the dropdown's options and separately build
+# the badge's label by string concatenation, so the same window read
+# "Last 30 days" in one place and "last 30 days" in the other, and adding
+# a window meant editing two spots.
+SCOREBOARD_WINDOWS = [
+    ('7', 'Last 7 days'),
+    ('30', 'Last 30 days'),
+    ('90', 'Last 90 days'),
+    ('all', 'All time'),
+]
+
+
+def _window_label(window, days):
+    """Human label for a scoreboard activity window.
+
+    Falls back to "Last N days" for a ``?window=`` the dropdown doesn't
+    offer — the route accepts any integer, so the badge has to be able to
+    name one.
+    """
+    known = dict(SCOREBOARD_WINDOWS).get(window)
+    if known is not None:
+        return known
+    return f'Last {days} days'
+
+
 @animals_bp.route('/analysis-scoreboard')
 def list_analysis_scoreboard() -> Response | str:
     """Analysis Scoreboard: what's analyzed, by whom, and how recently.
@@ -1047,6 +1074,7 @@ def list_analysis_scoreboard() -> Response | str:
     datatype_id = request.args.get('datatype_id', None, type=int)
     window = request.args.get('window', '30')
     since = None
+    days = None
     if window != 'all':
         try:
             days = int(window)
@@ -1064,6 +1092,8 @@ def list_analysis_scoreboard() -> Response | str:
         summary=data_queries.scoreboard_summary(db.session, active),
         by_analyst=data_queries.scoreboard_by_analyst(db.session, active, since=since),
         recent=data_queries.recent_analyses(db.session, active, since=since, limit=25),
+        window_choices=SCOREBOARD_WINDOWS,
+        window_label=_window_label(window, days),
         filters={'datatype_id': datatype_id, 'window': window},
     )
 

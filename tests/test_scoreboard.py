@@ -226,3 +226,32 @@ def test_scoreboard_route_renders(db_session, logged_in_client):
 def test_scoreboard_route_window_all(db_session, logged_in_client):
     resp = logged_in_client.get('/animals/analysis-scoreboard?window=all')
     assert resp.status_code == 200
+
+
+@pytest.mark.parametrize('query, expected', [
+    ('', 'Last 30 days'),          # the default window
+    ('?window=7', 'Last 7 days'),
+    ('?window=90', 'Last 90 days'),
+    ('?window=all', 'All time'),
+    ('?window=14', 'Last 14 days'),  # accepted by the route, not in the dropdown
+    ('?window=nonsense', 'Last 30 days'),  # falls back to the default
+])
+def test_scoreboard_labels_its_activity_window(logged_in_client, query, expected):
+    """The "By analyst" badge names the window the panel is showing.
+
+    The ``?window=14`` case is the one that pins the label to the route
+    rather than the template: 14 is accepted by the route but absent from
+    the dropdown, so the string can only come from ``_window_label``.
+    """
+    resp = logged_in_client.get(f'/animals/analysis-scoreboard{query}')
+    assert resp.status_code == 200
+    assert expected in resp.get_data(as_text=True)
+
+
+def test_scoreboard_window_dropdown_offers_every_choice(logged_in_client):
+    from colony_manager_gui.routes.animals import SCOREBOARD_WINDOWS
+
+    body = logged_in_client.get('/animals/analysis-scoreboard').get_data(as_text=True)
+    for value, label in SCOREBOARD_WINDOWS:
+        assert f'value="{value}"' in body
+        assert label in body

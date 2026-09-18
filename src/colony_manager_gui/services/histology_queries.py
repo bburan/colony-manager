@@ -2,12 +2,38 @@
 from collections.abc import Mapping
 from typing import Any
 
-from sqlalchemy import Select, exists, select
+from sqlalchemy import Select, exists, or_, select
 from sqlalchemy.orm import Session, contains_eager, selectinload
 
+from colony_manager.enums import ConfocalImageStatus
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
     Ear, EarTag, Study, ConfocalImage,
+)
+
+# Choices for the Analysis filter, rendered by ``partials/ear_filter_card.html``
+# and resolved by ``_analysis_filter_clause`` below. The two used to be
+# written separately — the card offered 'pending' / 'needs_review' / 'done'
+# while the query compared them straight against ``ConfocalImage.status``,
+# whose values are 'imaged' / 'analyzed' / 'need_review' / 'region_missing' /
+# 'region_bad'. Only 'imaged' ever matched; the other three silently returned
+# no ears at all. Keeping the list here means a new option has to be given a
+# clause before it can be offered.
+EAR_ANALYSIS_FILTERS = [
+    ('all', 'All'),
+    ('pending', 'Pending'),
+    ('imaged', 'Imaged'),
+    ('needs_review', 'Needs Review'),
+    ('done', 'Done'),
+]
+
+# Statuses that still represent outstanding work. The other three are
+# terminal: ``analyzed`` is finished, and ``region_missing`` / ``region_bad``
+# say there is nothing to analyze — an ear whose every image is one of those
+# is as done as it will ever be.
+_OUTSTANDING_STATUSES = (
+    ConfocalImageStatus.IMAGED,
+    ConfocalImageStatus.NEED_REVIEW,
 )
 
 _EAR_SORT_DIR_DEFAULTS = {
@@ -55,6 +81,47 @@ def parse_ear_filters(args: Mapping[str, str], species_id: int = -1) -> dict[str
         'study_id': args.get('study_id', 'all'),
         'species_id': species_id,
     }
+
+
+def _has_image(*status_clauses):
+    """``EXISTS`` over this ear's confocal images, narrowed by *status_clauses*."""
+    return exists().where(ConfocalImage.ear_id == Ear.id, *status_clauses)
+
+
+def _status_in(statuses):
+    """Match ``ConfocalImage.status`` against *statuses*, NULL reading as imaged.
+
+    The column is nullable and every other reader treats NULL as
+    ``imaged`` (``ConfocalImage.conflict``, ``grid_status_square.html``).
+    Without the same fold here a never-touched image would count as
+    terminal, and an ear full of them would file itself under *Done*.
+    """
+    clause = ConfocalImage.status.in_([str(s) for s in statuses])
+    if ConfocalImageStatus.IMAGED in statuses:
+        clause = or_(clause, ConfocalImage.status.is_(None))
+    return clause
+
+
+def _analysis_filter_clause(value):
+    """Return the WHERE clause for one Analysis filter value, or None.
+
+    None means "no filtering" — either the *All* option or a value that is
+    not offered at all.
+    """
+    if value == 'imaged':
+        return _has_image(_status_in([ConfocalImageStatus.IMAGED]))
+    if value == 'needs_review':
+        return _has_image(_status_in([ConfocalImageStatus.NEED_REVIEW]))
+    if value == 'pending':
+        # Any image still to be worked — the union of the two above.
+        return _has_image(_status_in(_OUTSTANDING_STATUSES))
+    if value == 'done':
+        # Imaged at all, and nothing left outstanding. The first half
+        # matters: an ear with no images has no outstanding work either,
+        # and calling that "done" would fill the filter with ears nobody
+        # has started.
+        return _has_image() & ~_has_image(_status_in(_OUTSTANDING_STATUSES))
+    return None
 
 
 def apply_ear_filters(query: Select[Any], filters: dict[str, Any], session: Session) -> Select[Any]:
@@ -106,12 +173,9 @@ def apply_ear_filters(query: Select[Any], filters: dict[str, Any], session: Sess
             Study.id == int(filters['study_id'])
         ))
 
-    if filters['analysis_filter'] != 'all':
-        subquery = exists().where(
-            (ConfocalImage.ear_id == Ear.id)
-            & (ConfocalImage.status == filters['analysis_filter'])
-        )
-        query = query.where(subquery)
+    clause = _analysis_filter_clause(filters['analysis_filter'])
+    if clause is not None:
+        query = query.where(clause)
 
     species_id = filters.get('species_id', -1)
     if species_id != -1:
@@ -132,6 +196,11 @@ def apply_ear_sort(query: Select[Any], filters: dict[str, Any]) -> Select[Any]:
 def get_ear_filter_options(session: Session) -> dict[str, list[Any]]:
     """Return lookup lists for the histology filter UI."""
     return {
+        # Static rather than a lookup, but it belongs with the rest of what
+        # the filter card needs: the card renders whatever is here, so an
+        # option can't be offered without ``_analysis_filter_clause``
+        # knowing how to answer it.
+        'analysis_filters': EAR_ANALYSIS_FILTERS,
         'ear_tags': EarTag.get_ordered(session),
         'procedures': AnimalProcedure.get_ordered(session),
         'animal_tags': AnimalTag.get_ordered(session),

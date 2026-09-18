@@ -1,12 +1,17 @@
-{# Required context: filters, ear_tags, procedures, animal_tags, event_tags, studies, result_count, form_action, reset_url, result_label
-   Optional context: show_conflicts_only #}
+{# Required context: filters, analysis_filters, ear_tags, procedures, animal_tags, event_tags, studies, result_count, form_action, reset_url, result_label
+   Optional context: show_conflicts_only
+
+   ``analysis_filters`` comes from services.histology_queries (via
+   get_ear_filter_options) rather than being written out here, because the
+   values are query keys, not labels: this card once offered four options
+   the query had no branch for, and three of them silently matched nothing. #}
 {% import "macros.html" as macros %}
 
 {% set _show_conflicts_only = show_conflicts_only|default(false) %}
 
 {% set filter_options = {
         'sort_by': [('id', 'ID'), ('euthanasia', 'Euthanasia'), ('cryoprotection', 'Cryo'), ('dissection', 'Dissection'), ('immunolabel', 'Immunolabel')],
-        'analysis_filter': [('all', 'All'), ('pending', 'Pending'), ('imaged', 'Imaged'), ('needs_review', 'Needs Review'), ('done', 'Done')],
+        'analysis_filter': analysis_filters,
         'immunolabel_filter': [('all', 'All'), ('pending', 'Pending'), ('labeled', 'Labeled')],
         'side_filter': [('all', 'All'), ('Left', 'L'), ('Right', 'R')],
         'cryo_filter': [('all', 'All'), ('done', 'Done'), ('pending', 'Pending')],

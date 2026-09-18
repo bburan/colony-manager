@@ -42,7 +42,7 @@ in place without leaving the list.
 | **Sex** | the animal's sex |
 | **Immunolabel** | *Labeled* means a panel has been assigned; *Pending* means none has |
 | **Cryo** | whether a cryoprotection date is recorded |
-| **Analysis** | ears having a confocal image in a given processing state |
+| **Analysis** | where the ear's confocal images have got to — see below |
 | **Ear Tag**, **Animal Tag**, **Event Tag**, **Procedure** | as on the animal list — selecting a parent includes everything nested beneath it |
 | **Study** | ears whose animal is in that study |
 
@@ -50,6 +50,23 @@ Sort by ID, or by any of the euthanasia / cryoprotection / dissection /
 immunolabel dates. Sorting by a date descending puts the most recent
 first and pushes ears with no date to the end — the quickest way to see
 what is next in the queue.
+
+### The Analysis filter
+
+| Option | Shows |
+|---|---|
+| **Pending** | ears with at least one image still to be worked — imaged or needing review |
+| **Imaged** | ears with at least one image acquired but not yet analyzed |
+| **Needs Review** | ears with at least one image flagged for a second look |
+| **Done** | ears that have images, none of them outstanding |
+
+*Pending* is the union of *Imaged* and *Needs Review* — the whole
+outstanding queue in one click.
+
+For **Done**, an image marked *Region missing* or *Poor histology* counts
+as resolved: there is nothing left to analyze either way. An ear with no
+images at all is neither pending nor done — nobody has started it, which
+is a different thing from having finished.
 
 > "Labeled" keys off the **panel**, not the immunolabel date: the date is
 > sometimes left blank even when the work was done, but a panel is always

@@ -7,8 +7,6 @@ Analysis Scoreboard
 
 {% block header_help %}{{ macros.help_button('analysis-scoreboard') }}{% endblock %}
 
-{% set window_label = ('all time' if filters.window == 'all' else 'last ' ~ filters.window ~ ' days') %}
-
 {# Compact target pills for a Data row, mirroring partials/unrated_data_row.html. #}
 {% macro target_pills(f) -%}
     {% if f.target_type == 'animal_event' %}
@@ -68,8 +66,10 @@ Analysis Scoreboard
                 </div>
                 <div class="col-auto">
                     <label class="form-label small mb-1">Activity window</label>
+                    {# Options come from routes.animals.SCOREBOARD_WINDOWS so
+                       the badge on "By analyst" can label the same list. #}
                     <select name="window" class="form-select form-select-sm" onchange="this.form.submit()">
-                        {% for val, lbl in [('7', 'Last 7 days'), ('30', 'Last 30 days'), ('90', 'Last 90 days'), ('all', 'All time')] %}
+                        {% for val, lbl in window_choices %}
                         <option value="{{ val }}" {% if filters.window == val %}selected{% endif %}>{{ lbl }}</option>
                         {% endfor %}
                     </select>

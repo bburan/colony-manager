@@ -358,6 +358,36 @@ def test_callback_uri_is_https_behind_proxy(sso_app):
     assert seen['uri'] == 'https://colony.example.edu/auth/sso/callback'
 
 
+def test_sso_login_survives_an_unreachable_provider(sso_app, monkeypatch):
+    """An IdP outage must not be a 500.
+
+    Building the authorization redirect fetches the provider's discovery
+    document, so a DNS failure or a 503 at the IdP lands in this route,
+    not the callback. A 500 there tells the user nothing and generates a
+    support call; the local password form still works, so the flash says
+    so.
+    """
+    from colony_manager_gui.oidc import CLIENT_NAME
+
+    oauth = sso_app.extensions['authlib.integrations.flask_client']
+    client = getattr(oauth, CLIENT_NAME)
+
+    def _boom(*args, **kwargs):
+        raise OSError('[Errno -2] Name or service not known')
+
+    monkeypatch.setattr(client, 'authorize_redirect', _boom)
+
+    response = sso_app.test_client().get(
+        '/auth/sso/login', follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert '/auth/login' in response.headers['Location']
+
+    page = sso_app.test_client().get('/auth/sso/login', follow_redirects=True)
+    assert b'temporarily unavailable' in page.data
+    assert b'password' in page.data
+
+
 def test_sso_login_rejects_offsite_next(client, db_session):
     """``next`` is attacker-supplied; it's host-checked before being parked."""
     response = client.get(

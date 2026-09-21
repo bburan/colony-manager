@@ -110,7 +110,23 @@ def sso_login() -> Response | str:
     # provider � behind a TLS-terminating proxy that needs ProxyFix (wired
     # in the app factory) so the scheme comes out https, not http.
     redirect_uri = url_for('auth.sso_callback', _external=True)
-    return client.authorize_redirect(redirect_uri)
+    try:
+        return client.authorize_redirect(redirect_uri)
+    except Exception as exc:  # noqa: BLE001 - Authlib raises a wide family
+        # Building the redirect means fetching the provider's discovery
+        # document, so everything from a DNS failure to a 503 at the IdP
+        # surfaces here rather than at the callback. Unhandled it's a 500,
+        # which tells a user nothing and sends them to whoever runs the
+        # site. The local password form is entirely unaffected by an IdP
+        # outage, so say so — during one, that's the only thing the person
+        # reading this can actually act on.
+        current_app.logger.warning('OIDC authorization redirect failed: %s', exc)
+        flash(
+            'Single sign-on is temporarily unavailable. You can still sign '
+            'in with your Colony Manager password below.',
+            'warning',
+        )
+        return redirect(url_for('auth.login_user'))
 
 
 @auth_bp.route('/sso/callback')

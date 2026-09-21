@@ -20,12 +20,16 @@
     <nav class="navbar navbar-expand-lg shadow-sm {{ 'bg-white' if not config.DEBUG }}"
          {% if config.DEBUG %}style="background-color: {{ config.get('NAVBAR_DEBUG_COLOR', '#ffda6a') }};"{% endif %}>
 		<div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('main.view_dashboard') }}">
-                <i class="fas fa-dna me-2"></i>Colony Manager
+            {# The mark alone — the app's name is in the tab title, and on
+               the login page for anyone who hasn't seen it before. It also
+               stands in for the Dashboard nav item, which is why that one
+               is no longer in ``nav_items`` below. #}
+            <a class="navbar-brand fw-bold me-3"
+               href="{{ url_for('main.view_dashboard') }}"
+               title="Colony Manager — dashboard"
+               aria-label="Colony Manager — dashboard">
+                <i class="fas fa-dna fa-lg"></i>
             </a>
-            {% if config.DEBUG %}
-            <span class="badge text-bg-dark ms-2" title="Running in debug mode">DEBUG</span>
-            {% endif %}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#appNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -47,8 +51,9 @@
                          style="z-index: 1050; max-height: 320px; overflow-y: auto;"></div>
                 </div>
                 <ul class="navbar-nav mb-2 mb-lg-0 ms-auto">
+                    {# Dashboard is reached through the brand mark on the
+                       left, so it doesn't need a slot here too. #}
                     {% set nav_items = [
-                        ('main.view_dashboard', 'Dashboard'),
                         ('main.view_calendar', 'Calendar'),
                         ('breeding.list_breeding_pairs', 'Breeding'),
                         ('cages.list_cages', 'Cages'),
@@ -88,8 +93,14 @@
                     {% if not current_user.is_anonymous and current_user.is_admin() %}
                     {% set settings_endpoints = ['main.list_settings', 'main.list_datatypes'] %}
                     <li class="nav-item dropdown">
+                        {# Icon-only: ``data-bs-toggle`` is already spoken for
+                           by the dropdown, so the label is a plain title +
+                           aria-label rather than a Bootstrap tooltip. #}
                         <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint in settings_endpoints }}"
-                           href="#" role="button" data-bs-toggle="dropdown">Settings</a>
+                           href="#" role="button" data-bs-toggle="dropdown"
+                           title="Settings" aria-label="Settings">
+                            <i class="fas fa-gear"></i>
+                        </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item {{ 'active' if request.endpoint == 'main.list_settings' }}"
                                    href="{{ url_for('main.list_settings') }}">General</a></li>
@@ -101,8 +112,9 @@
                     <li class="nav-item">
                         <a class="nav-link {{ 'active' if request.blueprint == 'help' }}"
                            href="{{ url_for('help.index') }}"
-                           title="Help and documentation">
-                            <i class="fas fa-circle-question me-1"></i>Help
+                           title="Help and documentation"
+                           aria-label="Help and documentation">
+                            <i class="fas fa-circle-question"></i>
                         </a>
                     </li>
                     <li class="nav-item dropdown">

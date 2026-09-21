@@ -246,14 +246,17 @@ th {
     --bs-accordion-btn-active-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230f766e'%3e%3cpath d='M2 5L8 11L14 5'/%3e%3c/svg%3e");
 }
 
-/* Brand: subtle teal gradient wordmark + icon. */
+/* Brand: the mark on its own, in the accent colour.
+   This was a gradient clipped to text, which only read as a gradient
+   across the width of the "Colony Manager" wordmark. With the wordmark
+   gone the ramp spans a single ~20px glyph and is indistinguishable from
+   a flat fill — so use the flat fill, and skip the transparent-text
+   trick entirely. */
 .navbar-brand {
-    background: linear-gradient(90deg, var(--accent), #14b8a6);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
+    color: var(--accent);
 }
+.navbar-brand:hover,
+.navbar-brand:focus { color: var(--accent); opacity: 0.85; }
 
 /* Nav items pick up the accent on hover, with an underline when active. */
 .navbar .nav-link { transition: color 0.12s ease; }

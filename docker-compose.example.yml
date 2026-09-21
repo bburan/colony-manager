@@ -59,11 +59,15 @@ services:
     restart: unless-stopped
     user: "1027:100"
     ports:
-      # Plain HTTP — TLS is terminated by the reverse proxy in front (see
-      # docs/https.md). Once that proxy is in place, prefer binding this
-      # to the loopback interface so the unencrypted port isn't on the
-      # LAN at all:  "127.0.0.1:9001:5000"
-      - "9001:5000"
+      # Plain HTTP — TLS is terminated by a reverse proxy in front (see
+      # docs/https.md). On the mmm NAS that proxy listens on 9443 and
+      # forwards here. This stays bound to 0.0.0.0 on purpose: the
+      # unencrypted port is the lab's fallback if the proxy or its
+      # certificate fails. Bind it to 127.0.0.1 instead if you don't want
+      # that trade — and note that login over it needs
+      # SESSION_COOKIE_SECURE=false, since a Secure cookie is never sent
+      # over plain HTTP.
+      - "9002:5000"
     volumes:
       - ./app:/app
       - data:/volume1/data

@@ -74,9 +74,9 @@ def _configure_https(app):
     a scheme from, not leaving the plain-http door quietly usable, and
     telling the browser to stay on https.
 
-    ``CANONICAL_BASE_URL`` (e.g. ``https://colony.ohsu.edu``) is the one
-    worth setting. Any request arriving on a different scheme or host is
-    redirected to it, which matters more than it first looks: the
+    ``CANONICAL_BASE_URL`` (e.g. ``https://mmm.ohsu.edu:9001``) is the one
+    worth setting. Any request arriving over plain http is redirected to
+    it, which matters more than it first looks: the
     container publishes its own port, and that stays reachable over
     plain http after a proxy goes in front. A user on the old URL would
     otherwise hit a thoroughly confusing failure — the session cookie is
@@ -102,13 +102,27 @@ def _configure_https(app):
     )
 
     if canonical:
-        target = urlsplit(canonical)
-
         @app.before_request
         def _redirect_to_canonical():
             from flask import redirect, request
 
-            if request.scheme == target.scheme and request.host == target.netloc:
+            # Deliberately keyed on the scheme alone, not on host or port.
+            #
+            # The tempting version compares ``request.host`` against the
+            # canonical netloc, and it loops. Whether the app can even see
+            # the public host:port depends on what the proxy puts in
+            # ``Host``/``X-Forwarded-Host`` — nginx's ``$host`` drops the
+            # port, and some configurations forward the *backend* address
+            # instead. Any of those makes a host comparison mismatch
+            # forever: redirect to the canonical URL, proxy forwards it
+            # back with the same unexpected Host, redirect again.
+            #
+            # Keying on the scheme is loop-proof, because the canonical URL
+            # is https and a proxied https request reports is_secure once
+            # X-Forwarded-Proto is read. It also still does the job that
+            # matters: moving anyone on plain http onto https, whatever
+            # host or port they arrived on.
+            if request.is_secure:
                 return
             # 308 rather than 301: it preserves the method and body, so a
             # POST landing on the wrong origin isn't silently turned into

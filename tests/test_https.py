@@ -8,7 +8,10 @@ origin, and does it emit the right headers.
 import pytest
 
 
-CANONICAL = 'https://colony.example.edu'
+# A non-default port, matching the real deployment: DSM's reverse proxy
+# listens on 9001 because 443 is taken by DSM's own UI. The port is what
+# makes the loop-safety tests below worth having.
+CANONICAL = 'https://mmm.example.edu:9001'
 
 
 @pytest.fixture
@@ -52,9 +55,35 @@ def test_no_redirect_when_already_canonical(https_app):
     response = _get(
         https_app, '/auth/login', base_url='http://internal:5000',
         headers={'X-Forwarded-Proto': 'https',
-                 'X-Forwarded-Host': 'colony.example.edu'},
+                 'X-Forwarded-Host': 'mmm.example.edu:9001'},
     )
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize('forwarded_host', [
+    'mmm.example.edu',        # nginx $host — drops the non-default port
+    'localhost:9002',         # proxy forwarded its own backend address
+    'internal:5000',          # no X-Forwarded-Host at all
+])
+def test_https_never_redirects_whatever_host_the_proxy_reports(
+        https_app, forwarded_host):
+    """The redirect must not loop when the proxy's Host isn't the public one.
+
+    With a non-default port in the canonical URL this is the failure that
+    matters: comparing ``request.host`` to the canonical netloc mismatches
+    forever in all three of these shapes, so each request redirects, comes
+    back through the proxy with the same unexpected Host, and redirects
+    again. Keying the check on the scheme alone makes it impossible.
+    """
+    response = _get(
+        https_app, '/auth/login', base_url='http://internal:5000',
+        headers={'X-Forwarded-Proto': 'https',
+                 'X-Forwarded-Host': forwarded_host},
+    )
+    assert response.status_code != 308, (
+        f'redirect loop: an https request reporting Host={forwarded_host!r} '
+        'was redirected back to the canonical URL'
+    )
 
 
 def test_redirect_runs_before_the_login_gate(https_app):
@@ -90,7 +119,7 @@ def test_hsts_absent_by_default(https_app):
     response = _get(
         https_app, '/auth/login', base_url='http://internal:5000',
         headers={'X-Forwarded-Proto': 'https',
-                 'X-Forwarded-Host': 'colony.example.edu'},
+                 'X-Forwarded-Host': 'mmm.example.edu:9001'},
     )
     assert 'Strict-Transport-Security' not in response.headers
 
@@ -106,7 +135,7 @@ def test_hsts_sent_over_https_when_enabled(test_db, monkeypatch):
     response = app.test_client().get(
         '/auth/login', base_url='http://internal:5000',
         headers={'X-Forwarded-Proto': 'https',
-                 'X-Forwarded-Host': 'colony.example.edu'},
+                 'X-Forwarded-Host': 'mmm.example.edu:9001'},
     )
     assert response.headers['Strict-Transport-Security'] == \
         'max-age=3600; includeSubDomains'

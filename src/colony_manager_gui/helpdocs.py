@@ -30,8 +30,9 @@ from colony_manager.datatypes import get_registry_help_topics
 HELP_DIR = Path(__file__).parent / 'help'
 
 # Index grouping order. Sections not listed here sort alphabetically after
-# these; 'Data types' is last because it is where registry-supplied topics
-# land by default and it grows with the deployment, not with the app.
+# these; 'Data types' is near the end because it is where registry-supplied
+# topics land by default and it grows with the deployment, not with the app.
+# 'Changelog' is pinned last so a registry section can't sort above it.
 SECTION_ORDER = [
     'Getting started',
     'Colony',
@@ -39,6 +40,7 @@ SECTION_ORDER = [
     'Data files',
     'Administration',
     'Data types',
+    'Changelog',
 ]
 
 # URL schemes a Markdown link is allowed to use. Anything else renders as

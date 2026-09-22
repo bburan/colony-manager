@@ -16,6 +16,7 @@ User Accounts
                     <th>First Name</th>
                     <th>Last Name</th>
                     <th>Email</th>
+                    {% if oidc_enabled %}<th>Sign-in</th>{% endif %}
                     <th>Active</th>
                     <th>Admin</th>
                     <th></th>
@@ -27,6 +28,14 @@ User Accounts
                     <td>{{ user.first_name }}</td>
                     <td>{{ user.last_name }}</td>
                     <td>{{ user.email }}</td>
+                    {# An account can hold both credentials at once, so these are
+                       two independent badges rather than one either/or column. #}
+                    {% if oidc_enabled %}
+                    <td>
+                        {% if user.is_sso_linked %}<span class="badge bg-primary-subtle text-primary-emphasis" title="Linked to {{ oidc_provider_name }}">SSO</span>{% endif %}
+                        {% if user.has_password %}<span class="badge bg-secondary-subtle text-secondary-emphasis" title="Has a local password">Password</span>{% endif %}
+                    </td>
+                    {% endif %}
                     <td>{% if user.active %}<i class="fas fa-check"></i>{% endif %}</td>
                     <td>{% if user.admin %}<i class="fas fa-check"></i>{% endif %}</td>
                     <td>{% if (user.id != 1) and (current_user.admin) %}<button class="btn btn-sm btn-icon" aria-label="Edit user" hx-get="{{ url_for('auth.edit_user_modal', user_id=user.id) }}" hx-target="#modalBody"><i class="fas fa-pencil"></i></button>{% endif %}

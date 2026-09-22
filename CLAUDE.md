@@ -95,6 +95,26 @@ Each domain (`animals`, `cages`, `breeding`, `histology`, `studies`, `auth`, `da
 
 Flask-Login gates every route by default via a global `before_request` hook (`check_login` in `colony_manager_gui/__init__.py`). Routes that must stay reachable while logged out opt out with the `@public` decorator (`auth_decorators.py`) rather than a maintained string allowlist. `User.is_admin()` (an `admin` boolean column) gates `/settings/*` in `routes/main.py`'s `before_request`.
 
+A `User` carries **two independent credentials**, either or both of which may be present: `password_hash` (the local login form) and the `(oidc_issuer, oidc_subject)` pair (institutional SSO). `check_password` returns False rather than raising when the hash is NULL, so an SSO-provisioned account can't be reached through the password form. Never write code that treats "has no password" as "is not a real account", or "signed in" as "signed in locally".
+
+### Single sign-on (OIDC)
+
+Optional and entirely env-gated: `colony_manager_gui/oidc.py:init_oidc` registers an Authlib client only when `OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET` and a discovery URL are all set, and `oidc_enabled` is False everywhere otherwise (no button, no code path). Endpoints come from the provider's `.well-known/openid-configuration` at runtime — never hard-code one.
+
+The account-matching policy lives in `services/sso.py:resolve_user` and is the part to be careful with. It matches on `(issuer, subject)` first and falls back to email **only to establish the link on first sign-in**, because `sub` is the one claim an IdP promises not to reassign while an email address can be recycled. That email tier is therefore gated on `email_verified` and `OIDC_ALLOWED_DOMAINS`, and an account already linked to a different identity is refused rather than re-pointed. Don't "simplify" this to a plain email lookup.
+
+Two deployment variables matter as much as the credentials: `TRUSTED_PROXY_COUNT` (without ProxyFix, `url_for(_external=True)` builds an `http://` callback the provider rejects) and `SESSION_COOKIE_SECURE` (the OAuth state/nonce ride in the session cookie; `SameSite` is `Lax` for that reason and must not be tightened to `Strict`). Full setup — including what to request from central IT — is in `docs/sso.md`.
+
+### HTTPS
+
+The app **never terminates TLS** — gunicorn serves plain HTTP inside the container and a reverse proxy in front handles TLS (on the mmm NAS, DSM's built-in one; a Caddy/nginx service can't be added to the compose stack because DSM already binds 80/443, and 443 itself is DSM's own UI, so the public URL is `https://mmm.ohsu.edu:9443`, with plain HTTP left open on 9002 as a deliberate fallback). `_configure_https` in the app factory owns what's left: `PREFERRED_URL_SCHEME` for URLs built outside a request, a 308 redirect to `CANONICAL_BASE_URL` for anything arriving over plain http, and `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy` on every response. It's registered before the blueprints so the canonical redirect runs ahead of `check_login`.
+
+That redirect is keyed on the **scheme alone, never the host or port** — deliberately. Comparing `request.host` against the canonical netloc loops forever whenever the proxy's `Host` isn't the public one (nginx's `$host` drops a non-default port; some setups forward the backend address), and with a non-default port in the URL that is the likely case, not the exotic one. `tests/test_https.py` covers all three shapes.
+
+`ProxyFix` *believes* `X-Forwarded-*`, so **`TRUSTED_PROXY_COUNT` must describe the deployment, not the intention** — with no proxy actually in front, any client can forge `X-Forwarded-Proto: https`. `HSTS_SECONDS` is opt-in and off by default because the header can't be retracted once a browser caches it, and on mmm it must stay off: HSTS binds the *host*, so it would kill the plain-HTTP fallback in every browser that had visited the site.
+
+`CANONICAL_BASE_URL` and the plain-HTTP fallback are **mutually exclusive** — the redirect exists to push users off plain HTTP, which is exactly what a fallback user needs to stay on. mmm leaves it unset. Note also that `SESSION_COOKIE_SECURE=true` (the default) makes login impossible over plain HTTP at all, since the cookie is never sent; the fallback's emergency lever is to set that false and restart. Full deployment guide, including the DSM reverse-proxy fields and local TLS for testing SSO: `docs/https.md`.
+
 ### Session-scoped UI state
 
 A couple of nav-bar dropdowns (active species filter, default age-display unit) are stored in the Flask session and injected into every template via the `inject_global_vars` context processor in `colony_manager_gui/__init__.py`, rather than being passed explicitly by each route. Templates read `species`/`selected_species`/`age_unit` as ambient globals; a route only needs to pass them explicitly when overriding per-page (see how `animals.html`/`cages.html`'s own age-unit filter buttons shadow the session default).

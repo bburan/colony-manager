@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.engine import make_url
 
 from alembic import context
 
@@ -59,7 +60,12 @@ def run_migrations_online() -> None:
     """
     configuration = config.get_section(config.config_ini_section)
     configuration['sqlalchemy.url'] = get_url()
-    print(configuration['sqlalchemy.url'])
+    # Which database is about to be migrated is worth saying out loud --
+    # pointing this at the wrong one is the expensive mistake. The password
+    # is not: this runs in terminals, CI logs and agent transcripts alike.
+    print(make_url(configuration['sqlalchemy.url']).render_as_string(
+        hide_password=True
+    ))
 
     connectable = engine_from_config(
         configuration,

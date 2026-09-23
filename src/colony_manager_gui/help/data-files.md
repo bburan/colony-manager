@@ -41,8 +41,10 @@ Syncs are run by an administrator from
 
 ## Reading a file row
 
-Files that are images or PDFs render as thumbnails; everything else is a
-list. Either way a row carries:
+Every file is a row in a list. Images and PDFs get a thumbnail at the
+left of theirs — click it to open the file full size — with the filename,
+note and review status laid out to its right. Everything else is a
+single compact line. Either way a row carries:
 
 **A status dot**, the leftmost icon:
 
@@ -53,8 +55,7 @@ list. Either way a row carries:
 | Cross | Excluded | looked at, do not use |
 | Warning | Missing | the record exists but the file is gone from disk |
 
-Change the status with the check / ban / undo buttons that appear when the
-row is expanded.
+Change the status with the check / ban / undo buttons on the row.
 
 **A rating dot** on data types that report analysis status: a green check
 for analyzed, an orange exclamation for not. Hover it for the detail —
@@ -68,9 +69,16 @@ what the [Unmatched Data Files](/help/unmatched-data) page collects.
 
 **Preview buttons** on the right — see below.
 
-Expanding a row (click the filename) shows the note field, the status
-buttons, and — for files attached to an event — a dropdown to move the file
-to a different event of the same animal, or to detach it entirely.
+An image row carries its note field, status buttons and event dropdown
+inline — there is room for them beside the thumbnail. A non-image row is
+one line, so those sit behind the arrow at its left: click the filename
+to expand it.
+
+The event dropdown — which moves a file to a different event of the same
+animal, or detaches it entirely — lists only events on the file's own
+date, since that is the only day it can belong to. A file whose date the
+parser could not read sees every event instead, and whichever event the
+file is currently on always stays in the list.
 
 ## Preview buttons
 

@@ -17,6 +17,45 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-09-23
+
+**Image files are easier to read.** Photos, scans and PDFs attached to an
+animal or ear used to sit in a grid of small cards, with the filename and
+note squeezed into a column a few characters wide. They are now one row
+each: a larger thumbnail on the left, and the filename, note and review
+status laid out beside it. The note is visible and editable on the row
+itself rather than hidden behind a hover — image rows no longer need
+expanding at all. Non-image files are unchanged. See [Working with data
+files](/help/data-files).
+
+**Uploads take a name and a note, separately.** The upload box used to
+have one box per file, and whatever you typed became part of the
+filename — so rewording it later left the file named after the old
+wording. There are now two boxes: the **name** goes into the filename,
+the **note** is kept with the file and can be changed freely. Leave the
+name blank and the file is numbered for you — *image 1*, *image 2* —
+carrying on past anything already there. An upload never replaces an
+existing file: a name already in use gets a number added rather than
+overwriting, and that now holds across different file types and
+capitalisation too, so you will not end up with two rows you cannot tell
+apart.
+
+**Events cannot be auto-created after an animal died.** The wand button
+on an unassigned file, and *Auto-create events* on the
+[Unmatched Data Files](/help/unmatched-data) page, now refuse a file
+dated after the animal's termination date and say so, instead of
+creating the event. A file dated later than the animal's death is
+usually attached to the wrong animal — a re-used or mistyped ID — so it
+is worth reading the filename before anything else. A file dated *on*
+the termination date is fine and still works, since the last procedure
+and the euthanasia happen the same day. Scheduled syncs apply the same
+rule and leave such files unmatched.
+
+**Moving a file to another event shows fewer options.** The event
+dropdown on a file now lists only events on that file's own date rather
+than the animal's entire history, which for an old animal was a long
+scroll. A file whose date could not be read still shows everything.
+
 ## 2026-09-22
 
 **Sign in with your OHSU account.** The sign-in page now has an *OHSU

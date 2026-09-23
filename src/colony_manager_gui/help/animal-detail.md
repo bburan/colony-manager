@@ -43,9 +43,9 @@ removes it. Removing an animal from a study removes only the membership.
 ## Files
 
 Data files attached to the animal itself — as opposed to a specific
-event, which live in the Events panel below. Images and PDFs render as
-thumbnails; everything else is a list. The **Upload** button adds a file
-by hand. See [Working with data files](/help/data-files) for what the
+event, which live in the Events panel below. Images and PDFs get one row
+each with a thumbnail, name, note and status; everything else is a
+compact list. The **Upload** button adds a file by hand. See [Working with data files](/help/data-files) for what the
 status icons and the buttons on each row mean.
 
 ## Events

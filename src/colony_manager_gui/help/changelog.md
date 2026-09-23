@@ -40,6 +40,15 @@ overwriting, and that now holds across different file types and
 capitalisation too, so you will not end up with two rows you cannot tell
 apart.
 
+**Animal photos are named in a readable order.** A photo uploaded
+through the interface is now filed as *animal - date - name*, where it
+used to be *date - animal - note*; a photo covering several animals
+separates them with `+` instead of a space. The old order could not be
+read back by the sync, so an uploaded photo was invisible to it — a
+photo re-scanned from disk would have been missed. Photos uploaded
+before today keep their old names until an administrator runs the
+one-off rename; nothing you can see in the app changes either way.
+
 **Events cannot be auto-created after an animal died.** The wand button
 on an unassigned file, and *Auto-create events* on the
 [Unmatched Data Files](/help/unmatched-data) page, now refuse a file

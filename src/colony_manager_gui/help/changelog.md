@@ -40,6 +40,15 @@ overwriting, and that now holds across different file types and
 capitalisation too, so you will not end up with two rows you cannot tell
 apart.
 
+**PNG photos and PDF dissection notes are recognised.** A photo type
+only ever accepted `.jpg` and `.pdf`, and dissection notes only `.jpg`.
+Anything else — a `.png` screenshot of a setup or a recording, say —
+uploaded and displayed fine but was invisible to the sync, so it would
+not have been picked up again if it were ever re-read from the storage.
+`.png` and `.jpeg` now count as photos for both, and dissection notes
+accept `.pdf` as well. Dropping a `.png` straight into a photo folder
+now works too, where the sync used to skip it.
+
 **Animal photos are named in a readable order.** A photo uploaded
 through the interface is now filed as *animal - date - name*, where it
 used to be *date - animal - note*; a photo covering several animals

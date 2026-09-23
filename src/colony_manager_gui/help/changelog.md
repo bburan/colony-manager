@@ -60,15 +60,6 @@ the termination date is fine and still works, since the last procedure
 and the euthanasia happen the same day. Scheduled syncs apply the same
 rule and leave such files unmatched.
 
-**Click ABRs no longer look permanently unanalysed.** The check that
-decides whether an ABR has been analysed only ever matched the
-per-frequency files, so a click ABR reported *not analysed* however much
-work had been done on it — on the file's rating dot, in the
-[unrated files](/help/unrated-data) list and on the
-[Analysis Scoreboard](/help/analysis-scoreboard). Click analyses are now
-counted. Expect scoreboard percentages to rise for any data type that
-includes them; nothing was lost, it was only being reported wrong.
-
 **Moving a file to another event shows fewer options.** The event
 dropdown on a file now lists only events on that file's own date rather
 than the animal's entire history, which for an old animal was a long

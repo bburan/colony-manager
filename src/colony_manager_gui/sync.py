@@ -24,7 +24,7 @@ from colony_manager.models import (
 )
 
 from . import db
-from .services.data_linking import to_json_safe
+from .services.data_linking import event_after_termination, to_json_safe
 
 
 log = logging.getLogger(__name__)
@@ -196,6 +196,16 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
     a ``default_procedure``, a parsed ``date``, and at least one candidate
     animal. Returns the list of created (or, in dry-run mode, hypothetical)
     events so the caller can attach them to the new ``Data`` row.
+
+    An animal whose termination date precedes the file's date is skipped
+    with a warning, on the same reasoning as the UI's wand button (see
+    ``data_linking.event_after_termination``): a file dated after an
+    animal died is far more likely misattributed than real, and
+    auto-creation writes a new event rather than merely failing to link.
+    Skipping rather than raising is deliberate here — sync walks whole
+    trees unattended, and one suspicious filename must not abort the run.
+    The file still gets its ``Data`` row, unlinked, which is exactly the
+    state the Unmatched Data page exists to surface.
     """
     if not getattr(datatype, 'auto_create', False):
         return []
@@ -213,6 +223,11 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
     target_id = getattr(datatype, 'default_procedure_target_id', None)
     events = []
     for animal in candidate_animals:
+        too_late = event_after_termination(animal, target_date)
+        if too_late:
+            log.warning('[%s] Not auto-creating an event: %s',
+                        datatype.name, too_late)
+            continue
         event = AnimalEvent(
             animal_id=animal.id,
             procedure_id=procedure_id,

@@ -274,6 +274,38 @@ def resync_event_files(event: AnimalEvent) -> None:
         f.recompute_unmatched_flag()
 
 
+def event_after_termination(animal: Animal, event_date) -> str | None:
+    """Return why ``event_date`` cannot carry an event for ``animal``.
+
+    Nothing should happen to an animal after it is euthanized, so an
+    auto-created event dated past the termination date is a sign the
+    file was matched to the wrong animal (a recycled or mistyped
+    ``custom_id``) — the one thing auto-creation must not paper over,
+    since it writes a new row rather than just failing to link.
+
+    Returns ``None`` when the event is allowed. Two cases deliberately
+    pass:
+
+    * ``event_date == termination_date`` — the terminal procedure and
+      the euthanasia happen on the same day, which is the normal shape
+      for a final ABR or a dissection.
+    * ``terminated`` with no ``termination_date`` — the date is simply
+      unrecorded, so nothing can be shown to fall *after* it. Blocking
+      here would reject legitimately back-dated data on the strength of
+      a missing field.
+    """
+    if not animal.terminated or animal.termination_date is None:
+        return None
+    if event_date is None or event_date <= animal.termination_date:
+        return None
+    return (
+        f'{animal.display_id} was terminated on '
+        f'{animal.termination_date:%Y-%m-%d}, but this file is dated '
+        f'{event_date:%Y-%m-%d}. Refusing to create an event after '
+        f'termination — check whether the file belongs to this animal.'
+    )
+
+
 @dataclass
 class AutoCreateResult:
     """Outcome of :func:`auto_create_animal_event`.
@@ -302,6 +334,9 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
         return AutoCreateResult(error='Cannot auto-create: DataType has no Default Procedure configured.')
     if not data_file.date:
         return AutoCreateResult(error='Cannot auto-create: file has no parsed date.')
+    too_late = event_after_termination(animal, data_file.date)
+    if too_late:
+        return AutoCreateResult(error=f'Cannot auto-create: {too_late}')
 
     animal_custom_id = animal.custom_id
     target = datatype.default_procedure_target

@@ -68,6 +68,10 @@ and counted in the message — when they are not event files, have no
 candidate animal, or the data type has no default procedure, no parsed
 date, or needs a side the filename does not give.
 
+A file is also skipped when it is dated after its candidate animal's
+termination date. That one usually means the file belongs to a different
+animal, so it is worth reading the name before doing anything else.
+
 **Delete selected** appears only under the *Missing* filters. It removes
 the database records, not files — and there are no files left to remove.
 Deleting records for files that are still on disk is almost never right,

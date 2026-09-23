@@ -71,6 +71,13 @@ files** at the bottom of the panel. Each has a dropdown to attach it to an
 event, and — where the data type declares a default procedure — a wand
 button that creates the right event from the file's own date.
 
+The wand refuses if the file is dated **after** the animal's termination
+date, and says so rather than creating the event: nothing happens to an
+animal after it is euthanized, so a file dated later is much more likely
+attached to the wrong animal — a recycled or mistyped ID — than real. A
+file dated *on* the termination date is fine, since the terminal
+procedure and the euthanasia share a day.
+
 ### Calculate Dose
 
 Opens the dosage calculator. Pick a [dosage

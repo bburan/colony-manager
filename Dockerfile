@@ -14,6 +14,16 @@ RUN pip install -e "./colony-manager[gui]" -e "./mmm-db" gunicorn
 # the entrypoint has to live outside /app to survive that mount. It
 # regenerates the editable installs against the mounted source, then drops
 # from root to the unprivileged runtime user.
+# So `flask data refresh` works in the container without repeating
+# `--app colony_manager_gui:create_app` every time. This belongs in the
+# image rather than in docker-compose.yml: it is a property of what the
+# image *is*, not a per-deployment setting like DATABASE_URL -- and the
+# compose file is not version-controlled, so a change there would not
+# travel with the repo. Both `web` and `worker` build from this file, so
+# one line covers both. gunicorn and the RQ worker name their entry point
+# explicitly and are unaffected.
+ENV FLASK_APP=colony_manager_gui:create_app
+
 COPY ./app/colony-manager/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["docker-entrypoint.sh"]

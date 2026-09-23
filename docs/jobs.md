@@ -45,13 +45,15 @@ All data-file operations are subcommands of the `flask data` group
 `REDIS_URL` is honored if set) and need `SECRET_KEY`, `DATABASE_URL`, and
 `COLONY_MANAGER_DESCRIPTION_REGISTRY` in the environment.
 
+`FLASK_APP` comes from the repo-root `.flaskenv` (read by python-dotenv), so the `--app colony_manager_gui:create_app` flag is only needed when running from somewhere else. The container gets the same value from `ENV` in the `Dockerfile` — its workdir is `/app`, not this repo, so it never sees `.flaskenv`.
+
 ```sh
-flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [--debug] [-v]
-flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run] [-v]
-flask --app colony_manager_gui:create_app data rehash       [--dry-run] [-v]
-flask --app colony_manager_gui:create_app data prune        [--datatype NAME|ID] [--apply] [-v]
-flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
-flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID] [--dry-run] [-v]
+flask data sync         [--datatype NAME|ID] [--dry-run] [--debug] [-v]
+flask data rematch      --datatype NAME|ID [--force] [--dry-run] [-v]
+flask data rehash       [--dry-run] [-v]
+flask data prune        [--datatype NAME|ID] [--apply] [-v]
+flask data sync-rating  [--datatype NAME|ID] [-v]
+flask data refresh      [--datatype NAME|ID] [--dry-run] [-v]
 ```
 
 | Command | What it does |
@@ -145,7 +147,7 @@ If you're iterating on routes/templates and don't care about background executio
 
 ```sh
 unset REDIS_URL
-flask --app colony_manager_gui:create_app run
+flask run
 ```
 
 Without `REDIS_URL`, `_configure_rq` falls back to **fakeredis + `is_async=False`**. Enqueuing a sync executes it inline in the request thread. Slower per click, but no Redis or worker process needed.
@@ -173,7 +175,7 @@ Nothing runs on a schedule out of the box. Two ways to add one:
 - **OS cron / systemd timer (simplest):** call `flask data refresh`
   (sync + rating in one run) on a timer, with `SECRET_KEY` /
   `DATABASE_URL` / `COLONY_MANAGER_DESCRIPTION_REGISTRY` in the
-  environment. E.g. `0 2 * * *  flask --app colony_manager_gui:create_app data refresh`.
+  environment. E.g. `0 2 * * *  flask data refresh`.
 - **rq-scheduler (in-app):** register a recurring RQ job so runs show up
   in the `SyncJob` table / recent-jobs panel. Steps below.
 

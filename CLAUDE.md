@@ -9,8 +9,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 export SECRET_KEY=dev
 export DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/colony_manager
-flask --app colony_manager_gui:create_app run
+flask run
 ```
+
+`FLASK_APP` comes from the repo-root `.flaskenv` (read by python-dotenv), so the `--app colony_manager_gui:create_app` flag is only needed when running from somewhere else. The container gets the same value from `ENV` in the `Dockerfile` — its workdir is `/app`, not this repo, so it never sees `.flaskenv`.
 
 `REDIS_URL` is optional — if unset, background jobs (sync/rematch) fall back to fakeredis and run inline in the request thread (see "Background jobs" below). `COLONY_MANAGER_DESCRIPTION_REGISTRY` is required for any data-file sync/upload features to work (see "Description-class plugin system" below); the rest of the app runs without it.
 
@@ -54,12 +56,12 @@ alembic revision --autogenerate -m "description"
 python -m colony_manager_gui.worker          # RQ worker (needs REDIS_URL; won't fork on native Windows — use WSL/Docker)
 
 # All data-file ops live under the `flask data` group (see commands.py):
-flask --app colony_manager_gui:create_app data sync         [--datatype NAME|ID] [--dry-run] [-v]
-flask --app colony_manager_gui:create_app data rematch      --datatype NAME|ID [--force] [--dry-run]
-flask --app colony_manager_gui:create_app data rehash       [--dry-run]
-flask --app colony_manager_gui:create_app data prune        [--datatype NAME|ID] [--apply]
-flask --app colony_manager_gui:create_app data sync-rating  [--datatype NAME|ID] [-v]
-flask --app colony_manager_gui:create_app data refresh      [--datatype NAME|ID]   # sync + sync-rating; the cron entrypoint
+flask data sync         [--datatype NAME|ID] [--dry-run] [-v]
+flask data rematch      --datatype NAME|ID [--force] [--dry-run]
+flask data rehash       [--dry-run]
+flask data prune        [--datatype NAME|ID] [--apply]
+flask data sync-rating  [--datatype NAME|ID] [-v]
+flask data refresh      [--datatype NAME|ID]   # sync + sync-rating; the cron entrypoint
 ```
 
 `prune` is the counterpart to a tightened `parse()`: `sync` skips any file whose `relative_path` is already in the DB, so rows ingested under the old, looser rule survive forever. It re-parses every row whose file is still on disk and deletes the ones the current parser rejects — the only `flask data` subcommand that destroys rows, hence `--apply` rather than `--dry-run`. Upload-capable datatypes are skipped wholesale — a UI-uploaded row never parsed in the first place, and nothing on it says whether it came from an upload or a stale ingestion.

@@ -36,10 +36,18 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="event_id" class="form-select form-select-sm subtle-input" onchange="this.form.submit()">
         <option value="__None">— No Event —</option>
+        {# Only offer events on the file's own date — an animal can carry years
+           of events and a file only ever belongs to one day's. A file with no
+           parsed date can't be filtered, so it sees them all; the currently
+           linked event always stays listed so the select can't silently
+           misreport what the file is attached to. #}
         {% for event in animal.events %}
+        {% if not data_file.date or data_file.date in (event.scheduled_date, event.completion_date)
+              or (linked_event and linked_event.id == event.id) %}
         <option value="{{ event.id }}" {% if linked_event and linked_event.id == event.id %}selected{% endif %}>
             {{ event.scheduled_date.strftime('%Y-%m-%d') }}: {{ event.procedure.display_name }}
         </option>
+        {% endif %}
         {% endfor %}
     </select>
 </form>

@@ -1347,3 +1347,192 @@ def test_partial_edit_modals_do_not_post_at_the_full_update_handler(
     assign = logged_in_client.get(f'/animals/{animal.id}/assign_id_modal')
     assert assign.status_code == 200
     assert f'/animals/{animal.id}/update_custom_id' in assign.data.decode()
+
+
+# ---------------------------------------------------------------------------
+# Auto-create refuses to date an event after the animal died
+# ---------------------------------------------------------------------------
+
+def _unmatched_row(db_session, animal, *, file_date, dtype=None):
+    """An AnimalEventData naming ``animal``, ready for auto-create."""
+    from colony_manager.models import AnimalEventData
+
+    if dtype is None:
+        dtype = make_animal_event_data_type(
+            db_session,
+            default_procedure=make_procedure(db_session),
+            # animal_event.procedure_target_id is NOT NULL, so a dtype
+            # without a default target cannot auto-create at all.
+            default_procedure_target=make_procedure_target(db_session),
+        )
+    location = make_data_location(db_session, datatype=dtype, base_path='/tmp')
+    row = AnimalEventData(
+        datatype_id=dtype.id,
+        location_id=location.id,
+        relative_path=f'{animal.custom_id}_{file_date}.txt',
+        name=f'{animal.custom_id}_{file_date}.txt',
+        status=DataStatus.UNREVIEWED,
+        date=file_date,
+        parsed_metadata={
+            'animal_id': animal.custom_id, 'date': file_date.isoformat(),
+        },
+    )
+    row.candidate_animals = [animal]
+    db_session.add(row)
+    db_session.commit()
+    return row
+
+
+def test_auto_create_refuses_event_after_termination(db_session):
+    """A file dated past the animal's death is far more likely
+    misattributed than real, and auto-create *writes a row* rather than
+    merely failing to link — so it must refuse."""
+    from datetime import date
+    from colony_manager.models import AnimalEvent
+    from colony_manager_gui.services.data_linking import (
+        auto_create_animal_event,
+    )
+    from sqlalchemy import select
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TERM-1')
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 7, 15))
+    result = auto_create_animal_event(animal, row)
+
+    assert result.error is not None
+    assert 'terminated on 2025-06-01' in result.error
+    assert '2025-07-15' in result.error
+    assert result.created == 0
+    # Nothing was written.
+    assert db_session.scalars(select(AnimalEvent)).all() == []
+    db_session.expire_all()
+    assert db_session.get(type(row), row.id).events == []
+
+
+def test_auto_create_allows_event_on_the_termination_date(db_session):
+    """The terminal procedure and the euthanasia share a day — a final
+    ABR or a dissection is the normal case, not an error."""
+    from datetime import date
+    from colony_manager_gui.services.data_linking import (
+        auto_create_animal_event,
+    )
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TERM-2')
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 6, 1))
+    result = auto_create_animal_event(animal, row)
+
+    assert result.error is None
+    assert result.created == 1
+
+
+def test_auto_create_allows_event_before_termination(db_session):
+    from datetime import date
+    from colony_manager_gui.services.data_linking import (
+        auto_create_animal_event,
+    )
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TERM-3')
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 5, 20))
+    result = auto_create_animal_event(animal, row)
+
+    assert result.error is None
+    assert result.created == 1
+
+
+def test_auto_create_allows_when_termination_date_unrecorded(db_session):
+    """Terminated with no date: nothing can be shown to fall *after* it,
+    and refusing would reject back-dated data over a missing field."""
+    from datetime import date
+    from colony_manager_gui.services.data_linking import (
+        auto_create_animal_event,
+    )
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TERM-4')
+    animal.terminated = True
+    animal.termination_date = None
+    db_session.commit()
+
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 7, 15))
+    result = auto_create_animal_event(animal, row)
+
+    assert result.error is None
+    assert result.created == 1
+
+
+def test_wand_button_flashes_the_termination_error(logged_in_client, db_session):
+    """The single-file wand button surfaces the refusal to the user."""
+    from datetime import date
+    from colony_manager.models import AnimalEvent
+    from sqlalchemy import select
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='TERM-5')
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 7, 15))
+
+    response = logged_in_client.post(
+        f'/animals/{animal.id}/data/{row.id}/auto_create_event',
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b'terminated on 2025-06-01' in response.data
+    assert db_session.scalars(select(AnimalEvent)).all() == []
+
+
+def test_bulk_auto_create_counts_termination_refusal_as_errored(
+    logged_in_client, db_session,
+):
+    """The bulk path routes it through the same AutoCreateResult.error,
+    so the row is skipped and counted rather than crashing the batch."""
+    from datetime import date
+    from colony_manager.models import AnimalEvent, AnimalEventData
+    from sqlalchemy import select
+
+    species = make_species(db_session)
+    dead = make_animal(db_session, species=species, custom_id='TERM-6')
+    dead.terminated = True
+    dead.termination_date = date(2025, 6, 1)
+    alive = make_animal(db_session, species=species, custom_id='TERM-7')
+    db_session.commit()
+
+    dtype = make_animal_event_data_type(
+        db_session,
+        default_procedure=make_procedure(db_session),
+        default_procedure_target=make_procedure_target(db_session),
+    )
+    bad = _unmatched_row(db_session, dead, file_date=date(2025, 7, 15),
+                         dtype=dtype)
+    good = _unmatched_row(db_session, alive, file_date=date(2025, 7, 15),
+                          dtype=dtype)
+    bad_id, good_id = bad.id, good.id
+
+    response = logged_in_client.post(
+        '/animals/unmatched-data/auto-create',
+        data={'data_ids': [str(bad_id), str(good_id)]},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    db_session.expire_all()
+    assert db_session.get(AnimalEventData, bad_id).events == []
+    assert len(db_session.get(AnimalEventData, good_id).events) == 1
+    events = db_session.scalars(select(AnimalEvent)).all()
+    assert [e.animal_id for e in events] == [alive.id]

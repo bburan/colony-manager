@@ -26,13 +26,14 @@ GET  /data/upload/<target_type>/search?q=…   (HTMX typeahead)
         ▼
 GET  /data/upload/<target_type>/<id>/locations?datatype=<id>
         │  swaps the Location <select>
-        ▼  user picks Date + Files; per-file notes row appears for
-        ▼  each picked file; user fills any notes, submits
+        ▼  user picks Date + Files; a name + note row appears for
+        ▼  each picked file; user fills either or neither, submits
 POST /data/upload/<target_type>/<id>          (multipart/form-data)
         │
         ▼  one call per file:
 services.uploads.handle_upload(...)
-        │ 1. desc_cls.upload_filename(targets, original_name, date=, notes=)
+        │ 1. desc_cls.upload_filename(targets, original_name, date=, label=)
+        │    blank label → 'image 1', 'image 2', … (first free one)
         │ 2. resolve collisions: <stem>_1<ext>, <stem>_2<ext>, …
         │ 3. write file under DataLocation.base_path
         │ 4. compute file_hash via desc_cls.compute_hash
@@ -64,7 +65,7 @@ class AnimalPhoto(DataTypeDescription):
         return [self.path]
 
     @classmethod
-    def upload_filename(cls, targets, original_filename, *, date, notes):
+    def upload_filename(cls, targets, original_filename, *, date, label):
         """Rename a user upload so the parser can re-identify it later.
 
         ``targets`` is always a non-empty list of target instances of
@@ -75,10 +76,15 @@ class AnimalPhoto(DataTypeDescription):
 
         which mirrors the sync parser's multi-animal filename
         convention (``G014-4L G018-3R - dissection notes.jpg``).
+
+        ``label`` is the user's name for this file — sanitized, never
+        blank (the service substitutes ``image 1``, ``image 2``, …).
+        Fold it in so a batch uploaded to one target on one date does
+        not all collapse to the same name.
         """
         ext = Path(original_filename).suffix.lower() or '.jpg'
         ids = ' '.join(t.custom_id for t in targets)
-        return f'{ids}_{date:%Y-%m-%d}{ext}'
+        return f'{ids}_{date:%Y-%m-%d} - {label}{ext}'
 ```
 
 The classmethod must:
@@ -100,13 +106,12 @@ Example with a per-animal subdirectory:
 
 ```python
 @classmethod
-def upload_filename(cls, targets, original_filename, *, date, notes):
+def upload_filename(cls, targets, original_filename, *, date, label):
     ext = Path(original_filename).suffix.lower() or '.jpg'
     target_str = ' '.join(t.custom_id for t in targets)
     date_str = date.strftime('%Y%m%d')
-    notes_str = f' - {notes}' if notes else ''
     # Returns e.g. ``A001/20260603 - A001 - portrait.jpg``
-    return f'{target_str}/{date_str} - {target_str}{notes_str}{ext}'
+    return f'{target_str}/{date_str} - {target_str} - {label}{ext}'
 ```
 
 Sub-subclasses inherit upload capability automatically — `__mro__` is
@@ -176,8 +181,8 @@ The file input is wrapped in a drop zone with hover feedback
 (`base.html`'s `colonyUploadModal` Alpine helper). Browse, drag-drop,
 and clipboard-paste all **append** to a JS-owned staging array —
 picking files repeatedly accumulates them rather than replacing the
-prior selection. Each staged row carries its own filename label, X
-button, and per-file notes input.
+prior selection. Each staged row carries the source filename, an X
+button, and a per-file **name** and **note** input.
 
 Clipboard paste fires on the form-level `@paste` handler and picks up
 any `kind === 'file'` items whose type starts with `image/`.
@@ -195,31 +200,71 @@ form's `@submit` handler rebuilds a fresh `FileList` from the staged
 array via `DataTransfer` → `input.files` right before multipart
 serialization. From the route's perspective, the upload looks
 identical to a single-shot browse — `request.files.getlist('files')`
-returns the staged files in staging order, and `file_notes` rows
-pair positionally.
+returns the staged files in staging order, and the `file_labels` /
+`file_notes` rows pair positionally.
 
 If JS is disabled or the `@submit` handler doesn't run, the form
 falls back to whatever the input natively holds — a graceful
 degradation to single-shot browse behavior.
 
-## Per-file notes
+## Per-file name and note
 
-The modal renders one notes input per file the user picks (Alpine
-re-syncs the rows whenever the file input fires `change`). Each
-notes value is sent as a `file_notes` form part in document order;
-the route zips them positionally with `request.files.getlist('files')`
-and passes the matching string to `handle_upload` as the row's
-`notes` field. Empty / missing entries are stored as `NULL`.
+The modal renders a **name** and a **note** input per file the user
+picks (Alpine re-syncs the rows whenever the file input fires
+`change`). They are two separate things and travel separately:
 
-`upload_filename` receives this per-file notes value via its
-keyword-only `notes=` parameter, so a description class can fold the
-notes into the filename if it wants to disambiguate batch uploads
-(e.g. `f'… - {notes}{ext}'`).
+* **name** — sent as a `file_labels` form part, sanitized by
+  `_sanitize_label` (path separators and the characters Windows
+  refuses in a filename are dropped, whitespace collapsed, leading and
+  trailing dots stripped), then handed to `upload_filename` as its
+  keyword-only `label=`. This is the part the user means to see on
+  disk.
+* **note** — sent as a `file_notes` form part and stored on the row's
+  `notes` field, nothing more. It is *not* passed to
+  `upload_filename`: a note is commentary about the file, and baking
+  it into the filename made every edit to the note a lie about the
+  name. Empty / missing entries are stored as `NULL`.
+
+Both lists are zipped positionally with
+`request.files.getlist('files')`.
+
+### Auto-numbering an unnamed file
+
+A blank name is the normal case, not an error. The service then
+composes the filename with `image 1` and counts up — `image 2`,
+`image 3`, … — until no file in that directory already carries the
+composed stem, so a batch of three lands on `image 1` / `image 2` /
+`image 3` and a second batch into the same directory continues past
+them. Nothing on disk is ever overwritten, and nothing ends up sharing
+a displayed name.
+
+A description class that ignores `label` entirely (its name fully
+determined by target + date) would make that count pointless; the
+service detects it — two different labels composing the same path —
+and falls back to the `_1` / `_2` stem suffix described below.
 
 ## Filename collisions
 
+Two files in one directory must not end up with the same *visible*
+name, and the UI lists a file by its name. So both the `image N`
+counter and the `_1` suffix below treat a name as taken when any file
+beside it shares the stem, **whatever its extension and whatever its
+case**: uploading a `.png` into a folder that already holds
+`image 1.jpg` yields `image 2`, not a second row also reading
+"image 1", and `Cochlea` beside an existing `cochlea` suffixes.
+
+Case-insensitivity is not only about legibility. The locations are
+reached from Windows as well as from the Linux container, and on
+Windows a name differing only in case **is the same file** — comparing
+case-sensitively would compose a name that looks free and then
+overwrite on save. The stricter rule is the safe one on both platforms.
+
+`_stem_is_taken` is where this lives, and it caches one `listdir` per
+directory because the locations sit on an SMB share.
+
 If the description class's `upload_filename` returns a name that
-already exists in the target `DataLocation`, the service appends
+already exists in the target `DataLocation` (a user-supplied name
+reused, say), the service appends
 `_1`, `_2`, … to the stem (extension preserved) until the path is
 free. Both files coexist; neither is overwritten. The DB unique
 constraint on `(location_id, relative_path)` means a concurrent

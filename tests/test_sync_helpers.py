@@ -340,3 +340,91 @@ def test_is_unmatched_animal_empty():
 def test_is_unmatched_ear_empty():
     row = SimpleNamespace(ears=[])
     assert _is_unmatched(row, 'ear') is True
+
+
+def test_auto_create_skips_animal_terminated_before_the_file_date(db_session):
+    """Sync must not date an event past an animal's death either. It
+    skips rather than raising: a sync walks whole trees unattended, and
+    one suspicious filename must not abort the run."""
+    species = make_species(db_session)
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = _aedtype_with(db_session, procedure=procedure, target=target)
+
+    dead = make_animal(db_session, species=species, custom_id='AC-DEAD')
+    dead.terminated = True
+    dead.termination_date = date(2025, 6, 1)
+    alive = make_animal(db_session, species=species, custom_id='AC-ALIVE')
+    db_session.commit()
+
+    events = _maybe_auto_create_events(
+        db_session, dtype, {'date': date(2025, 8, 15)}, [dead, alive],
+    )
+    db_session.commit()
+
+    # The live animal is unaffected -- one bad candidate does not poison
+    # the rest of the batch.
+    assert len(events) == 1
+    assert events[0].animal_id == alive.id
+
+
+def test_auto_create_allows_file_dated_on_the_termination_date(db_session):
+    """The terminal procedure shares a day with the euthanasia."""
+    species = make_species(db_session)
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = _aedtype_with(db_session, procedure=procedure, target=target)
+
+    animal = make_animal(db_session, species=species, custom_id='AC-TERM')
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    events = _maybe_auto_create_events(
+        db_session, dtype, {'date': date(2025, 6, 1)}, [animal],
+    )
+    db_session.commit()
+    assert len(events) == 1
+
+
+def test_auto_create_allows_terminated_animal_with_no_termination_date(
+    db_session,
+):
+    """Nothing can be shown to fall after an unrecorded date."""
+    species = make_species(db_session)
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    dtype = _aedtype_with(db_session, procedure=procedure, target=target)
+
+    animal = make_animal(db_session, species=species, custom_id='AC-NODATE')
+    animal.terminated = True
+    animal.termination_date = None
+    db_session.commit()
+
+    events = _maybe_auto_create_events(
+        db_session, dtype, {'date': date(2025, 8, 15)}, [animal],
+    )
+    db_session.commit()
+    assert len(events) == 1
+
+
+def test_event_after_termination_message_names_both_dates(db_session):
+    """The message has to say enough for a user to judge the file --
+    which animal, when it died, and what the file claims."""
+    from colony_manager_gui.services.data_linking import (
+        event_after_termination,
+    )
+
+    animal = make_animal(db_session, custom_id='AC-MSG')
+    assert event_after_termination(animal, date(2025, 8, 15)) is None
+
+    animal.terminated = True
+    animal.termination_date = date(2025, 6, 1)
+    db_session.commit()
+
+    message = event_after_termination(animal, date(2025, 8, 15))
+    assert '2025-06-01' in message
+    assert '2025-08-15' in message
+    assert animal.display_id in message
+    # No event date to compare against is not a violation.
+    assert event_after_termination(animal, None) is None

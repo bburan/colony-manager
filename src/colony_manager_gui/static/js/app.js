@@ -64,10 +64,12 @@ document.body.addEventListener('htmx:beforeSwap', function(evt) {
 // Tracks two pieces of UI state:
 //   * ``targets`` — chip picker (Animal / Ear instances).
 //   * ``files``   — one entry per file the user picked, with a
-//                   per-file ``notes`` string. Repopulated on
+//                   per-file ``label`` (the name it gets on
+//                   disk; blank means the server auto-numbers
+//                   it) and ``notes`` string. Repopulated on
 //                   each change of the underlying file input,
 //                   so re-picking files always re-syncs the
-//                   notes rows.
+//                   rows.
 window.colonyUploadModal = function (initialId, initialLabel) {
     // ``rawFiles`` lives in the closure, NOT inside the
     // x-data object. Alpine's reactivity wraps everything it
@@ -81,7 +83,7 @@ window.colonyUploadModal = function (initialId, initialLabel) {
     return {
         targets: [{id: initialId, label: initialLabel}],
         // ``files`` is the visible staging list: one
-        // ``{name, notes}`` per ``rawFiles[i]``. Browse and
+        // ``{name, label, notes}`` per ``rawFiles[i]``. Browse and
         // drag-drop APPEND to both; the X button on each row
         // splices both. The underlying ``<input type=file>``
         // is synced from ``rawFiles`` only at form-submit time
@@ -109,7 +111,7 @@ window.colonyUploadModal = function (initialId, initialLabel) {
         _appendFiles(fileList) {
             for (const f of fileList) {
                 rawFiles.push(f);
-                this.files.push({name: f.name, notes: ''});
+                this.files.push({name: f.name, label: '', notes: ''});
             }
         },
         onFilesChanged(event) {
@@ -582,6 +584,15 @@ document.addEventListener('click', async function(e) {
                         icon.setAttribute('title', tooltipTitle);
                         icon.setAttribute('data-bs-original-title', tooltipTitle);
                         icon.setAttribute('aria-label', tooltipTitle);
+                    });
+                    // Layouts wide enough to spell the status out carry a
+                    // matching label alongside the icon.
+                    document.querySelectorAll(
+                        '.df-status-label[data-data-id="' + dataId + '"]'
+                    ).forEach(function (label) {
+                        label.classList.remove('reviewed', 'excluded', 'unreviewed', 'missing');
+                        label.classList.add(statusClass);
+                        label.textContent = tooltipTitle;
                     });
                 }
             } else {

@@ -129,8 +129,13 @@
         </div>
 
         {# Staged files — appears as soon as the user picks or drops
-           any. Each row shows the filename, a Remove button, and a
-           per-file notes input. The ``name="file_notes"`` inputs are
+           any. Each row shows the source filename, a Remove button, a
+           per-file name, and a per-file note. Name and note are
+           separate on purpose: the name is what the description class
+           folds into the file's name on disk, the note is commentary
+           stored on the row. Leaving the name blank hands it to the
+           server's ``image 1`` / ``image 2`` auto-numbering. The
+           ``name="file_labels"`` / ``name="file_notes"`` inputs are
            submitted in document order, which matches the order of
            files in the input's FileList (rebuilt from this array by
            ``onSubmit``); the route pairs them positionally with
@@ -153,11 +158,18 @@
                                     aria-label="Remove this file"
                                     @click="removeFile(idx)"></button>
                         </div>
-                        <input type="text"
-                               class="form-control form-control-sm mt-1"
-                               name="file_notes"
-                               placeholder="Notes for this file (optional)"
-                               x-model="f.notes">
+                        <div class="d-flex gap-1 mt-1">
+                            <input type="text"
+                                   class="form-control form-control-sm"
+                                   name="file_labels"
+                                   placeholder="Name (blank → image 1, image 2, …)"
+                                   x-model="f.label">
+                            <input type="text"
+                                   class="form-control form-control-sm"
+                                   name="file_notes"
+                                   placeholder="Note (optional)"
+                                   x-model="f.notes">
+                        </div>
                     </div>
                 </template>
             </div>

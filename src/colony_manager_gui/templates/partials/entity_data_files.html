@@ -23,52 +23,54 @@
 
 {% if file_list %}
 {% if images %}
-<div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 mb-3">
-    {% for f in images %}
-    <div class="col" x-data="{ open: false }">
-        <div class="card h-100 shadow-sm">
-            {% set zoom_url = url_for('data_files.view_pdf_image', data_id=f.id) if f.name.lower().endswith('.pdf') else url_for('data_files.view_raw', data_id=f.id) %}
-            <button type="button"
-                    class="btn p-0 border-0 bg-transparent"
-                    onclick="openImageModal('{{ zoom_url }}', '{{ f.name }}')"
-                    title="{{ f.full_path }}">
-                <img src="{{ url_for('data_files.view_thumbnail', data_id=f.id) }}"
-                     alt="{{ f.name }}"
-                     loading="lazy"
-                     class="card-img-top"
-                     style="aspect-ratio: 1; object-fit: cover; background: #f1f3f5;">
-            </button>
-            <div class="card-body p-2">
+{# One row per image, Explorer "details view" style: thumbnail at the left,
+   filename / note / review status to its right. The thumbnail leaves enough
+   vertical room for the file's own controls, so they sit inline here rather
+   than behind a chevron the way the (single-line) non-image rows need. #}
+<div class="mb-3">
+    <ul class="list-group list-group-flush">
+        {% for f in images %}
+        {% set zoom_url = url_for('data_files.view_pdf_image', data_id=f.id) if f.name.lower().endswith('.pdf') else url_for('data_files.view_raw', data_id=f.id) %}
+        <li class="list-group-item p-0 df-row">
+            <div class="d-flex align-items-start py-2 px-3 gap-3">
                 <button type="button"
-                        class="btn btn-link p-0 text-decoration-none text-reset d-flex align-items-center gap-1 w-100 text-start"
-                        @click="open = !open" :aria-expanded="open">
-                    <i class="fas fa-chevron-right fa-xs text-muted"
-                       :class="{ 'fa-rotate-90': open }"
-                       style="transition: transform 0.15s;"></i>
-                    {{ macros.render_status_indicator(f) }}
-                    <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;"
-                          title="{{ f.full_path }}">{{ f.name }}</span>
-                    {% if f.unmatched_animal_ids %}
-                    <i class="fas fa-triangle-exclamation fa-xs text-warning flex-shrink-0"
-                       title="Named in the filename but not linked to a target: {{ f.unmatched_animal_ids|join(', ') }}"></i>
-                    {% endif %}
-                    {% if f.notes %}
-                    <i class="fas fa-comment fa-xs text-muted flex-shrink-0" title="{{ f.notes }}"></i>
-                    {% endif %}
-                    {% if f.is_rated is not none %}
-                    <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }} flex-shrink-0"
-                       title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
-                    {% endif %}
+                        class="btn p-0 border-0 bg-transparent df-thumb-btn flex-shrink-0"
+                        onclick="openImageModal('{{ zoom_url }}', '{{ f.name }}')"
+                        data-bs-toggle="tooltip" title="{{ f.full_path }}">
+                    <img src="{{ url_for('data_files.view_thumbnail', data_id=f.id) }}"
+                         alt="{{ f.name }}"
+                         loading="lazy"
+                         class="df-thumb">
                 </button>
-                <div x-show="open" x-cloak class="mt-2 pt-2 border-top">
+                <div class="flex-grow-1" style="min-width: 0;">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="datatype-badge flex-shrink-0">{{ f.datatype.name }}</span>
+                        <span class="df-filename text-truncate"
+                              title="{{ f.full_path }}">{{ f.name }}</span>
+                        {% if f.unmatched_animal_ids %}
+                        <i class="fas fa-triangle-exclamation df-note-indicator text-warning flex-shrink-0"
+                           title="Named in the filename but not linked to a target: {{ f.unmatched_animal_ids|join(', ') }}"></i>
+                        {% endif %}
+                        <span class="ms-auto d-flex align-items-center gap-2 flex-shrink-0">
+                            {% if f.date %}
+                            <span class="df-meta">{{ f.date.strftime('%Y-%m-%d') }}</span>
+                            {% endif %}
+                            {{ macros.render_status_indicator(f, label=True) }}
+                            {% if f.is_rated is not none %}
+                            <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }}"
+                               title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
+                            {% endif %}
+                        </span>
+                    </div>
                     {% with data_file=f, animal=animal, show_header=False %}
                         {% include 'partials/data_file_popup_content.html' %}
                     {% endwith %}
                 </div>
+                <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
             </div>
-        </div>
-    </div>
-    {% endfor %}
+        </li>
+        {% endfor %}
+    </ul>
 </div>
 {% endif %}
 

@@ -34,7 +34,9 @@ Animal-event data types have three more settings:
 - **Auto-create event for unmatched files?** — when set, a sync creates
   that event automatically rather than leaving the file for the
   [Unmatched](/help/unmatched-data) page. The list shows an
-  **Auto-create** badge for data types with it on.
+  **Auto-create** badge for data types with it on. A file dated after its
+  animal's termination date is never auto-created; the sync logs it and
+  leaves the file unmatched for a person to look at.
 
 ## Not Set Up
 

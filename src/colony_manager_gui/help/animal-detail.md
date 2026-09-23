@@ -43,9 +43,9 @@ removes it. Removing an animal from a study removes only the membership.
 ## Files
 
 Data files attached to the animal itself — as opposed to a specific
-event, which live in the Events panel below. Images and PDFs render as
-thumbnails; everything else is a list. The **Upload** button adds a file
-by hand. See [Working with data files](/help/data-files) for what the
+event, which live in the Events panel below. Images and PDFs get one row
+each with a thumbnail, name, note and status; everything else is a
+compact list. The **Upload** button adds a file by hand. See [Working with data files](/help/data-files) for what the
 status icons and the buttons on each row mean.
 
 ## Events
@@ -70,6 +70,13 @@ are not yet attached to any of its events are listed under **unassigned
 files** at the bottom of the panel. Each has a dropdown to attach it to an
 event, and — where the data type declares a default procedure — a wand
 button that creates the right event from the file's own date.
+
+The wand refuses if the file is dated **after** the animal's termination
+date, and says so rather than creating the event: nothing happens to an
+animal after it is euthanized, so a file dated later is much more likely
+attached to the wrong animal — a recycled or mistyped ID — than real. A
+file dated *on* the termination date is fine, since the terminal
+procedure and the euthanasia share a day.
 
 ### Calculate Dose
 

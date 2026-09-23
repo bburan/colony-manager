@@ -126,6 +126,27 @@ th {
 .df-rating-indicator { font-size: var(--fs-xs); }
 .df-rating-indicator.rated   { color: #198754; }
 .df-rating-indicator.unrated { color: #fd7e14; }
+
+/* Image rows: thumbnail + filename/note/status columns */
+.df-thumb-btn { line-height: 0; border-radius: 0.25rem; }
+.df-thumb {
+    display: block;
+    width: 144px;
+    height: 144px;
+    object-fit: cover;
+    background-color: #f1f3f5;
+    border: 1px solid #e9ecef;
+    border-radius: 0.25rem;
+    transition: border-color 0.12s ease;
+}
+.df-thumb-btn:hover .df-thumb, .df-thumb-btn:focus-visible .df-thumb {
+    border-color: #adb5bd;
+}
+.df-status-label { font-size: var(--fs-xs); }
+.df-status-label.reviewed { color: #198754; }
+.df-status-label.excluded { color: #b02a37; }
+.df-status-label.unreviewed { color: #adb5bd; }
+.df-status-label.missing { color: #dc3545; }
 .datatype-badge {
     display: inline-block;
     font-weight: 500;

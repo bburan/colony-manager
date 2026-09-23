@@ -583,6 +583,15 @@ document.addEventListener('click', async function(e) {
                         icon.setAttribute('data-bs-original-title', tooltipTitle);
                         icon.setAttribute('aria-label', tooltipTitle);
                     });
+                    // Layouts wide enough to spell the status out carry a
+                    // matching label alongside the icon.
+                    document.querySelectorAll(
+                        '.df-status-label[data-data-id="' + dataId + '"]'
+                    ).forEach(function (label) {
+                        label.classList.remove('reviewed', 'excluded', 'unreviewed', 'missing');
+                        label.classList.add(statusClass);
+                        label.textContent = tooltipTitle;
+                    });
                 }
             } else {
                 console.error('Failed to update status', data);

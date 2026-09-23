@@ -116,16 +116,19 @@
    colour, so it stays legible for colour-blind users. app.js swaps both
    the shape (fa-*) and colour (status) classes when the status changes
    client-side — keep the three fa-* names in sync with it. #}
-{% macro render_status_indicator(data_file) %}
-{% set fa_icon, status_class, status_title = {
-    'reviewed': ('fa-circle-check', 'reviewed', 'Reviewed'),
-    'exclude': ('fa-circle-xmark', 'excluded', 'Excluded'),
-    'missing': ('fa-circle-exclamation', 'missing', 'Missing — file not found on disk'),
-}.get(data_file.status, ('fa-circle', 'unreviewed', 'Unreviewed')) %}
+{# label=True also spells the status out next to the icon, for layouts wide
+   enough to show it as a column rather than relying on the tooltip. #}
+{% macro render_status_indicator(data_file, label=False) %}
+{% set fa_icon, status_class, status_label, status_title = {
+    'reviewed': ('fa-circle-check', 'reviewed', 'Reviewed', 'Reviewed'),
+    'exclude': ('fa-circle-xmark', 'excluded', 'Excluded', 'Excluded'),
+    'missing': ('fa-circle-exclamation', 'missing', 'Missing', 'Missing — file not found on disk'),
+}.get(data_file.status, ('fa-circle', 'unreviewed', 'Unreviewed', 'Unreviewed')) %}
 <i class="fas {{ fa_icon }} df-status-icon {{ status_class }} flex-shrink-0"
    data-data-id="{{ data_file.id }}"
    data-bs-toggle="tooltip"
    title="{{ status_title }}"></i>
+{%- if label %}<span class="df-status-label {{ status_class }}" data-data-id="{{ data_file.id }}">{{ status_label }}</span>{% endif %}
 {% endmacro %}
 
 {% macro render_status_buttons(animal_id, data_file, size='sm') %}

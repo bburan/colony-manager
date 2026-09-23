@@ -1175,3 +1175,131 @@ def test_prune_names_the_absent_rows_in_the_log(db_session, app, tmp_path, caplo
             prune_locations(filter_datatype_id=dtype.id, apply=True)
 
     assert '[ABSENT] never-written.txt' in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _is_housekeeping / the walk's housekeeping filter
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize('name', [
+    '@eaDir', '@eadir', '@EADIR',      # Synology media indexer, any case
+    '#recycle',                        # Synology recycle bin
+    '$RECYCLE.BIN', 'System Volume Information',
+    '.AppleDouble',
+    'Thumbs.db', 'thumbs.db',          # Windows thumbnail cache
+    'desktop.ini', '.DS_Store',
+    '._M-001_2025-06-15.txt',          # macOS AppleDouble resource fork
+])
+def test_is_housekeeping_true(name):
+    from colony_manager_gui.sync import _is_housekeeping
+    assert _is_housekeeping(name) is True
+
+
+@pytest.mark.parametrize('name', [
+    'M-001_2025-06-15.txt',
+    'G024-1',                          # an animal folder
+    'G024-1 - 20260427 - surgical tools needed.jpg',
+    'recycle.txt',                     # merely contains a keyword
+    'my thumbs.db notes.txt',
+    '_exclude',                        # parked data, handled elsewhere
+])
+def test_is_housekeeping_false(name):
+    from colony_manager_gui.sync import _is_housekeeping
+    assert _is_housekeeping(name) is False
+
+
+def test_sync_ignores_housekeeping_instead_of_rejecting_it(
+    db_session, app, tmp_path,
+):
+    """OS/NAS artefacts must not land in ``rejected`` -- a count that is
+    permanently non-zero is one nobody reads. They stay out of
+    ``examined`` too, since they were never candidates."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.sync import sync_locations
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+    dt = make_animal_data_type(db_session)
+    dt.description_class = 'fake_animal'
+    db_session.commit()
+    make_data_location(db_session, datatype=dt, base_path=tmp_path)
+
+    # One real file the parser accepts.
+    (tmp_path / 'M-001.txt').write_text('real')
+
+    # Synology's sidecar tree, which mirrors the folder above it.
+    eadir = tmp_path / '@eaDir'
+    eadir.mkdir()
+    (eadir / 'M-001.txt@SynoEAStream').write_text('sidecar')
+    (eadir / 'Thumbs.db@SynoEAStream').write_text('sidecar')
+
+    # Loose OS droppings beside the data.
+    (tmp_path / 'Thumbs.db').write_text('thumbs')
+    (tmp_path / '.DS_Store').write_text('finder')
+    (tmp_path / '._M-001.txt').write_text('resource fork')
+
+    with app.app_context():
+        counts = sync_locations(filter_datatype_id=dt.id)
+        gui_db.session.commit()
+
+    assert counts['added'] == 1
+    assert counts['rejected'] == 0, 'housekeeping must not count as rejected'
+    assert counts['examined'] == 1, 'housekeeping must not count as examined'
+    # @eaDir (1 dir) + Thumbs.db + .DS_Store + ._M-001.txt
+    assert counts['ignored'] == 4
+
+
+def test_sync_does_not_descend_into_ignored_directories(
+    db_session, app, tmp_path,
+):
+    """Pruning is in place on ``dirs`` so os.walk never enters them --
+    a real saving when the share holds a sidecar per image."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.sync import sync_locations
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+    dt = make_animal_data_type(db_session)
+    dt.description_class = 'fake_animal'
+    db_session.commit()
+    make_data_location(db_session, datatype=dt, base_path=tmp_path)
+
+    # A file inside @eaDir that WOULD parse if it were ever reached.
+    buried = tmp_path / '@eaDir' / 'deeper'
+    buried.mkdir(parents=True)
+    (buried / 'M-001.txt').write_text('must not be ingested')
+
+    with app.app_context():
+        counts = sync_locations(filter_datatype_id=dt.id)
+        gui_db.session.commit()
+
+    assert counts['added'] == 0
+    assert counts['examined'] == 0
+    # Only the top-level @eaDir is counted; nothing beneath it was visited.
+    assert counts['ignored'] == 1
+
+
+def test_sync_still_rejects_a_genuinely_unparseable_file(
+    db_session, app, tmp_path,
+):
+    """The filter must not swallow real problems -- a file the parser
+    refuses still counts as rejected."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.sync import sync_locations
+
+    species = make_species(db_session)
+    make_animal(db_session, species=species, custom_id='M-001')
+    dt = make_animal_data_type(db_session)
+    dt.description_class = 'fake_animal'
+    db_session.commit()
+    make_data_location(db_session, datatype=dt, base_path=tmp_path)
+
+    (tmp_path / 'not a valid name!.txt').write_text('nope')
+    (tmp_path / 'Thumbs.db').write_text('thumbs')
+
+    with app.app_context():
+        counts = sync_locations(filter_datatype_id=dt.id)
+        gui_db.session.commit()
+
+    assert counts['rejected'] == 1
+    assert counts['ignored'] == 1

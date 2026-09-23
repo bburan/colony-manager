@@ -189,6 +189,35 @@ def _candidate_ears_for(session, parsed, candidate_animals, ears_by_animal_side=
     return ears
 
 
+# Names that are never data: OS and NAS housekeeping that appears inside
+# every share. Without this they are walked, handed to ``parse()``, rejected,
+# and counted on every single sync -- ``@eaDir`` alone holds one sidecar per
+# image, so a photos location reported eleven rejects of which ten were
+# Synology's. A ``rejected`` count that is permanently non-zero is one nobody
+# reads, which is the whole value of filtering them out.
+#
+# Matched case-insensitively against both directory and file names.
+_IGNORED_NAMES = {
+    '@eadir',                     # Synology media indexer sidecars
+    '#recycle',                   # Synology recycle bin
+    '$recycle.bin',               # Windows recycle bin
+    'system volume information',  # Windows
+    '.appledouble',               # macOS over AFP/SMB
+    'thumbs.db',                  # Windows Explorer thumbnail cache
+    'desktop.ini',                # Windows folder settings
+    '.ds_store',                  # macOS Finder
+}
+
+# macOS AppleDouble resource forks, written beside the real file over SMB.
+_IGNORED_PREFIXES = ('._',)
+
+
+def _is_housekeeping(name):
+    """True for an OS/NAS artefact that is never a data file or folder."""
+    lowered = name.lower()
+    return lowered in _IGNORED_NAMES or lowered.startswith(_IGNORED_PREFIXES)
+
+
 def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_run=False):
     """Create one AnimalEvent per candidate animal when ``auto_create`` is on.
 
@@ -272,7 +301,7 @@ def _sync_location(location, dry_run=False, debug=False):
     of N (plus whatever ``match_targets`` issues, which we leave alone).
     """
     counts = {'added': 0, 'moved': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'recovered': 0,
-              'examined': 0, 'rejected': 0}
+              'examined': 0, 'rejected': 0, 'ignored': 0}
 
     datatype = location.datatype
     base_path = location.base_path
@@ -311,8 +340,18 @@ def _sync_location(location, dry_run=False, debug=False):
 
     parsed_items = []  # list of (relative_path, item_name, full_path, parsed, desc, file_hash)
     for root, dirs, files in os.walk(base_path):
+        # Prune in place so os.walk never descends into them. That is a
+        # real saving on an SMB share as well as a correctness fix: an
+        # @eaDir can hold a sidecar per image in the folder above it.
+        pruned = [d for d in dirs if _is_housekeeping(d)]
+        if pruned:
+            counts['ignored'] += len(pruned)
+            dirs[:] = [d for d in dirs if not _is_housekeeping(d)]
         items_to_check = dirs if datatype.uses_folders else files
         for item_name in items_to_check:
+            if _is_housekeeping(item_name):
+                counts['ignored'] += 1
+                continue
             counts['examined'] += 1
             full_path = os.path.join(root, item_name)
             relative_path = os.path.relpath(full_path, base_path).replace("\\", "/")
@@ -555,11 +594,11 @@ def _sync_location(location, dry_run=False, debug=False):
 
     log.info(
         '[%s] %s — examined=%d added=%d moved=%d recovered=%d unmatched=%d '
-        'auto_created=%d skipped=%d missing=%d rejected=%d',
+        'auto_created=%d skipped=%d missing=%d rejected=%d ignored=%d',
         datatype.name, 'dry-run' if dry_run else 'done',
         counts['examined'], counts['added'], counts['moved'], counts['recovered'],
         counts['unmatched'], counts['auto_created'], counts['skipped'],
-        counts[DataStatus.MISSING], counts['rejected'],
+        counts[DataStatus.MISSING], counts['rejected'], counts['ignored'],
     )
     return counts
 
@@ -579,7 +618,11 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
     -------
     dict
         Aggregated counts: ``added``, ``moved``, ``unmatched``,
-        ``skipped``, ``missing``.
+        ``skipped``, ``missing``, ``rejected``, ``ignored``.
+        ``rejected`` is a file the parser refused and is worth looking
+        at; ``ignored`` is OS/NAS housekeeping (``@eaDir``, ``Thumbs.db``,
+        ...) that was never a candidate, so it stays out of ``examined``
+        and out of ``rejected``.
     """
     stmt = select(DataLocation).options(joinedload(DataLocation.datatype))
     if filter_datatype_id is not None:
@@ -587,7 +630,7 @@ def sync_locations(dry_run=False, filter_datatype_id=None, debug=False):
     locations = db.session.scalars(stmt).all()
 
     totals = {'added': 0, 'moved': 0, 'recovered': 0, 'skipped': 0, 'unmatched': 0, DataStatus.MISSING: 0, 'auto_created': 0, 'rematched': 0,
-              'examined': 0, 'rejected': 0}
+              'examined': 0, 'rejected': 0, 'ignored': 0}
     if not locations:
         log.info('No DataLocations found%s.',
                  f' for datatype {filter_datatype_id}' if filter_datatype_id else '')

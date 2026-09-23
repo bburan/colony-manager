@@ -266,8 +266,102 @@ def _sanitize_relative_path(raw: str) -> str:
     return '/'.join(cleaned_parts)
 
 
+# The label the user types is free text destined for a filename, so it is
+# cleaned here rather than trusting every description class to do it.
+# Stricter than :func:`_sanitize_relative_path`, which cleans the class's
+# *output* and must keep the slashes a class uses for subdirectories: a
+# label may not introduce a path separator, and drops the characters
+# Windows refuses in a filename.
+_LABEL_BANNED = set(r'/\:*?"<>|')
+
+# Fallback label when the user names no file: ``image 1``, ``image 2``, ...
+_AUTO_LABEL_PREFIX = 'image'
+_AUTO_LABEL_MAX = 10_000
+
+
+def _sanitize_label(raw: str | None) -> str:
+    """Normalize a user-typed filename label. May return ``''``."""
+    if not raw:
+        return ''
+    cleaned = ''.join(
+        c for c in raw
+        if ord(c) >= 0x20 and ord(c) != 0x7F and c not in _LABEL_BANNED
+    )
+    # Collapse runs of whitespace, then strip dots so the label can
+    # neither hide the file (leading dot) nor upset Windows (trailing).
+    return ' '.join(cleaned.split()).strip('.')
+
+
+def _auto_numbered_path(location_dir: str, compose) -> str:
+    """Return the composed path for the first free ``image N`` label.
+
+    Counting up until the composed path is free is what keeps
+    auto-named uploads from overwriting anything: a batch of three
+    lands on ``image 1`` / ``image 2`` / ``image 3``, and a later batch
+    into the same directory continues past them rather than starting
+    over at 1.
+
+    A description class is free to ignore the label entirely (its name
+    may be fully determined by target + date). Two different labels
+    composing the same path is the signal for that, and there is then
+    nothing to count — fall back to the generic collision suffix.
+    """
+    cache: dict = {}
+    first = None
+    for n in range(1, _AUTO_LABEL_MAX + 1):
+        rel = compose(f'{_AUTO_LABEL_PREFIX} {n}')
+        if not _stem_is_taken(location_dir, rel, cache):
+            return rel
+        if first is None:
+            first = rel
+        elif rel == first:
+            return _resolve_relative_path(location_dir, rel)
+    raise UploadError(
+        f'Could not find a free auto-generated name after '
+        f'{_AUTO_LABEL_MAX} attempts — name the file explicitly.'
+    )
+
+
+def _stem_is_taken(location_dir: str, rel_path: str, cache: dict) -> bool:
+    """True if any file beside ``rel_path`` already shares its stem.
+
+    Extension-blind and case-insensitive on purpose. Both the ``image N``
+    counter and the ``_1`` collision suffix exist to tell two files apart
+    *for a person*, and the UI lists a file by its name — so ``image
+    1.jpg`` sitting next to ``image 1.png``, or ``Cochlea.jpg`` next to
+    ``cochlea.jpg``, shows two rows a reader cannot tell apart, which is
+    exactly what the numbering was supposed to prevent. Uniqueness is
+    therefore defined on the visible name, not on the full path.
+
+    Case matters for a second reason: the locations are reached from
+    Windows as well as from the Linux container, and a name that is
+    merely a case variant of an existing one is the *same file* on
+    Windows. Comparing case-sensitively would mean composing a name that
+    looks free, then silently overwriting on save — so the stricter rule
+    is also the safe one on both platforms.
+
+    ``cache`` maps a directory to the set of folded stems in it, so
+    counting up through candidates costs one ``listdir`` per directory
+    rather than one per candidate — the locations live on an SMB share.
+    """
+    parts = rel_path.split('/')
+    directory = os.path.join(location_dir, *parts[:-1])
+    stem = os.path.splitext(parts[-1])[0]
+    if directory not in cache:
+        try:
+            cache[directory] = {
+                os.path.splitext(entry)[0].casefold()
+                for entry in os.listdir(directory)
+            }
+        except OSError:
+            # Not created yet (a per-animal subdirectory for a first
+            # upload), so nothing in it can collide.
+            cache[directory] = set()
+    return stem.casefold() in cache[directory]
+
+
 def _resolve_relative_path(location_dir: str, rel_path: str) -> str:
-    """Suffix the *filename* of ``rel_path`` until the path is free.
+    """Suffix the *filename* of ``rel_path`` until the name is free.
 
     Both the on-disk file and the ``(location_id, relative_path)``
     unique constraint in the DB are namespaced by location, so checking
@@ -278,16 +372,22 @@ def _resolve_relative_path(location_dir: str, rel_path: str) -> str:
     The suffix attaches to the basename stem, not to a directory
     component, so a collision between ``A001/x.jpg`` and an existing
     ``A001/x.jpg`` resolves to ``A001/x_1.jpg`` (not ``A001_1/x.jpg``).
+    "Free" ignores the extension and letter case — see
+    :func:`_stem_is_taken` — so uploading ``x.png`` or ``X.jpg`` next to
+    an existing ``x.jpg`` also suffixes.
     """
+    cache: dict = {}
     parts = rel_path.split('/')
-    if os.path.exists(os.path.join(location_dir, *parts)):
+    if _stem_is_taken(location_dir, rel_path, cache):
         dir_parts, filename = parts[:-1], parts[-1]
         stem, ext = os.path.splitext(filename)
         counter = 1
         while True:
             candidate_name = f'{stem}_{counter}{ext}'
             candidate_parts = dir_parts + [candidate_name]
-            if not os.path.exists(os.path.join(location_dir, *candidate_parts)):
+            if not _stem_is_taken(
+                location_dir, '/'.join(candidate_parts), cache,
+            ):
                 parts = candidate_parts
                 break
             counter += 1
@@ -318,6 +418,7 @@ def handle_upload(
     datatype_id: int,
     location_id: int,
     date: Date,
+    label: str | None,
     notes: str | None,
     file_storage: FileStorage,
 ) -> UploadResult:
@@ -341,8 +442,16 @@ def handle_upload(
     date : datetime.date
         User-supplied date written to ``Data.date`` and forwarded into
         ``parsed_metadata['date']``.
+    label : str | None
+        User-supplied name for the file, forwarded to
+        ``upload_filename`` to be folded into the filename. Blank falls
+        back to auto-numbering (``image 1``, ``image 2``, ...) that
+        counts past whatever already exists, so nothing is overwritten.
     notes : str | None
-        User-supplied notes written to ``Data.notes``.
+        User-supplied notes written to ``Data.notes``. Deliberately NOT
+        passed to ``upload_filename`` — the note is commentary about the
+        file and is kept out of its name; ``label`` is the part the user
+        means to see on disk.
     file_storage : werkzeug.datastructures.FileStorage
         The uploaded file. Its ``.filename`` is fed into
         ``upload_filename``; its bytes are streamed to disk via
@@ -400,35 +509,41 @@ def handle_upload(
             f'define ``upload_filename`` — it cannot accept uploads.'
         )
 
-    try:
-        raw = desc_cls.upload_filename(
-            targets, file_storage.filename, date=date, notes=notes,
-        )
-    except TypeError as exc:
-        # The most common cause is a subclass defining ``upload_filename``
-        # as a plain function (with ``cls`` as the first parameter) instead
-        # of a ``@classmethod``. In that case Python doesn't auto-pass the
-        # class, so the first positional arg gets eaten by ``cls`` and the
-        # error is opaque ("missing 1 required positional argument:
-        # 'original_filename'"). Surface a clearer pointer to the contract.
-        raise UploadError(
-            f'{datatype.description_class}.upload_filename raised TypeError: '
-            f'{exc}. Check the method signature — it must be declared as '
-            f'``@classmethod`` with signature '
-            f'``upload_filename(cls, targets, original_filename, *, date, notes)``. '
-            f'See docs/uploads.md.'
-        ) from exc
-    if not isinstance(raw, str) or not raw.strip():
-        raise UploadError(
-            f'{datatype.description_class}.upload_filename returned '
-            f'an empty / non-string name.'
-        )
-    relative_path = _sanitize_relative_path(raw)
-    if not relative_path:
-        raise UploadError(
-            f'After sanitization, {datatype.description_class}.upload_filename '
-            f'returned an empty name for {raw!r}.'
-        )
+    def compose(lbl: str) -> str:
+        """Ask the description class to name the file, then clean it."""
+        try:
+            raw = desc_cls.upload_filename(
+                targets, file_storage.filename, date=date, label=lbl,
+            )
+        except TypeError as exc:
+            # Two common causes. (1) The subclass defines
+            # ``upload_filename`` as a plain function (``cls`` as the first
+            # parameter) instead of a ``@classmethod``, so Python doesn't
+            # auto-pass the class and the first positional arg gets eaten
+            # by ``cls`` — the raw error is opaque ("missing 1 required
+            # positional argument: 'original_filename'"). (2) The subclass
+            # still takes the old ``notes=`` keyword, from before the
+            # filename and the note were separate fields. Point at the
+            # current contract either way.
+            raise UploadError(
+                f'{datatype.description_class}.upload_filename raised TypeError: '
+                f'{exc}. Check the method signature — it must be declared as '
+                f'``@classmethod`` with signature '
+                f'``upload_filename(cls, targets, original_filename, *, date, label)``. '
+                f'(``notes=`` was renamed to ``label=``.) See docs/uploads.md.'
+            ) from exc
+        if not isinstance(raw, str) or not raw.strip():
+            raise UploadError(
+                f'{datatype.description_class}.upload_filename returned '
+                f'an empty / non-string name.'
+            )
+        cleaned = _sanitize_relative_path(raw)
+        if not cleaned:
+            raise UploadError(
+                f'After sanitization, {datatype.description_class}.upload_filename '
+                f'returned an empty name for {raw!r}.'
+            )
+        return cleaned
 
     base_real = os.path.realpath(location.base_path)
     if not os.path.isdir(base_real):
@@ -437,7 +552,11 @@ def handle_upload(
             f'exist on disk.'
         )
 
-    relative_path = _resolve_relative_path(base_real, relative_path)
+    label = _sanitize_label(label)
+    if label:
+        relative_path = _resolve_relative_path(base_real, compose(label))
+    else:
+        relative_path = _auto_numbered_path(base_real, compose)
     candidate = safe_join(base_real, relative_path)
     if candidate is None:
         raise UploadError(f'Unsafe filename: {relative_path!r}.')

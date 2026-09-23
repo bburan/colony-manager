@@ -89,10 +89,38 @@ class _UploadableAnimalDescription(_FilenameAnimalDescription):
     """
 
     @classmethod
-    def upload_filename(cls, targets, original_filename, *, date, notes):
+    def upload_filename(cls, targets, original_filename, *, date, label):
         ext = Path(original_filename).suffix.lower() or '.bin'
         ids = ' '.join(t.custom_id for t in targets)
         return f'{ids}_{date:%Y-%m-%d}{ext}'
+
+
+class _LabelledUploadableAnimalDescription(_FilenameAnimalDescription):
+    """Upload-capable description that folds the user's label into the name.
+
+    ``_UploadableAnimalDescription`` deliberately ignores ``label``
+    (exercising the service's "this class does not use the label"
+    fallback); this one uses it, which is what the auto-numbering path
+    needs in order to have something to count.
+    """
+
+    @classmethod
+    def upload_filename(cls, targets, original_filename, *, date, label):
+        ext = Path(original_filename).suffix.lower() or '.bin'
+        ids = ' '.join(t.custom_id for t in targets)
+        return f'{ids}_{date:%Y-%m-%d} - {label}{ext}'
+
+
+class _StaleSignatureUploadDescription(_FilenameAnimalDescription):
+    """Upload-capable description still on the pre-split ``notes=`` keyword.
+
+    Used to confirm the service turns the resulting TypeError into an
+    UploadError that names the rename, rather than a 500.
+    """
+
+    @classmethod
+    def upload_filename(cls, targets, original_filename, *, date, notes):
+        return 'stale.bin'
 
 
 class _UploadableAnimalDescriptionSubclass(_UploadableAnimalDescription):
@@ -113,7 +141,7 @@ class _HashingUploadableAnimalDescription(_HashingAnimalDescription):
     """
 
     @classmethod
-    def upload_filename(cls, targets, original_filename, *, date, notes):
+    def upload_filename(cls, targets, original_filename, *, date, label):
         ext = Path(original_filename).suffix.lower() or '.bin'
         ids = ' '.join(t.custom_id for t in targets)
         return f'{ids}_{date:%Y-%m-%d}{ext}'
@@ -197,7 +225,7 @@ class _UploadableEarDescription(DataTypeDescription):
         return []
 
     @classmethod
-    def upload_filename(cls, targets, original_filename, *, date, notes):
+    def upload_filename(cls, targets, original_filename, *, date, label):
         ext = Path(original_filename).suffix.lower() or '.bin'
         parts = [f'{t.animal.custom_id}-{t.side[0]}' for t in targets]
         return f'{" ".join(parts)}_{date:%Y-%m-%d}{ext}'
@@ -231,6 +259,8 @@ DESCRIPTION_CLASSES = {
     'fake_animal_event_hashed': _HashingAnimalEventDescription,
     'fake_animal_hashed': _HashingAnimalDescription,
     'fake_animal_upload': _UploadableAnimalDescription,
+    'fake_animal_upload_labelled': _LabelledUploadableAnimalDescription,
+    'fake_animal_upload_stale': _StaleSignatureUploadDescription,
     'fake_animal_upload_subclass': _UploadableAnimalDescriptionSubclass,
     'fake_animal_upload_hashed': _HashingUploadableAnimalDescription,
     'fake_ear_upload': _UploadableEarDescription,

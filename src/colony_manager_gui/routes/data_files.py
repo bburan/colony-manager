@@ -315,17 +315,22 @@ def upload_files(target_type, target_id):
         flash('No files were uploaded.', 'danger')
         return redirect(detail_url)
 
-    # Per-file notes arrive in document order (one ``<input
-    # name="file_notes">`` per file rendered by Alpine). Pad with
-    # empty strings if the user removed a file from the OS dialog
-    # without the picker re-firing; truncate if somehow more notes
-    # than files.
+    # Per-file name + notes arrive in document order (one ``<input
+    # name="file_labels">`` / ``name="file_notes">`` pair per file
+    # rendered by Alpine). Pad with empty strings if the user removed a
+    # file from the OS dialog without the picker re-firing; truncate if
+    # somehow more entries than files. A blank label is what triggers
+    # the service's ``image N`` auto-numbering.
+    raw_labels = request.form.getlist('file_labels')
+    per_file_labels = (raw_labels + [''] * len(files))[:len(files)]
     raw_notes = request.form.getlist('file_notes')
     per_file_notes = (raw_notes + [''] * len(files))[:len(files)]
 
     written_paths = []
     try:
-        for fs, file_notes in zip(files, per_file_notes):
+        for fs, file_label, file_notes in zip(
+            files, per_file_labels, per_file_notes,
+        ):
             result = upload_service.handle_upload(
                 db.session,
                 target_type=target_type,
@@ -333,6 +338,7 @@ def upload_files(target_type, target_id):
                 datatype_id=form.datatype.data,
                 location_id=form.location.data,
                 date=form.date.data,
+                label=(file_label or None),
                 notes=(file_notes or None),
                 file_storage=fs,
             )

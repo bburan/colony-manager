@@ -26,9 +26,14 @@ the side, frequency and image type. The app then finds the matching record
 and links the file to it.
 
 **By upload.** Some data types accept files through the interface. The
-**Upload** button on an animal or ear page takes one or more files, a date
-and per-file notes, renames each one according to the same convention the
-parser expects, writes it into the chosen location, and links it — so an
+**Upload** button on an animal or ear page takes one or more files, a date,
+and for each file a **name** and a **note**. The name is folded into the
+file's name on disk; the note is commentary stored alongside the file and
+kept out of its name, so you can reword it later without renaming anything.
+Leave the name blank and the file is numbered for you — *image 1*,
+*image 2*, and so on, continuing past anything already there rather than
+replacing it. Each file is renamed according to the same convention the
+parser expects, written into the chosen location, and linked — so an
 uploaded file and a synced file are indistinguishable afterwards.
 
 Syncs are run by an administrator from

@@ -103,8 +103,9 @@ class CSRFOnlyForm(FlaskForm):
 class UploadFilesForm(FlaskForm):
     """User-driven file upload from an entity (Animal / Ear / ...) detail page.
 
-    ``targets`` and ``file_notes`` are intentionally NOT WTForms fields — see
-    the docstring in the original forms.py for the rationale.
+    ``targets``, ``file_labels`` and ``file_notes`` are intentionally NOT
+    WTForms fields — see the docstring in the original forms.py for the
+    rationale.
     """
     datatype = SelectField('Type', coerce=int, validators=[DataRequired()])
     location = SelectField('Location', coerce=int, validators=[DataRequired()])

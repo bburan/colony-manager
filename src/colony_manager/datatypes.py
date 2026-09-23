@@ -342,9 +342,19 @@ class DataTypeDescription(ABC):
     # Expected signature::
     #
     #   @classmethod
-    #   def upload_filename(cls, targets, original_filename, *, date, notes):
+    #   def upload_filename(cls, targets, original_filename, *, date, label):
     #       '''Return the relative path to use when ``targets`` upload
     #       ``original_filename``.
+    #
+    #       ``label`` is the user-typed name for this file, already
+    #       sanitized (no path separators, no characters Windows
+    #       refuses) and never blank — when the user names nothing, the
+    #       service supplies ``image 1``, ``image 2``, ... counting past
+    #       whatever the composed path already collides with. Fold it
+    #       into the name so two files uploaded to the same target on
+    #       the same date stay distinguishable. The user's *note* is
+    #       deliberately not passed: it is commentary stored on the row,
+    #       not part of the filename.
     #
     #       ``targets`` is a non-empty list of target instances (Animal,
     #       Ear, ...), all of the same target_type. Single-target

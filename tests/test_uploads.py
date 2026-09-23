@@ -261,6 +261,7 @@ def test_handle_upload_writes_renamed_file(db_session, app, tmp_path):
             datatype_id=dt.id,
             location_id=location.id,
             date=date(2025, 6, 15),
+            label=None,
             notes=None,
             file_storage=_fs('snap.JPG'),
         )
@@ -287,6 +288,7 @@ def test_handle_upload_creates_animal_data_row(db_session, app, tmp_path):
             datatype_id=dt.id,
             location_id=location.id,
             date=date(2025, 6, 15),
+            label=None,
             notes='handled by Dr. Smith',
             file_storage=_fs('snap.jpg'),
         )
@@ -324,7 +326,7 @@ def test_handle_upload_skips_hash_when_hash_files_empty(db_session, app, tmp_pat
             target_type='animal',
             targets=[gui_db.session.get(type(animal), animal.id)],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('snap.jpg'),
         )
         gui_db.session.commit()
@@ -349,7 +351,7 @@ def test_handle_upload_computes_hash_for_hashing_description(db_session, app, tm
             target_type='animal',
             targets=[gui_db.session.get(type(animal), animal.id)],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('snap.jpg', content=b'identifiable content'),
         )
         gui_db.session.commit()
@@ -382,7 +384,7 @@ def test_handle_upload_links_all_targets(db_session, app, tmp_path):
                 gui_db.session.get(AnimalModel, a2.id),
             ],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('group.jpg'),
         )
         gui_db.session.commit()
@@ -426,7 +428,7 @@ def test_handle_upload_supports_subdirectory_paths(db_session, app, tmp_path):
             return []
 
         @classmethod
-        def upload_filename(cls, targets, original_filename, *, date, notes):
+        def upload_filename(cls, targets, original_filename, *, date, label):
             ext = _Path(original_filename).suffix.lower() or '.bin'
             ids = ' '.join(t.custom_id for t in targets)
             return f'{ids}/{date:%Y-%m-%d}{ext}'
@@ -445,7 +447,7 @@ def test_handle_upload_supports_subdirectory_paths(db_session, app, tmp_path):
                 gui_db.session, target_type='animal',
                 targets=[gui_db.session.get(AnimalModel, animal.id)],
                 datatype_id=dt.id, location_id=location.id,
-                date=date(2025, 6, 15), notes=None,
+                date=date(2025, 6, 15), label=None, notes=None,
                 file_storage=_fs('snap.jpg'),
             )
             gui_db.session.commit()
@@ -481,7 +483,7 @@ def test_handle_upload_rejects_parent_directory_traversal(
             return []
 
         @classmethod
-        def upload_filename(cls, targets, original_filename, *, date, notes):
+        def upload_filename(cls, targets, original_filename, *, date, label):
             return '../escape.jpg'
 
     _description_fakes.DESCRIPTION_CLASSES['fake_evil'] = _EvilDescription
@@ -497,7 +499,7 @@ def test_handle_upload_rejects_parent_directory_traversal(
                 gui_db.session, target_type='animal',
                 targets=[gui_db.session.get(AnimalModel, animal.id)],
                 datatype_id=dt.id, location_id=location.id,
-                date=date(2025, 6, 15), notes=None,
+                date=date(2025, 6, 15), label=None, notes=None,
                 file_storage=_fs('snap.jpg'),
             )
             gui_db.session.commit()
@@ -529,7 +531,7 @@ def test_handle_upload_suffixes_on_collision(db_session, app, tmp_path):
         handle_upload(
             gui_db.session, target_type='animal', targets=[a_target()],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('snap.jpg'),
         )
         gui_db.session.commit()
@@ -537,7 +539,7 @@ def test_handle_upload_suffixes_on_collision(db_session, app, tmp_path):
         handle_upload(
             gui_db.session, target_type='animal', targets=[a_target()],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('snap.jpg'),
         )
         gui_db.session.commit()
@@ -545,7 +547,7 @@ def test_handle_upload_suffixes_on_collision(db_session, app, tmp_path):
         handle_upload(
             gui_db.session, target_type='animal', targets=[a_target()],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('snap.jpg'),
         )
         gui_db.session.commit()
@@ -581,7 +583,7 @@ def test_handle_upload_raises_for_unknown_target_type(db_session, app, tmp_path)
                 gui_db.session, target_type='not_a_type',
                 targets=[gui_db.session.get(AnimalModel, animal.id)],
                 datatype_id=dt.id, location_id=location.id,
-                date=date(2025, 6, 15), notes=None,
+                date=date(2025, 6, 15), label=None, notes=None,
                 file_storage=_fs('snap.jpg'),
             )
 
@@ -608,7 +610,7 @@ def test_handle_upload_raises_when_datatype_mismatches_target_type(
                 gui_db.session, target_type='animal',
                 targets=[gui_db.session.get(AnimalModel, animal.id)],
                 datatype_id=ear_dt.id, location_id=ear_location.id,
-                date=date(2025, 6, 15), notes=None,
+                date=date(2025, 6, 15), label=None, notes=None,
                 file_storage=_fs('snap.jpg'),
             )
 
@@ -635,7 +637,7 @@ def test_handle_upload_raises_when_description_is_non_uploadable(
                 gui_db.session, target_type='animal',
                 targets=[gui_db.session.get(AnimalModel, animal.id)],
                 datatype_id=dt.id, location_id=location.id,
-                date=date(2025, 6, 15), notes=None,
+                date=date(2025, 6, 15), label=None, notes=None,
                 file_storage=_fs('snap.jpg'),
             )
 
@@ -665,7 +667,7 @@ def test_handle_upload_ear_target_seeds_side_in_metadata(
             gui_db.session, target_type='ear',
             targets=[gui_db.session.get(EarModel, ear.id)],
             datatype_id=dt.id, location_id=location.id,
-            date=date(2025, 6, 15), notes=None,
+            date=date(2025, 6, 15), label=None, notes=None,
             file_storage=_fs('dissect.pdf'),
         )
         gui_db.session.commit()
@@ -851,3 +853,414 @@ def test_upload_files_rejects_empty_target_list(
     assert db_session.scalars(select(AnimalData)).all() == []
     # File should not have been written, either.
     assert list(tmp_path.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
+# Filename label vs. note
+# ---------------------------------------------------------------------------
+
+def _labelled_dt(session, *, tmp_path):
+    """DataType whose description class folds ``label`` into the name."""
+    return _make_uploadable_animal_dt(
+        session, tmp_path=tmp_path, key='fake_animal_upload_labelled',
+    )
+
+
+@pytest.mark.parametrize('raw, expected', [
+    (None, ''),
+    ('', ''),
+    ('   ', ''),
+    ('portrait', 'portrait'),
+    ('  spaced   out  ', 'spaced out'),
+    # Path separators must not survive — a label may not create a directory.
+    ('a/b', 'ab'),
+    ('a\\b', 'ab'),
+    # Characters Windows refuses in a filename.
+    ('what? *now*: "x" <y>|z', 'what now x yz'),
+    # Control characters.
+    ('bad\x00\x07name', 'badname'),
+    # A leading dot would hide the file; a trailing dot upsets Windows.
+    ('...hidden...', 'hidden'),
+    ('.', ''),
+])
+def test_sanitize_label(raw, expected):
+    from colony_manager_gui.services.uploads import _sanitize_label
+    assert _sanitize_label(raw) == expected
+
+
+def test_label_goes_in_filename_notes_do_not(db_session, app, tmp_path):
+    """The point of the split: the label names the file, the note is
+    stored on the row and stays out of the name."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        handle_upload(
+            gui_db.session,
+            target_type='animal',
+            targets=[gui_db.session.get(type(animal), animal.id)],
+            datatype_id=dt.id, location_id=location.id,
+            date=date(2025, 6, 15),
+            label='left cochlea',
+            notes='looked cloudy under the scope',
+            file_storage=_fs('snap.jpg'),
+        )
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.name == 'A001_2025-06-15 - left cochlea.jpg'
+    assert row.notes == 'looked cloudy under the scope'
+    assert 'cloudy' not in row.name
+    assert (tmp_path / row.name).exists()
+
+
+def test_blank_label_auto_numbers(db_session, app, tmp_path):
+    """Three unnamed uploads become image 1 / image 2 / image 3."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for _ in range(3):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label=None, notes=None,
+                file_storage=_fs('snap.jpg'),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == [
+        'A001_2025-06-15 - image 1.jpg',
+        'A001_2025-06-15 - image 2.jpg',
+        'A001_2025-06-15 - image 3.jpg',
+    ]
+
+
+def test_whitespace_only_label_auto_numbers(db_session, app, tmp_path):
+    """A label that sanitizes to nothing is the same as no label."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        handle_upload(
+            gui_db.session, target_type='animal',
+            targets=[gui_db.session.get(type(animal), animal.id)],
+            datatype_id=dt.id, location_id=location.id,
+            date=date(2025, 6, 15), label='   ', notes=None,
+            file_storage=_fs('snap.jpg'),
+        )
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.name == 'A001_2025-06-15 - image 1.jpg'
+
+
+def test_auto_numbering_counts_past_existing_files(db_session, app, tmp_path):
+    """An auto-named upload must never overwrite what is already there —
+    including a file this flow did not create."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    squatter = tmp_path / 'A001_2025-06-15 - image 1.jpg'
+    squatter.write_bytes(b'do not clobber me')
+
+    with app.app_context():
+        handle_upload(
+            gui_db.session, target_type='animal',
+            targets=[gui_db.session.get(type(animal), animal.id)],
+            datatype_id=dt.id, location_id=location.id,
+            date=date(2025, 6, 15), label=None, notes=None,
+            file_storage=_fs('snap.jpg'),
+        )
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.name == 'A001_2025-06-15 - image 2.jpg'
+    assert squatter.read_bytes() == b'do not clobber me'
+
+
+def test_reused_label_gets_collision_suffix(db_session, app, tmp_path):
+    """Two files given the same name coexist; the second is suffixed."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for content in (b'first', b'second'):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label='cochlea', notes=None,
+                file_storage=_fs('snap.jpg', content),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == [
+        'A001_2025-06-15 - cochlea.jpg',
+        'A001_2025-06-15 - cochlea_1.jpg',
+    ]
+    assert (tmp_path / names[0]).read_bytes() == b'first'
+    assert (tmp_path / names[1]).read_bytes() == b'second'
+
+
+def test_label_ignoring_description_class_still_works(db_session, app, tmp_path):
+    """``_UploadableAnimalDescription`` ignores ``label`` entirely, so the
+    auto-numbering loop has nothing to count. It must notice and fall back
+    to the stem suffix rather than spinning."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _make_uploadable_animal_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for _ in range(2):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label=None, notes=None,
+                file_storage=_fs('snap.jpg'),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == ['A001_2025-06-15.jpg', 'A001_2025-06-15_1.jpg']
+
+
+def test_stale_notes_signature_is_reported_clearly(db_session, app, tmp_path):
+    """A description class still on the pre-split ``notes=`` keyword gets
+    an UploadError naming the rename, not a bare TypeError."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import UploadError, handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _make_uploadable_animal_dt(
+        db_session, tmp_path=tmp_path, key='fake_animal_upload_stale',
+    )
+
+    with app.app_context():
+        with pytest.raises(UploadError, match='label'):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(type(animal), animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label='x', notes=None,
+                file_storage=_fs('snap.jpg'),
+            )
+
+
+def test_upload_files_route_passes_labels_and_notes(
+    logged_in_client, db_session, tmp_path,
+):
+    """End-to-end: ``file_labels`` and ``file_notes`` pair with ``files``
+    by position, and a blank label falls through to auto-numbering."""
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    response = logged_in_client.post(
+        f'/data/upload/animal/{animal.id}',
+        data={
+            'datatype': str(dt.id),
+            'location': str(location.id),
+            'date': '2025-06-15',
+            'targets': [str(animal.id)],
+            'file_labels': ['whole mount', ''],
+            'file_notes': ['first photo', 'second photo'],
+            'files': [
+                (io.BytesIO(b'a'), 'snap.jpg'),
+                (io.BytesIO(b'b'), 'snap.jpg'),
+            ],
+        },
+        content_type='multipart/form-data',
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 303)
+
+    rows = db_session.scalars(
+        select(AnimalData).order_by(AnimalData.id)
+    ).all()
+    assert [r.name for r in rows] == [
+        'A001_2025-06-15 - whole mount.jpg',
+        'A001_2025-06-15 - image 1.jpg',
+    ]
+    assert [r.notes for r in rows] == ['first photo', 'second photo']
+
+
+def test_auto_numbering_is_extension_blind(db_session, app, tmp_path):
+    """``image 1.jpg`` and ``image 1.png`` would both read as "image 1" in
+    the file list, so the second must count on to ``image 2``."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for source in ('snap.jpg', 'snap.png'):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label=None, notes=None,
+                file_storage=_fs(source),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == [
+        'A001_2025-06-15 - image 1.jpg',
+        'A001_2025-06-15 - image 2.png',
+    ]
+
+
+def test_reused_label_is_extension_blind(db_session, app, tmp_path):
+    """Same rule for a name the user typed: two rows both reading
+    "cochlea" are indistinguishable whatever their extensions."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for source in ('snap.jpg', 'scan.pdf'):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label='cochlea', notes=None,
+                file_storage=_fs(source),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == [
+        'A001_2025-06-15 - cochlea.jpg',
+        'A001_2025-06-15 - cochlea_1.pdf',
+    ]
+    # Both files are on disk; neither replaced the other.
+    assert sorted(p.name for p in tmp_path.iterdir()) == names
+
+
+def test_auto_numbering_counts_past_a_differently_typed_squatter(
+    db_session, app, tmp_path,
+):
+    """The stem check must see files this flow never wrote, whatever
+    extension they carry."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    squatter = tmp_path / 'A001_2025-06-15 - image 1.tiff'
+    squatter.write_bytes(b'do not clobber me')
+
+    with app.app_context():
+        handle_upload(
+            gui_db.session, target_type='animal',
+            targets=[gui_db.session.get(type(animal), animal.id)],
+            datatype_id=dt.id, location_id=location.id,
+            date=date(2025, 6, 15), label=None, notes=None,
+            file_storage=_fs('snap.jpg'),
+        )
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.name == 'A001_2025-06-15 - image 2.jpg'
+    assert squatter.read_bytes() == b'do not clobber me'
+
+
+def test_label_collision_is_case_insensitive(db_session, app, tmp_path):
+    """The locations are reached from Windows too, where a name differing
+    only in case is the same file — composing one would overwrite on
+    save. It is also unreadable in a listing either way."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager.models import Animal as AnimalModel
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    with app.app_context():
+        for label in ('cochlea', 'Cochlea', 'COCHLEA'):
+            handle_upload(
+                gui_db.session, target_type='animal',
+                targets=[gui_db.session.get(AnimalModel, animal.id)],
+                datatype_id=dt.id, location_id=location.id,
+                date=date(2025, 6, 15), label=label, notes=None,
+                file_storage=_fs('snap.jpg'),
+            )
+            gui_db.session.commit()
+
+    names = sorted(r.name for r in db_session.scalars(select(AnimalData)).all())
+    assert names == [
+        'A001_2025-06-15 - COCHLEA_2.jpg',
+        'A001_2025-06-15 - Cochlea_1.jpg',
+        'A001_2025-06-15 - cochlea.jpg',
+    ]
+    # Three distinct files on disk — none overwrote another.
+    assert len(list(tmp_path.iterdir())) == 3
+
+
+def test_auto_numbering_counts_past_a_case_variant(db_session, app, tmp_path):
+    """A pre-existing ``IMAGE 1.JPG`` blocks ``image 1``."""
+    from colony_manager_gui import db as gui_db
+    from colony_manager_gui.services.uploads import handle_upload
+
+    species = make_species(db_session)
+    animal = make_animal(db_session, species=species, custom_id='A001')
+    dt, location = _labelled_dt(db_session, tmp_path=tmp_path)
+
+    squatter = tmp_path / 'A001_2025-06-15 - IMAGE 1.JPG'
+    squatter.write_bytes(b'do not clobber me')
+
+    with app.app_context():
+        handle_upload(
+            gui_db.session, target_type='animal',
+            targets=[gui_db.session.get(type(animal), animal.id)],
+            datatype_id=dt.id, location_id=location.id,
+            date=date(2025, 6, 15), label=None, notes=None,
+            file_storage=_fs('snap.jpg'),
+        )
+        gui_db.session.commit()
+
+    row = db_session.scalars(select(AnimalData)).one()
+    assert row.name == 'A001_2025-06-15 - image 2.jpg'
+    assert squatter.read_bytes() == b'do not clobber me'

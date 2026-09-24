@@ -17,6 +17,39 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-09-24
+
+**Every analyzable file shows whether it has been analyzed.** Files whose
+analysis the app can check — ABR, IHC/OHC counts, synaptograms — now
+carry a small badge at the right of their row: *Analyzed*, *Partial*,
+*Not analyzed*, *Unchecked* (not scanned yet) or *Skipped*. It replaces
+the old green/orange dot, which looked too much like the review-status
+dot beside it. Confocal image rows on the ear page, which showed nothing
+before, have it too. Hover the badge for the detail. See [Working with
+data files](/help/data-files).
+
+**Mark extra copies so nobody analyzes them.** When there is more than
+one image of the same ear and frequency, click a file's analysis badge
+and choose **Skip** for the copies that don't need analysis. A skipped
+file drops off [Needs Analysis](/help/unrated-data) and out of the
+[Analysis Scoreboard](/help/analysis-scoreboard). Skip is different from
+**Excluded**: excluded means the file is flawed, skip means it is fine
+but not needed. **Analyze** is for keeping more than one copy on
+purpose; every file starts as **Not set**, which is analyzed as before.
+The menu's *What do these mean?* link explains the three.
+
+**Needs Analysis is shorter.** Files marked Excluded or Missing used to
+stay on [Needs Analysis](/help/unrated-data) and count as "not started"
+on the scoreboard. They are now left out of both, so the completion
+percentages may go up.
+
+**The histology grid's black glow asks for a decision.** A square with
+more than one file used to glow black no matter what. It now clears
+once the extra copies are set to Skip or Excluded, or every copy is set
+to Analyze. Skipped and excluded copies are also ignored for the orange
+"marked analyzed but no analysis" glow. See the [histology
+grid](/help/histology-grid).
+
 ## 2026-09-23
 
 **Image files are easier to read.** Photos, scans and PDFs attached to an

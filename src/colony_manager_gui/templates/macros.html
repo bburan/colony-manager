@@ -131,6 +131,87 @@
 {%- if label %}<span class="df-status-label {{ status_class }}" data-data-id="{{ data_file.id }}">{{ status_label }}</span>{% endif %}
 {% endmacro %}
 
+
+{# ``Data.analyze`` as its wire value: 'yes' (Analyze) / 'no' (Skip) /
+   '' (Not set). #}
+{% macro _analyze_state(data_file) -%}
+{{ 'yes' if data_file.analyze is sameas true else 'no' if data_file.analyze is sameas false else '' }}
+{%- endmacro %}
+
+{# A file's analysis state as a small text badge — words rather than an
+   icon, so it can't be mistaken for the status dot beside it. Rendered for
+   ratable datatypes (plus any file that somehow carries a rating anyway);
+   everything else gets nothing. States, in precedence:
+
+     Skipped       analyze is False — an extra copy, out of the queue
+     Analyzed      is_rated
+     Partial       not rated, and the note says partial (the same test as
+                   data_queries._PARTIAL)
+     Not analyzed  is_rated False
+     Unchecked     is_rated NULL — the rating job hasn't scanned it yet
+
+   A file set to Analyze on purpose (analyze True, as opposed to Not set)
+   adds a pin to whichever of those it shows. The hover shows the rating
+   note, which is where a partial analysis says what is missing.
+
+   On a ratable type the badge is also the control for ``Data.analyze``:
+   it opens a Not set / Analyze / Skip menu, so the state and the way to
+   change it are one element rather than a badge plus a separate toggle.
+   Each option carries a short hint framed as "has anyone decided", which
+   is the real Not set / Analyze difference; the fuller story (the grid
+   glow, Skip vs Excluded) is behind the menu's closing link to the help
+   section (``help/data-files.md``, heading
+   "Not set, Analyze and Skip"; tests/test_data_analyze.py checks the
+   anchor resolves). ``set_data_analyze`` re-renders this macro and app.js
+   swaps it in place. Must not sit inside another <button> (the file-row
+   toggles): the badge is one. #}
+{% macro render_analysis_indicator(data_file) %}
+{% set ratable = data_file.datatype.supports_rating %}
+{% if ratable or data_file.is_rated is not none %}
+{% set note = data_file.rating_note or '' %}
+{% set state = _analyze_state(data_file) %}
+{% if state == 'no' %}
+    {% set tone, label, title = 'secondary', 'Skipped', 'Skipped — does not need analysis' ~ ((' · ' ~ note) if note else '') %}
+{% elif data_file.is_rated %}
+    {% set tone, label, title = 'success', 'Analyzed', note or 'Analyzed' %}
+{% elif data_file.is_rated is sameas false and 'partial' in note|lower %}
+    {% set tone, label, title = 'info', 'Partial', note %}
+{% elif data_file.is_rated is sameas false %}
+    {% set tone, label, title = 'warning', 'Not analyzed', note or 'Not analyzed' %}
+{% else %}
+    {% set tone, label, title = 'secondary', 'Unchecked', 'Analysis status not checked yet — Re-scan on Needs Analysis' %}
+{% endif %}
+{% if state == 'yes' %}{% set title = 'Set to Analyze · ' ~ title %}{% endif %}
+{% set badge_class = 'badge df-analysis-badge bg-%s-subtle text-%s-emphasis border border-%s-subtle fw-normal'|format(tone, tone, tone) %}
+<span class="df-analysis dropdown flex-shrink-0" data-data-id="{{ data_file.id }}">
+{%- if ratable %}
+    <button type="button" class="{{ badge_class }} dropdown-toggle"
+            data-bs-toggle="dropdown" aria-expanded="false"
+            title="{{ title }} — click to change">
+        {%- if state == 'yes' %}<i class="fas fa-thumbtack me-1" aria-label="Set to Analyze"></i>{% endif %}{{ label }}</button>
+    <ul class="dropdown-menu dropdown-menu-end df-analysis-menu"
+        data-url="{{ url_for('animals.set_data_analyze', data_id=data_file.id) }}">
+        {% for value, name, hint in [
+            ('', 'Not set', 'no one has decided; will be analyzed'),
+            ('yes', 'Analyze', 'decided: analyze this file'),
+            ('no', 'Skip', 'decided: no analysis needed'),
+        ] %}
+        <li><button type="button" class="dropdown-item data-analyze-option{{ ' active' if state == value }}"
+                    data-set-analyze="{{ value }}" aria-current="{{ 'true' if state == value else 'false' }}">
+            {{- name }} <span class="df-analysis-hint">— {{ hint }}</span></button></li>
+        {% endfor %}
+        <li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item df-analysis-help"
+                    onclick="openHelpModal('{{ url_for('help.topic_panel', slug='data-files', anchor='not-set-analyze-and-skip') }}')">
+            <i class="fas fa-circle-question me-1"></i>What do these mean?</button></li>
+    </ul>
+{%- else %}
+    <span class="{{ badge_class }}" title="{{ title }}">{{ label }}</span>
+{%- endif %}
+</span>
+{% endif %}
+{% endmacro %}
+
 {% macro render_status_buttons(animal_id, data_file, size='sm') %}
 {% set url = url_for('animals.set_data_status', animal_id=animal_id, data_id=data_file.id) %}
 <span class="data-status-group d-inline-flex align-items-center gap-0"
@@ -214,6 +295,7 @@
 					<i class="fas fa-comment df-note-indicator flex-shrink-0" title="{{ data_file.notes }}"></i>
 					{% endif %}
 				</button>
+				{{ render_analysis_indicator(data_file) }}
 				<span class="flex-shrink-0">{{ render_callback_buttons(data_file) }}</span>
 			</div>
 			<div x-show="open" x-cloak class="df-body px-3 pt-2 pb-3">
@@ -294,6 +376,7 @@
 											<i class="fas fa-sticky-note fa-xs mt-1 flex-shrink-0" title="{{ f.notes }}"></i>
 											{% endif %}
 										</button>
+										{{ render_analysis_indicator(f) }}
 										<span class="flex-shrink-0">{{ render_callback_buttons(f) }}</span>
 									</div>
 									<div x-show="open" x-cloak class="ms-3 mt-1 mb-2 px-2 py-2 border-start bg-light">

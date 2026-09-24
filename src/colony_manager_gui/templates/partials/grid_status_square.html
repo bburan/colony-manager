@@ -41,7 +41,7 @@
 {% set conflict_titles = {
     'file_mismatch': 'CONFLICT: no file linked' if file_count == 0
                      else 'CONFLICT: region marked missing but a file is linked',
-    'multiple_files': 'CONFLICT: %d files linked' | format(file_count),
+    'multiple_files': 'CONFLICT: %d files linked — set each to Analyze or Skip' | format(file_count),
     'unanalyzed': 'CONFLICT: marked analyzed but the file has no analysis',
 } %}
 <span id="grid-square-{{ img.id }}"

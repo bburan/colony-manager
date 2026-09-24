@@ -604,6 +604,43 @@ document.addEventListener('click', async function(e) {
     }
 });
 
+// Analyze / Skip menu on a file's analysis badge (render_analysis_indicator in
+// macros.html). The server answers with the re-rendered badge, since only
+// it knows the rating state behind Analyzed / Partial / …, and every copy
+// of the badge on the page (a file can be listed more than once) is swapped.
+document.addEventListener('click', async function(e) {
+    const opt = e.target.closest('.data-analyze-option');
+    if (!opt) return;
+    e.preventDefault();
+
+    const menu = opt.closest('.df-analysis-menu');
+    const dataId = opt.closest('.df-analysis').getAttribute('data-data-id');
+
+    const formData = new FormData();
+    formData.append('analyze', opt.getAttribute('data-set-analyze'));
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+    if (csrfMeta) headers['X-CSRFToken'] = csrfMeta.getAttribute('content');
+
+    try {
+        const res = await fetch(menu.getAttribute('data-url'), {
+            method: 'POST', headers: headers, body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || data.status !== 'success') {
+            console.error('Failed to update analyze flag', data);
+            return;
+        }
+        document.querySelectorAll(
+            '.df-analysis[data-data-id="' + dataId + '"]'
+        ).forEach(function (el) {
+            el.outerHTML = data.indicator;
+        });
+    } catch (err) {
+        console.error('AJAX error', err);
+    }
+});
+
 function _loadBokehResources(jsUrls, cssUrls) {
     for (const url of (cssUrls || [])) {
         if (!document.querySelector(`link[href="${url}"]`)) {

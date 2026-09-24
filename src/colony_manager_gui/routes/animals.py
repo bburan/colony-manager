@@ -4,7 +4,7 @@ from datetime import date
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload, selectinload
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response, send_file, get_template_attribute
 from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag,
@@ -948,7 +948,9 @@ def list_unrated_data() -> Response | str:
         except Exception:
             pass
 
-    stmt = select(Data).where(Data.datatype_id.in_(ratable_ids))
+    # ``in_analysis_queue`` drops replicates marked Skip and files that are
+    # excluded or missing — none of them is work to hand anyone.
+    stmt = select(Data).where(Data.datatype_id.in_(ratable_ids), Data.in_analysis_queue)
     # Not fully rated = unrated or partial. "Partial" analyses flag
     # themselves in the note ("Partial — ..."); everything else in the
     # not-rated set counts as unrated (including a NULL note = never scanned).
@@ -1231,6 +1233,38 @@ def update_data_notes(data_id) -> Response | str:
     data_file.notes = request.form.get('notes', '').strip() or None
     db.session.commit()
     return '', 204
+
+
+# Wire values for ``Data.analyze``: '' is Not set (NULL).
+_ANALYZE_VALUES = {'yes': True, 'no': False, '': None}
+
+
+def _analyze_wire(value):
+    return {True: 'yes', False: 'no'}.get(value, '')
+
+
+@animals_bp.route('/data/<int:data_id>/analyze', methods=['POST'])
+def set_data_analyze(data_id) -> Response | str:
+    """Set a file to Analyze ('yes'), Skip ('no') or Not set ('').
+
+    Refused for a datatype that doesn't support rating: it has no analysis
+    queue, so the flag would be invisible and meaningless there.
+    """
+    data_file = get_or_404(Data, data_id)
+    raw = request.form.get('analyze', '')
+    if raw not in _ANALYZE_VALUES:
+        return {'status': 'error', 'message': f'Unknown value {raw!r}'}, 400
+    if not data_file.datatype.supports_rating:
+        return {'status': 'error',
+                'message': f'{data_file.datatype.name} files are not analyzed'}, 400
+    data_file.analyze = _ANALYZE_VALUES[raw]
+    db.session.commit()
+    # Skip changes the file's analysis badge, whose other states depend on
+    # rating columns the page doesn't have — so send back the re-rendered
+    # badge rather than making app.js re-derive it.
+    indicator = get_template_attribute('macros.html', 'render_analysis_indicator')
+    return {'status': 'success', 'analyze': _analyze_wire(data_file.analyze),
+            'indicator': str(indicator(data_file)).strip()}
 
 
 @animals_bp.route('/<int:animal_id>/data/<int:data_id>/auto_create_event', methods=['POST'])

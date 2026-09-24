@@ -57,9 +57,47 @@ single compact line. Either way a row carries:
 
 Change the status with the check / ban / undo buttons on the row.
 
-**A rating dot** on data types that report analysis status: a green check
-for analyzed, an orange exclamation for not. Hover it for the detail —
-for a partial analysis this is where it says what is missing.
+**An analysis badge** on data types that report analysis status, at the
+right of the row:
+
+| Badge | Meaning |
+|---|---|
+| Analyzed | analysis complete |
+| Partial | analysis started but incomplete |
+| Not analyzed | no analysis yet |
+| Unchecked | the app has not scanned this file's analysis yet — use **Re-scan now** on [Needs Analysis](/help/unrated-data) |
+| Skipped | set to Skip — does not need analysis (see below) |
+
+Hover the badge for the detail. For a partial analysis, this is where it
+says what is missing.
+
+### Not set, Analyze and Skip
+
+Click the analysis badge on any file whose data type reports analysis
+status to choose whether the file needs analyzing. This matters most for
+*replicates*: more than one file for the same thing, such as two confocal
+images of the same ear and frequency, where often only one needs
+analyzing.
+
+- **Not set** — nobody has chosen yet. The file is analyzed like any
+  other: it appears on [Needs Analysis](/help/unrated-data) and counts on
+  the [Analysis Scoreboard](/help/analysis-scoreboard). Every file starts
+  here, and for a file with no replicate there is usually no reason to
+  change it.
+- **Analyze** — someone has confirmed the file should be analyzed. For a
+  lone file this behaves exactly like Not set. The difference shows on the
+  [histology grid](/help/histology-grid), where a cell with several files
+  glows black. Skipping the extra copies clears it; if you want more than
+  one copy analyzed, set each of those to Analyze instead. A file set to
+  Analyze shows a pin in its badge.
+- **Skip** — the file does not need analysis. Usually that means it is an
+  extra copy, but it can be any file that is fine yet not needed. It
+  leaves Needs Analysis and the Scoreboard counts, and its badge reads
+  **Skipped**.
+
+Skip is not the same as the **Excluded** status. Excluded means the file
+is flawed; Skip means it is fine but not needed. Excluded and missing
+files stay off Needs Analysis whichever option is chosen.
 
 **A warning triangle** when the filename names an animal that the app could
 not link to anything. Hover it for the IDs in question. These files are

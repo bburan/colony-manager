@@ -6,7 +6,7 @@ filter, so these cases pin the precedence the two share.
 """
 import pytest
 
-from colony_manager.enums import ConfocalImageStatus
+from colony_manager.enums import ConfocalImageStatus, DataStatus
 from colony_manager.models.histology import (
     CONFLICT_FILE_MISMATCH, CONFLICT_MULTIPLE_FILES, CONFLICT_UNANALYZED,
 )
@@ -26,9 +26,12 @@ def image(db_session):
     )
 
 
-def _attach(db_session, image, *, is_rated=None):
+def _attach(db_session, image, *, is_rated=None, analyze=None,
+            status=DataStatus.UNREVIEWED):
     row = make_confocal_image_data(db_session, confocal_image=image)
     row.is_rated = is_rated
+    row.analyze = analyze
+    row.status = status
     db_session.commit()
     return row
 
@@ -68,6 +71,41 @@ def test_two_files_linked_is_a_multiple_files_conflict(db_session, image):
     _attach(db_session, image, is_rated=True)
     db_session.commit()
     assert image.conflict == CONFLICT_MULTIPLE_FILES
+
+
+@pytest.mark.parametrize('spare', [
+    {'analyze': False},                   # a good spare, set aside
+    {'status': DataStatus.EXCLUDE},       # a flawed spare
+])
+def test_replicate_with_the_spare_set_aside_is_clean(db_session, image, spare):
+    image.status = ConfocalImageStatus.ANALYZED
+    _attach(db_session, image, is_rated=True)
+    _attach(db_session, image, is_rated=False, **spare)
+    assert image.conflict is None
+
+
+def test_replicates_all_set_to_analyze_are_clean(db_session, image):
+    """Two copies both set to Analyze is a decision, not a conflict."""
+    image.status = ConfocalImageStatus.ANALYZED
+    _attach(db_session, image, is_rated=True, analyze=True)
+    _attach(db_session, image, is_rated=True, analyze=True)
+    assert image.conflict is None
+
+
+def test_one_analyze_one_not_set_is_still_multiple_files(db_session, image):
+    """Setting one copy to Analyze says nothing about the other."""
+    image.status = ConfocalImageStatus.ANALYZED
+    _attach(db_session, image, is_rated=True, analyze=True)
+    _attach(db_session, image, is_rated=True)
+    assert image.conflict == CONFLICT_MULTIPLE_FILES
+
+
+def test_skipped_file_with_analysis_does_not_mask_the_other(db_session, image):
+    """Only files in the analysis queue can satisfy *analyzed*."""
+    image.status = ConfocalImageStatus.ANALYZED
+    _attach(db_session, image, is_rated=True, analyze=False)
+    _attach(db_session, image, is_rated=False)
+    assert image.conflict == CONFLICT_UNANALYZED
 
 
 def test_analyzed_with_an_unrated_file_is_an_unanalyzed_conflict(

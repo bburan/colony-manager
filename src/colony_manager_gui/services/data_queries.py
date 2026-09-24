@@ -71,7 +71,9 @@ def scoreboard_summary(session: Session, datatypes, *, datatype_id=None):
             func.count().filter(Data.is_rated.is_(True)).label('analyzed'),
             func.count().filter(_NOT_RATED, _PARTIAL).label('partial'),
         )
-        .where(Data.datatype_id.in_(ids))
+        # Skipped replicates and excluded/missing files aren't work anyone
+        # is expected to do, so they count neither way.
+        .where(Data.datatype_id.in_(ids), Data.in_analysis_queue)
         .group_by(Data.datatype_id)
     ).all()
     by_id = {r.datatype_id: r for r in rows}

@@ -10,9 +10,10 @@ from typing import NamedTuple
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
-    String, Text, UniqueConstraint, func,
+    String, Text, UniqueConstraint, and_, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from colony_manager.enums import DataStatus
@@ -78,6 +79,20 @@ class DataType(VersionedModel):
         except Exception:
             return False
         return bool(getattr(cls, 'is_folder', False))
+
+    @property
+    def supports_rating(self):
+        """Whether files of this type carry an analysis staff work through.
+
+        Gates the per-file Analyze / Skip menu (``Data.analyze``): only a
+        ratable type has an analysis queue for the choice to affect. Same
+        tolerance as ``uses_folders`` — an unresolvable class is not ratable.
+        """
+        try:
+            cls = self.get_description_class()
+        except Exception:
+            return False
+        return bool(getattr(cls, 'supports_rating', False))
 
     def match_targets(self, session, parsed):
         return []
@@ -300,6 +315,17 @@ class Data(VersionedModel):
     date            = Column(Date, nullable=True)
     status          = Column(String(50), nullable=False, default=DataStatus.UNREVIEWED)
     notes           = Column(Text, nullable=True)
+    # Whether this file is one staff should analyze, for ratable datatypes
+    # where a target can carry replicates (several confocal images of the
+    # same ear/frequency). Deliberately separate from ``status``: that is
+    # the file's *quality* (and sync overwrites it — MISSING and back),
+    # while this is a *selection* — a perfectly good replicate can still be
+    # surplus. Three states: NULL = Not set (the default; must be analyzed,
+    # the historical behavior), True = Analyze (chosen on purpose), False =
+    # Skip (an extra copy that does not need analysis). The NULL/True split
+    # is what lets the histology grid tell "two copies wanted on purpose"
+    # from "two files nobody has looked at".
+    analyze         = Column(Boolean, nullable=True)
     is_rated        = Column(Boolean, nullable=True)
     rating_note     = Column(Text, nullable=True)
     # For rating schemes with named raters (e.g. ABR waveform picks):
@@ -345,6 +371,31 @@ class Data(VersionedModel):
         'polymorphic_on': target_type,
         'polymorphic_identity': 'data',
     }
+
+    # Statuses that take a file out of analysis whatever ``analyze`` says:
+    # a flawed image, or one no longer on disk, is not work anyone can do.
+    _NOT_ANALYZABLE = (DataStatus.EXCLUDE, DataStatus.MISSING)
+
+    @hybrid_property
+    def in_analysis_queue(self):
+        """Whether this file is still one staff are expected to analyze.
+
+        False when it is marked Skip (``analyze`` is False) or its status is
+        exclude/missing; Not set (NULL) stays in. Works on
+        instances and in SQL, so the unrated-data page and scoreboard
+        (``WHERE``) and the histology grid's conflict rule (Python) share
+        one definition.
+        """
+        return self.analyze is not False and self.status not in self._NOT_ANALYZABLE
+
+    @in_analysis_queue.expression
+    def in_analysis_queue(cls):
+        # ``IS NOT false`` keeps the NULL (Not set) rows, where ``!= false``
+        # would drop them.
+        return and_(
+            cls.analyze.is_not(False),
+            cls.status.not_in(cls._NOT_ANALYZABLE),
+        )
 
     @property
     def full_path(self):

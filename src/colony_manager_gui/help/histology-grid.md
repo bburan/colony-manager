@@ -45,8 +45,15 @@ the files linked to it:
 | Glow | Conflict |
 |---|---|
 | Red | the files contradict the status — a status that implies imaging happened but no file linked, or a region marked missing that nevertheless has one |
-| Black | more than one file linked, where the grid expects one image per cell |
+| Black | more than one file linked, and nobody has said which to analyze |
 | Orange | marked analyzed, a file is linked, but no linked file reports a completed analysis |
+
+Replicates are allowed, so the black glow is asking for a decision, not
+reporting an error. Open the square and click each file's analysis badge:
+set the extra copies to **Skip** (or set their status to **Excluded**, if
+they are flawed), or set every copy to **Analyze** if you want them all.
+See [Working with data files](/help/data-files). Skipped and excluded
+files are ignored for the orange glow too.
 
 A file whose rating has simply never been checked does not count as
 missing analysis, so it raises no orange glow.

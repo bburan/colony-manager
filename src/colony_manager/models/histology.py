@@ -142,11 +142,15 @@ class ConfocalImage(VersionedModel):
             a status asserting imaging work happened but no file linked,
             or a region marked missing that nonetheless has one.
         ``multiple_files``
-            More than one data file linked, where the grid expects one
-            image per cell.
+            More than one linked file still in the analysis queue
+            (``Data.in_analysis_queue``) and at least one of them Not set
+            (``analyze`` NULL). Replicates are allowed, so what this flags
+            is the missing *decision*: skipping or excluding the extra
+            copies, or setting every copy to Analyze, resolves it.
         ``unanalyzed``
-            Marked analyzed, with a file linked, but no linked file
-            reports a completed analysis. Files whose ``is_rated`` is
+            Marked analyzed, with a file in the analysis queue, but no
+            such file reports a completed analysis — a skipped or
+            excluded replicate isn't expected to. Files whose ``is_rated`` is
             NULL are ignored rather than treated as unanalyzed: NULL
             means the rating job has nothing to say about that file (its
             description class doesn't rate, or hasn't been scanned), which
@@ -158,10 +162,11 @@ class ConfocalImage(VersionedModel):
             return CONFLICT_FILE_MISMATCH
         if status == ConfocalImageStatus.REGION_MISSING and files:
             return CONFLICT_FILE_MISMATCH
-        if len(files) > 1:
+        queued = [f for f in files if f.in_analysis_queue]
+        if len(queued) > 1 and any(f.analyze is None for f in queued):
             return CONFLICT_MULTIPLE_FILES
         if (status == ConfocalImageStatus.ANALYZED
-                and any(f.is_rated is not None for f in files)
-                and not any(f.is_rated for f in files)):
+                and any(f.is_rated is not None for f in queued)
+                and not any(f.is_rated for f in queued)):
             return CONFLICT_UNANALYZED
         return None

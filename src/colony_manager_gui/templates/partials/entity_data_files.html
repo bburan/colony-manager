@@ -56,10 +56,7 @@
                             <span class="df-meta">{{ f.date.strftime('%Y-%m-%d') }}</span>
                             {% endif %}
                             {{ macros.render_status_indicator(f, label=True) }}
-                            {% if f.is_rated is not none %}
-                            <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }}"
-                               title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
-                            {% endif %}
+                            {{ macros.render_analysis_indicator(f) }}
                         </span>
                     </div>
                     {% with data_file=f, animal=animal, show_header=False %}
@@ -100,11 +97,8 @@
                     {% if f.notes %}
                     <i class="fas fa-comment df-note-indicator flex-shrink-0" title="{{ f.notes }}"></i>
                     {% endif %}
-                    {% if f.is_rated is not none %}
-                    <i class="fas fa-{{ 'circle-check' if f.is_rated else 'circle-exclamation' }} df-rating-indicator {{ 'rated' if f.is_rated else 'unrated' }} flex-shrink-0"
-                       title="{{ f.rating_note or ('Rated' if f.is_rated else 'Not rated') }}"></i>
-                    {% endif %}
                 </button>
+                {{ macros.render_analysis_indicator(f) }}
                 <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
             </div>
             <div x-show="open" x-cloak class="df-body px-3 pt-2 pb-3">

@@ -74,8 +74,10 @@
             <div class="d-flex flex-column gap-3">
                 {% for f in data_files %}
                 <div>
-                    <div class="d-flex gap-1 mb-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        {{ macros.render_status_indicator(f) }}
                         <span class="small flex-grow-1" style="min-width: 0; word-break: break-all;" title="{{ f.full_path }}">{{ f.name }}</span>
+                        {{ macros.render_analysis_indicator(f) }}
                         <span class="flex-shrink-0">{{ macros.render_callback_buttons(f) }}</span>
                     </div>
                     {% with data_file=f, animal=ear.animal, show_header=False %}

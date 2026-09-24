@@ -123,9 +123,6 @@ th {
 .df-status-icon.unreviewed { color: #adb5bd; }
 .df-status-icon.missing { color: #dc3545; }
 .df-note-indicator { color: #6c757d; font-size: var(--fs-xs); }
-.df-rating-indicator { font-size: var(--fs-xs); }
-.df-rating-indicator.rated   { color: #198754; }
-.df-rating-indicator.unrated { color: #fd7e14; }
 
 /* Image rows: thumbnail + filename/note/status columns */
 .df-thumb-btn { line-height: 0; border-radius: 0.25rem; }
@@ -189,6 +186,22 @@ th {
 .data-status-group[data-status="unreviewed"] button[data-set-status="unreviewed"] {
     display: none !important;
 }
+
+/* Analysis badge (render_analysis_indicator). On ratable types it is also
+   the Analyze / Skip dropdown button, so it has to shed <button> chrome and
+   keep the badge's own size — and never stretch to a taller row. */
+.df-analysis { align-self: center; line-height: 1; }
+.df-analysis-badge {
+    font-size: var(--fs-label);
+    line-height: 1.2;
+    padding: 0.2em 0.5em;
+}
+button.df-analysis-badge { cursor: pointer; }
+button.df-analysis-badge:hover { filter: brightness(0.95); }
+.df-analysis-badge.dropdown-toggle::after { margin-left: 0.35em; vertical-align: 0.15em; }
+.df-analysis-menu { font-size: var(--fs-sm); }
+.df-analysis-menu .df-analysis-hint { color: var(--bs-secondary-color); }
+.df-analysis-menu .active .df-analysis-hint { color: inherit; opacity: 0.8; }
 
 /* ---- Accent colour + interaction polish ("pop") --------------------
    A single teal accent, re-pointed through Bootstrap's own primary/link

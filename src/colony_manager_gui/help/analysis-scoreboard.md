@@ -36,7 +36,9 @@ One card per data type, with a bar split three ways:
 
 The percentage in the badge counts only fully analyzed files. A data type
 with no files yet still gets a card, at 0%, so nothing silently drops off
-the report.
+the report. Files marked Excluded, Missing or Skip are not counted at
+all, the same files that are left off
+[Needs Analysis](/help/unrated-data).
 
 ## By analyst
 

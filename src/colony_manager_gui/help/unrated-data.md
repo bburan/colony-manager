@@ -15,6 +15,11 @@ Only some kinds of data can answer that question — ABR waveform picks, IHC
 and OHC counts, synaptograms. Data types that cannot are absent from this
 page entirely, and from its data-type dropdown.
 
+Some files are left off even though their type can report status: files
+marked **Excluded** or **Missing**, and replicates marked **Skip** (see
+[Working with data files](/help/data-files)). If a file you expected is
+not here, check those first.
+
 ## Unrated vs partial
 
 The **State** filter distinguishes two ways of being unfinished:

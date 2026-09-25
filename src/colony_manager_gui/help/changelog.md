@@ -17,6 +17,13 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-09-25
+
+**The app has its own icon.** Browser tabs, bookmarks and the bookmark
+bar now show the blue DNA mark from the top left of the navigation bar
+instead of a blank page symbol. A bookmark you saved earlier may keep
+showing the blank one until you open the page again or re-add it.
+
 ## 2026-09-24
 
 **Every analyzable file shows whether it has been analyzed.** Files whose

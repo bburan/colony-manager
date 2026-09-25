@@ -50,6 +50,17 @@ to Analyze. Skipped and excluded copies are also ignored for the orange
 "marked analyzed but no analysis" glow. See the [histology
 grid](/help/histology-grid).
 
+**Poor histology and missing regions are left out of the analysis
+counts.** Confocal files whose image is marked *Poor histology* or
+*Region missing* no longer appear on [Needs
+Analysis](/help/unrated-data) or anywhere on the [Analysis
+Scoreboard](/help/analysis-scoreboard) — even if someone analyzed them —
+and their badge names the image status instead of *Not analyzed*. The
+scoreboard's per-analyst counts and recent activity now also leave out
+skipped, excluded and missing files, matching its completion bars, so
+some people's totals may drop. Change an image back to *Imaged* and its
+files return.
+
 ## 2026-09-23
 
 **Image files are easier to read.** Photos, scans and PDFs attached to an

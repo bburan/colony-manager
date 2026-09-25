@@ -84,4 +84,4 @@ where = ["src"]
 # editable so this never mattered, but a built wheel needs them
 # declared or the app boots with no templates at all.
 [tool.setuptools.package-data]
-colony_manager_gui = ["templates/*.html", "templates/partials/*.html", "static/css/*.css", "static/js/*.js", "help/*.md"]
+colony_manager_gui = ["templates/*.html", "templates/partials/*.html", "static/css/*.css", "static/js/*.js", "static/*.svg", "static/*.ico", "static/*.png", "help/*.md"]

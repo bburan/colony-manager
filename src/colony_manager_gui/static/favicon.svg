@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Colony Manager mark: the navbar's fa-dna helix on a Bootstrap-primary tile.
+     Geometry matches scripts/make_favicon.py, which renders the .ico/.png. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Colony Manager">
+  <rect width="32" height="32" rx="7" fill="#0d6efd"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <g stroke-width="1.7">
+      <path d="M21.04 7H10.96"/>
+      <path d="M10 16h12"/>
+      <path d="M21.04 25H10.96"/>
+    </g>
+    <g stroke-width="2.6">
+      <path d="M22 5C22 9 10 12 10 16C10 20 22 23 22 27"/>
+      <path d="M10 5C10 9 22 12 22 16C22 20 10 23 10 27"/>
+    </g>
+  </g>
+</svg>

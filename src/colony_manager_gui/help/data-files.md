@@ -67,6 +67,7 @@ right of the row:
 | Not analyzed | no analysis yet |
 | Unchecked | the app has not scanned this file's analysis yet — use **Re-scan now** on [Needs Analysis](/help/unrated-data) |
 | Skipped | set to Skip — does not need analysis (see below) |
+| Poor histology, Region missing | a confocal file whose image has that status: never analyzed or counted, so the badge offers no choices |
 
 Hover the badge for the detail. For a partial analysis, this is where it
 says what is missing.

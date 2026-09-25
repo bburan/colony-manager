@@ -21,6 +21,15 @@ _STATUS_EXPECTS_FILE = frozenset({
     ConfocalImageStatus.REGION_BAD,
 })
 
+# Statuses saying the image holds nothing to analyze: the region doesn't
+# exist, or it does but isn't usable. A file linked to one is out of the
+# analysis queue and the scoreboard entirely (``Data.in_analysis_queue``),
+# even if someone analyzed it anyway.
+UNANALYZABLE_IMAGE_STATUSES = frozenset({
+    ConfocalImageStatus.REGION_MISSING,
+    ConfocalImageStatus.REGION_BAD,
+})
+
 # Grid conflict codes, listed in the precedence ``ConfocalImage.conflict``
 # applies them.
 CONFLICT_FILE_MISMATCH  = 'file_mismatch'
@@ -146,7 +155,9 @@ class ConfocalImage(VersionedModel):
             (``Data.in_analysis_queue``) and at least one of them Not set
             (``analyze`` NULL). Replicates are allowed, so what this flags
             is the missing *decision*: skipping or excluding the extra
-            copies, or setting every copy to Analyze, resolves it.
+            copies, or setting every copy to Analyze, resolves it. A Poor
+            histology image never raises it: its files are all out of the
+            queue, so there is nothing to choose between.
         ``unanalyzed``
             Marked analyzed, with a file in the analysis queue, but no
             such file reports a completed analysis — a skipped or

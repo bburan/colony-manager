@@ -262,3 +262,96 @@ def test_set_analyze_returns_the_rerendered_badge(logged_in_client, db_session):
     undone = logged_in_client.post(
         f'/animals/data/{row.id}/analyze', data={'analyze': 'yes'}).get_json()
     assert _badge(undone['indicator'], row.id) == 'Analyzed'
+
+
+# ---------------------------------------------------------------------------
+# Confocal files on a Poor histology / Region missing image
+# ---------------------------------------------------------------------------
+
+def _confocal_file(session, *, image_status, is_rated=False, analyzed_by=None,
+                   analyzed_at=None, name=None):
+    """A ratable confocal file linked to a fresh image with *image_status*."""
+    from .factories import (
+        make_confocal_image, make_confocal_image_data,
+        make_confocal_image_data_type, make_ear,
+    )
+    ear = make_ear(session, animal=make_animal(session), side='Left')
+    image = make_confocal_image(session, ear=ear)
+    image.status = image_status
+    dtype = make_confocal_image_data_type(session)
+    dtype.description_class = 'fake_ratable'
+    row = make_confocal_image_data(session, datatype=dtype, confocal_image=image)
+    if name:
+        row.name = row.relative_path = name
+    row.is_rated = is_rated
+    row.rating_note = 'Done' if is_rated else 'Not analyzed'
+    row.analyzed_by = analyzed_by
+    row.analyzed_at = analyzed_at
+    session.commit()
+    return row
+
+
+@pytest.mark.parametrize('image_status, queued', [
+    ('imaged', True),
+    ('analyzed', True),
+    ('need_review', True),
+    (None, True),                  # NULL reads as imaged
+    ('region_bad', False),
+    ('region_missing', False),
+])
+def test_image_status_decides_queue_membership(db_session, image_status, queued):
+    row = _confocal_file(db_session, image_status=image_status)
+    assert row.in_analysis_queue is queued
+    in_sql = db_session.scalars(
+        select(Data.id).where(Data.id == row.id, Data.in_analysis_queue)
+    ).first() is not None
+    assert in_sql is queued
+
+
+def test_needs_analysis_drops_poor_histology(logged_in_client, db_session):
+    _confocal_file(db_session, image_status='region_bad', name='poor.czi')
+    _confocal_file(db_session, image_status='imaged', name='good.czi')
+
+    resp = logged_in_client.get('/animals/unrated-data')
+    assert b'good.czi' in resp.data
+    assert b'poor.czi' not in resp.data
+
+
+def test_poor_histology_is_off_every_scoreboard_panel(db_session):
+    """Even when analyzed: the region isn't usable, so the work isn't owed
+    and isn't credited."""
+    from datetime import datetime
+    from colony_manager_gui.services import data_queries
+
+    when = datetime(2026, 9, 1)
+    poor = _confocal_file(db_session, image_status='region_bad', is_rated=True,
+                          analyzed_by=['Sean'], analyzed_at=when)
+    good = _confocal_file(db_session, image_status='analyzed', is_rated=True,
+                          analyzed_by=['Brad'], analyzed_at=when)
+    dtypes = [poor.datatype, good.datatype]
+
+    summary = {s['datatype'].id: s for s in data_queries.scoreboard_summary(db_session, dtypes)}
+    assert summary[poor.datatype_id]['total'] == 0
+    assert summary[good.datatype_id]['total'] == 1
+
+    analysts = {p['user'] for p in data_queries.scoreboard_by_analyst(db_session, dtypes)}
+    assert analysts == {'Brad'}
+
+    recent = data_queries.recent_analyses(db_session, dtypes)
+    assert [r.id for r in recent] == [good.id]
+
+
+@pytest.mark.parametrize('image_status, label', [
+    ('region_bad', 'Poor histology'),
+    ('region_missing', 'Region missing'),
+])
+def test_badge_names_the_image_status_and_offers_no_menu(
+    logged_in_client, db_session, image_status, label,
+):
+    row = _confocal_file(db_session, image_status=image_status, is_rated=True)
+    ear = row.confocal_images[0].ear
+
+    html = logged_in_client.get(f'/histology/ears/{ear.id}').get_data(as_text=True)
+    assert _badge(html, row.id) == label
+    (wrapper,) = set(_badge_html(html, row.id))
+    assert 'data-analyze-option' not in wrapper

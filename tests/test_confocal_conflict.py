@@ -159,3 +159,12 @@ def test_multiple_files_outranks_unanalyzed(db_session, image):
     _attach(db_session, image, is_rated=False)
     db_session.commit()
     assert image.conflict == CONFLICT_MULTIPLE_FILES
+
+
+def test_poor_histology_with_several_files_is_clean(db_session, image):
+    """Nothing on a Poor histology image is analyzed, so there is no choice
+    between its copies to flag."""
+    image.status = ConfocalImageStatus.REGION_BAD
+    _attach(db_session, image, is_rated=False)
+    _attach(db_session, image, is_rated=False)
+    assert image.conflict is None

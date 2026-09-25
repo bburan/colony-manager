@@ -143,6 +143,11 @@
    ratable datatypes (plus any file that somehow carries a rating anyway);
    everything else gets nothing. States, in precedence:
 
+     Poor histology / Region missing
+                   linked to a confocal image with that status
+                   (``Data.unanalyzable_image_status``) — out of the queue
+                   and the scoreboard however far any analysis got. Plain
+                   badge, no menu: Analyze / Skip can't change anything.
      Skipped       analyze is False — an extra copy, out of the queue
      Analyzed      is_rated
      Partial       not rated, and the note says partial (the same test as
@@ -170,7 +175,12 @@
 {% if ratable or data_file.is_rated is not none %}
 {% set note = data_file.rating_note or '' %}
 {% set state = _analyze_state(data_file) %}
-{% if state == 'no' %}
+{% set image_status = data_file.unanalyzable_image_status %}
+{% set choosable = ratable and not image_status %}
+{% if image_status %}
+    {% set label = {'region_bad': 'Poor histology', 'region_missing': 'Region missing'}.get(image_status, image_status) %}
+    {% set tone, title = 'secondary', 'Image marked ' ~ label ~ ' — not analyzed or counted' %}
+{% elif state == 'no' %}
     {% set tone, label, title = 'secondary', 'Skipped', 'Skipped — does not need analysis' ~ ((' · ' ~ note) if note else '') %}
 {% elif data_file.is_rated %}
     {% set tone, label, title = 'success', 'Analyzed', note or 'Analyzed' %}
@@ -184,7 +194,7 @@
 {% if state == 'yes' %}{% set title = 'Set to Analyze · ' ~ title %}{% endif %}
 {% set badge_class = 'badge df-analysis-badge bg-%s-subtle text-%s-emphasis border border-%s-subtle fw-normal'|format(tone, tone, tone) %}
 <span class="df-analysis dropdown flex-shrink-0" data-data-id="{{ data_file.id }}">
-{%- if ratable %}
+{%- if choosable %}
     <button type="button" class="{{ badge_class }} dropdown-toggle"
             data-bs-toggle="dropdown" aria-expanded="false"
             title="{{ title }} — click to change">

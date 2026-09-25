@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, JSON,
-    String, Text, UniqueConstraint, and_, func,
+    String, Text, UniqueConstraint, and_, func, select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -380,22 +380,44 @@ class Data(VersionedModel):
     def in_analysis_queue(self):
         """Whether this file is still one staff are expected to analyze.
 
-        False when it is marked Skip (``analyze`` is False) or its status is
-        exclude/missing; Not set (NULL) stays in. Works on
-        instances and in SQL, so the unrated-data page and scoreboard
-        (``WHERE``) and the histology grid's conflict rule (Python) share
-        one definition.
+        False when it is marked Skip (``analyze`` is False), its status is
+        exclude/missing, or it is linked to a confocal image marked Region
+        missing or Poor histology (``unanalyzable_image_status``); Not set
+        (NULL) stays in. Works on instances and in SQL, so the unrated-data
+        page and scoreboard (``WHERE``) and the histology grid's conflict
+        rule (Python) share one definition.
         """
-        return self.analyze is not False and self.status not in self._NOT_ANALYZABLE
+        return (self.analyze is not False
+                and self.status not in self._NOT_ANALYZABLE
+                and self.unanalyzable_image_status is None)
 
     @in_analysis_queue.expression
     def in_analysis_queue(cls):
+        # Imported here, not at module top: model modules import only from
+        # ``base`` (see models/__init__.py), and this runs at query time.
+        from .histology import ConfocalImage, UNANALYZABLE_IMAGE_STATUSES
+        t = confocal_image_data_targets
+        on_unanalyzable_image = (
+            select(t.c.confocal_image_data_id)
+            .join(ConfocalImage, ConfocalImage.id == t.c.confocal_image_id)
+            .where(ConfocalImage.status.in_([str(s) for s in UNANALYZABLE_IMAGE_STATUSES]))
+        )
         # ``IS NOT false`` keeps the NULL (Not set) rows, where ``!= false``
         # would drop them.
         return and_(
             cls.analyze.is_not(False),
             cls.status.not_in(cls._NOT_ANALYZABLE),
+            cls.id.not_in(on_unanalyzable_image),
         )
+
+    @property
+    def unanalyzable_image_status(self):
+        """The status of a linked confocal image that rules analysis out, or None.
+
+        Only confocal files can be linked to an image, so this base version
+        is always None; ``ConfocalImageData`` overrides it.
+        """
+        return None
 
     @property
     def full_path(self):
@@ -621,6 +643,17 @@ class ConfocalImageData(Data):
     @property
     def unmatched_objects(self):
         return self._ear_unmatched_objects({img.ear.id for img in self.confocal_images})
+
+    @property
+    def unanalyzable_image_status(self):
+        # Any one such image rules the file out: Poor histology means the
+        # region isn't usable however far an analysis got.
+        from .histology import UNANALYZABLE_IMAGE_STATUSES
+        return next(
+            (img.status for img in self.confocal_images
+             if img.status in UNANALYZABLE_IMAGE_STATUSES),
+            None,
+        )
 
 
 class AnimalData(Data):

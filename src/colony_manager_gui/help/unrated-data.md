@@ -16,9 +16,11 @@ and OHC counts, synaptograms. Data types that cannot are absent from this
 page entirely, and from its data-type dropdown.
 
 Some files are left off even though their type can report status: files
-marked **Excluded** or **Missing**, and replicates marked **Skip** (see
-[Working with data files](/help/data-files)). If a file you expected is
-not here, check those first.
+marked **Excluded** or **Missing**, replicates marked **Skip** (see
+[Working with data files](/help/data-files)), and confocal files whose
+image is marked **Poor histology** or **Region missing** — there is
+nothing usable to analyze. If a file you expected is not here, check
+those first.
 
 ## Unrated vs partial
 

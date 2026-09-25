@@ -7,6 +7,10 @@ maintains on ``Data`` — ``is_rated`` / ``rating_note`` (completeness),
 ``analyzed_by`` (who worked the analysis) and ``analyzed_at`` (when it was
 last modified) — and rolls them up per DataType and per analyst.
 
+All three panels see only files in the analysis queue
+(``Data.in_analysis_queue``), so work on a skipped copy, an excluded or
+missing file, or a Poor histology image is neither owed nor credited.
+
 Which DataTypes are "ratable" is decided the same way as
 ``routes/animals.py:list_unrated_data``: a description class that sets
 ``supports_rating = True``.
@@ -71,8 +75,9 @@ def scoreboard_summary(session: Session, datatypes, *, datatype_id=None):
             func.count().filter(Data.is_rated.is_(True)).label('analyzed'),
             func.count().filter(_NOT_RATED, _PARTIAL).label('partial'),
         )
-        # Skipped replicates and excluded/missing files aren't work anyone
-        # is expected to do, so they count neither way.
+        # Skipped copies, excluded/missing files and files on a Poor
+        # histology / Region missing image aren't work anyone is expected to
+        # do, so they count neither way (the other two panels agree).
         .where(Data.datatype_id.in_(ids), Data.in_analysis_queue)
         .group_by(Data.datatype_id)
     ).all()
@@ -111,6 +116,7 @@ def scoreboard_by_analyst(session: Session, datatypes, *, since=None):
     stmt = select(Data.datatype_id, Data.analyzed_by, Data.analyzed_at).where(
         Data.datatype_id.in_(ids),
         Data.analyzed_by.isnot(None),
+        Data.in_analysis_queue,
     )
     if since is not None:
         stmt = stmt.where(Data.analyzed_at >= since)
@@ -143,7 +149,8 @@ def recent_analyses(session: Session, datatypes, *, since=None, limit=25):
         return []
     stmt = (
         select(Data)
-        .where(Data.datatype_id.in_(ids), Data.analyzed_at.isnot(None))
+        .where(Data.datatype_id.in_(ids), Data.analyzed_at.isnot(None),
+               Data.in_analysis_queue)
         .order_by(Data.analyzed_at.desc())
     )
     if since is not None:

@@ -36,6 +36,12 @@ with the Animal column pinned and today's date scrolled into view. The
 the breeding pair pages and the [animal list](/help/animal-list) with
 the Study filter instead. See [Dashboard](/help/dashboard).
 
+**Click ABRs from the freefield rig are recognized.** Run folders ending
+in `abr_io_click_freefield` are now picked up by the data sync as *ABR
+IO (Click, freefield)*, with the same PDFs, thresholds and analysis
+status as other ABRs. Existing runs appear after the next sync. See
+[CFTS data](/help/mmm-db-cfts).
+
 ## 2026-09-25
 
 **The app has its own icon.** Browser tabs, bookmarks and the bookmark

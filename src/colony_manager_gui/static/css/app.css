@@ -64,6 +64,16 @@ th {
     border-color: var(--bs-table-border-color);
 }
 
+/* Dashboard weight log: scrolls sideways inside its card at narrow
+   widths, with the Animal column pinned so rows stay identifiable. */
+.weight-table tr > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: var(--bs-body-bg);
+    border-right: 1px solid var(--bs-border-color);
+}
+
 .popover-wide {
     max-width: 450px;
 }

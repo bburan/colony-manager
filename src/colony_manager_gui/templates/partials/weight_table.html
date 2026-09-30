@@ -1,8 +1,9 @@
-<table class="table table-responsive table-striped-columns">
+<div class="table-responsive weight-table-scroll">
+<table class="table table-striped-columns weight-table">
     <thead>
     <td>Animal</td>
     {% for entry in weights.values()|list|first %}
-        <td>{{ entry['date'].month }}/{{ entry.date.day}}<br />{{ entry['date'].strftime('%a') }}</td>
+        <td data-date="{{ entry['date'].strftime('%Y-%m-%d') }}">{{ entry['date'].month }}/{{ entry.date.day}}<br />{{ entry['date'].strftime('%a') }}</td>
     {% endfor %}
     </thead>
     <tbody>
@@ -52,3 +53,4 @@
     {% endfor %}
     </tbody>
 </table>
+</div>

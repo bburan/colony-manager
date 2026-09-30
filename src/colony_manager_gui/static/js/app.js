@@ -276,6 +276,39 @@ document.body.addEventListener('htmx:load', function (evt) {
     initBootstrapWidgets(evt.detail.elt);
 });
 
+// Dashboard weight log: when the table starts overflowing its card (page
+// load at a narrow width, or a resize down into one), scroll so today's
+// column sits at the right edge — the most recent days, not the oldest.
+function initWeightTableScroll(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.weight-table-scroll').forEach(wrap => {
+        if (wrap.dataset.scrollInit) return;
+        wrap.dataset.scrollInit = '1';
+        let overflowing = false;
+        new ResizeObserver(() => {
+            const now = wrap.scrollWidth > wrap.clientWidth;
+            if (now && !overflowing) {
+                const d = new Date();
+                const today = [d.getFullYear(),
+                    String(d.getMonth() + 1).padStart(2, '0'),
+                    String(d.getDate()).padStart(2, '0')].join('-');
+                const cell = wrap.querySelector(`[data-date="${today}"]`);
+                wrap.scrollLeft = cell
+                    ? cell.offsetLeft + cell.offsetWidth - wrap.clientWidth
+                    : wrap.scrollWidth;
+            }
+            overflowing = now;
+        }).observe(wrap);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    initWeightTableScroll(document);
+});
+document.body.addEventListener('htmx:load', function (evt) {
+    initWeightTableScroll(evt.detail.elt);
+});
+
 // Dispose Bootstrap tooltips/popovers under ``root`` so their body-attached
 // popups don't orphan when the trigger element is removed.
 function disposeBootstrapWidgets(root) {

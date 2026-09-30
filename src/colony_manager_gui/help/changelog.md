@@ -19,6 +19,11 @@ check here first: the behaviour probably changed.
 
 ## 2026-09-30
 
+**Filter animals by data type.** The Animal Overview has a new *Data
+Type* filter that keeps only animals with at least one event carrying a
+file of the chosen type, such as *ABR IO (Freefield)*. See the
+[Animal list](/help/animal-list) help.
+
 **Data sync no longer stops partway through.** The sync could crash when
 a data file matched an animal with a recorded termination date, leaving
 every file after it unprocessed. Those files are picked up on the next

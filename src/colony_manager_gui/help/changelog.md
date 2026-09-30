@@ -17,6 +17,20 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-09-30
+
+**Data sync no longer stops partway through.** The sync could crash when
+a data file matched an animal with a recorded termination date, leaving
+every file after it unprocessed. Those files are picked up on the next
+sync; nothing needs to be re-entered.
+
+**A tidier dashboard.** On a narrow window or a phone the Weights table
+now scrolls sideways inside its panel instead of spilling off the page,
+with the Animal column pinned and today's date scrolled into view. The
+*Upcoming Litters* and *Animals Without a Study* panels are gone — use
+the breeding pair pages and the [animal list](/help/animal-list) with
+the Study filter instead. See [Dashboard](/help/dashboard).
+
 ## 2026-09-25
 
 **The app has its own icon.** Browser tabs, bookmarks and the bookmark

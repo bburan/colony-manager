@@ -25,8 +25,9 @@ pytest                       # all tests
 pytest tests/test_models_animal.py    # one file
 pytest tests/test_models_animal.py::test_age_display_units   # one test
 pytest -k terminate          # by keyword
-pytest -n auto               # parallel, one worker per CPU
 ```
+
+**Never run tests in parallel** (`-n auto` / `-n N`). Against the remote test Postgres it produces spurious fixture/DB errors on tests that pass serially. Narrow the run with `-k` or a file path instead.
 
 Two tiers:
 - **Unit** (helpers, escaping, safe-url, decorators) — runs anywhere, no DB.

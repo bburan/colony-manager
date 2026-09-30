@@ -28,6 +28,7 @@ circular arrow at the top right clears everything.
 | **Procedure** | animals with at least one event of that procedure — *or any procedure nested beneath it* |
 | **Animal Tag** | animals carrying that tag, or any tag nested beneath it |
 | **Event Tag** | animals with an event carrying that tag, or any beneath it |
+| **Data Type** | animals with at least one event that has a data file of that type attached (e.g. *ABR IO (Freefield)*) |
 | **Study** | animals enrolled in that study |
 | **Search ID** | substring match on the animal ID |
 

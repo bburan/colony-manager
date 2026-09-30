@@ -6,7 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from colony_manager.models import (
-    Animal, AnimalEvent, AnimalProcedure, AnimalTag, AnimalEventTag, Study,
+    Animal, AnimalEvent, AnimalEventData, AnimalEventDataType,
+    AnimalProcedure, AnimalTag, AnimalEventTag, Study,
 )
 
 
@@ -77,6 +78,13 @@ def get_filtered_animals(session: Session, filters: dict[str, Any]) -> list[Anim
             AnimalEvent.tags.any(AnimalEventTag.id.in_(et_ids))
         ))
 
+    datatype_id = filters.get('datatype_id', 'all')
+    if datatype_id != 'all':
+        stmt = stmt.where(Animal.events.any(
+            AnimalEvent.data_files.any(
+                AnimalEventData.datatype_id == int(datatype_id))
+        ))
+
     event_filter = filters.get('event_filter', 'all')
     if event_filter == 'has_events':
         stmt = stmt.where(Animal.events.any())
@@ -126,4 +134,7 @@ def get_animal_filter_options(session: Session) -> dict[str, list[Any]]:
         'animal_tags': AnimalTag.get_ordered(session),
         'event_tags': AnimalEventTag.get_ordered(session),
         'studies': session.scalars(select(Study).order_by(Study.name)).all(),
+        'event_datatypes': session.scalars(
+            select(AnimalEventDataType).order_by(AnimalEventDataType.name)
+        ).all(),
     }

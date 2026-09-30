@@ -42,6 +42,11 @@ IO (Click, freefield)*, with the same PDFs, thresholds and analysis
 status as other ABRs. Existing runs appear after the next sync. See
 [CFTS data](/help/mmm-db-cfts).
 
+**Ages show in weeks by default.** Every age in the app now displays in
+weeks until you pick days or months from the clock menu in the
+navigation bar, which still applies for the rest of your session. See
+[Navigation](/help/navigation).
+
 ## 2026-09-25
 
 **The app has its own icon.** Browser tabs, bookmarks and the bookmark

@@ -89,48 +89,7 @@ Dashboard
 </div>
 
 <div class="row mb-4">
-    <div class="col-12 col-md-6 col-lg-4 mb-4 mb-lg-0">
-        <div class="card shadow-sm h-100">
-            <div class="card-header">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Upcoming Litters</h2>
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush small">
-                    {% for litter in upcoming_litters %}
-                    <li class="list-group-item px-0 py-1">
-                        {{ litter.pup_count }} pups {{ litter.age_display(age_unit|default('day')) }} old from {{ litter.breeding_pair.custom_id }}
-                        <a class="stretched-link" href="{{ url_for('breeding.view_breeding_pair', breeding_pair_id=litter.breeding_pair.id) }}"></a>
-                    </li>
-                    {% else %}
-                    <li class="text-muted small fst-italic mb-0">No upcoming litters.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-lg-4 mb-4 mb-lg-0">
-        <div class="card shadow-sm h-100">
-            <div class="card-header">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Animals Without a Study</h2>
-            </div>
-            <div class="card-body">
-                <div class="small text-muted mb-2">{{ available_animals_n }} animals available for testing</div>
-                <ul class="list-group list-group-flush small">
-                    {% for animal in unassigned_animals %}
-                        <li class="list-group-item px-0 py-1">
-                            {{ animal.custom_id }}
-                            <a class="stretched-link" href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"></a>
-                        </li>
-                    {% else %}
-                    <li class="text-muted small fst-italic mb-0">None.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12">
         <div class="card shadow-sm h-100">
             <div class="card-header">
                 <h2 class="h6 fw-bold text-uppercase text-secondary mb-0">Recently Terminated</h2>

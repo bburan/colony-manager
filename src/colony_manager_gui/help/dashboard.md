@@ -56,22 +56,6 @@ the microscope this week. Files that arrived but could not be matched to
 an image record are listed separately at the bottom of the panel — those
 need attention on the [Unmatched Data Files](/help/unmatched-data) page.
 
-## Upcoming Litters
-
-Every litter that has not been weaned yet, oldest first, with pup count and
-age. Click through to the breeding pair to record the wean.
-
-## Animals Without a Study
-
-Active animals that have an ID, are not enrolled in any study, and are not
-currently one half of an active breeding pair — the pool available for new
-work. The line above the list counts animals that have no ID assigned at
-all; those are the truly uncommitted animals.
-
-The list is capped at 100 entries. Use the
-[animal list](/help/animal-list) with the Study filter set for the full
-set.
-
 ## Recently Terminated
 
 Animals terminated in the last 7 days.

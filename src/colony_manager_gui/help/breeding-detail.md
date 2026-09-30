@@ -24,9 +24,6 @@ Row actions:
 - **Trash** — delete the litter record. Use this only for a litter entered
   in error; weaning is what you want for a litter that is over.
 
-Un-weaned litters are what the dashboard's **Upcoming Litters** panel
-lists.
-
 ## Weaning a litter
 
 Weaning turns a pup count into real animal records. The form takes a wean

@@ -174,43 +174,6 @@ def view_dashboard() -> Response | str:
         .order_by(models.Animal.termination_date.desc())
     ).all()
 
-    upcoming_litters = db.session.scalars(
-        select(models.Litter)
-        .options(joinedload(models.Litter.breeding_pair))
-        .where(models.Litter.wean_date == None)  # noqa: E711
-        .order_by(models.Litter.dob)
-    ).all()
-
-    active_males = (
-        select(models.BreedingPair.male_animal_id)
-        .where(models.BreedingPair.is_active == True)  # noqa: E712
-    )
-    active_females = (
-        select(models.BreedingPair.female_animal_id)
-        .where(models.BreedingPair.is_active == True)  # noqa: E712
-    )
-    active_parent_ids = active_males.union(active_females)
-    # Materialize with a cap so the dashboard can't be DOS'd by a colony
-    # that has thousands of unassigned animals — the panel only needs the
-    # first page worth.
-    unassigned_animals = db.session.scalars(
-        select(models.Animal)
-        .where(
-            models.Animal.terminated == False,  # noqa: E712
-            ~models.Animal.studies.any(),
-            models.Animal.custom_id != None,  # noqa: E711
-            ~models.Animal.id.in_(active_parent_ids),
-        )
-        .order_by(models.Animal.custom_id)
-        .limit(100)
-    ).all()
-
-    available_animals_n = db.session.scalar(
-        select(sqlalchemy.func.count())
-        .select_from(models.Animal)
-        .where(models.Animal.custom_id == None)  # noqa: E711
-    )
-
     # Both lists are grouped in the template by ear and image_type — load
     # the chain so the groupby doesn't fire one query per image.
     _image_options = (
@@ -260,9 +223,6 @@ def view_dashboard() -> Response | str:
 
         # Additional information
         recent_terminations=recent_terminations,
-        upcoming_litters=upcoming_litters,
-        unassigned_animals=unassigned_animals,
-        available_animals_n=available_animals_n,
         image_analysis_pending=image_analysis_pending,
         image_analysis_review=image_analysis_review,
         today=today,

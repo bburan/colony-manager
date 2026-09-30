@@ -147,14 +147,14 @@
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-							<i class="fas fa-clock me-1"></i>{{ age_unit|default('day')|capitalize }}
+							<i class="fas fa-clock me-1"></i>{{ age_unit|default('week')|capitalize }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
 							{% for unit, label in [('day', 'Day'), ('week', 'Week'), ('month', 'Month')] %}
 								<li>
 									<form method="post" action="{{ url_for('main.set_age_unit', unit=unit) }}" class="m-0">
 										{{ csrf_only_form.hidden_tag() }}
-										<button type="submit" class="dropdown-item {{ 'active' if age_unit|default('day') == unit }}">{{ label }}</button>
+										<button type="submit" class="dropdown-item {{ 'active' if age_unit|default('week') == unit }}">{{ label }}</button>
 									</form>
 								</li>
 							{% endfor %}

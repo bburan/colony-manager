@@ -51,7 +51,7 @@
             </td>
             <td>{{ animal.species.name }}</td>
             <td>{{ animal.sex_symbol }}</td>
-            <td>{{ animal.age_display(age_unit|default('day')) }}</td>
+            <td>{{ animal.age_display(age_unit|default('week')) }}</td>
             {% if target_age|default(None) %}
             {% set target_date = animal.target_age_date_display(target_age, target_age_unit) %}
             <td>

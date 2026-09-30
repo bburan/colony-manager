@@ -108,8 +108,8 @@ def test_list_animals_terminated_age_shows_euthanasia_indicator(logged_in_client
     response = logged_in_client.get('/animals/?status_filter=all')
     assert response.status_code == 200
     # Age at euthanasia (70 days), flagged with the (t) indicator.
-    # Default age unit is days (navbar/session-driven, unset in tests).
-    assert b'70.0 days (t)' in response.data
+    # Default age unit is weeks (navbar/session-driven, unset in tests).
+    assert b'10.0 weeks (t)' in response.data
 
 
 def test_list_animals_search_filter(logged_in_client, db_session):

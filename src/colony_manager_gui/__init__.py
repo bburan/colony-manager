@@ -294,9 +294,9 @@ def create_app():
             selected_species = get_or_404(Species, species_id).name
         else:
             selected_species = 'All'
-        age_unit = session.get('age_unit', 'day')
+        age_unit = session.get('age_unit', 'week')
         if age_unit not in ('day', 'week', 'month'):
-            age_unit = 'day'
+            age_unit = 'week'
         oidc = app.config.get('OIDC') or {'enabled': False}
         return {
             'datetime': datetime,

@@ -248,6 +248,8 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
         return []
     if dry_run:
         return []
+    if isinstance(target_date, datetime):  # includes pd.Timestamp
+        target_date = target_date.date()
 
     target_id = getattr(datatype, 'default_procedure_target_id', None)
     events = []

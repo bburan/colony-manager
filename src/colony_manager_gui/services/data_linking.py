@@ -296,6 +296,10 @@ def event_after_termination(animal: Animal, event_date) -> str | None:
     """
     if not animal.terminated or animal.termination_date is None:
         return None
+    # Parsed file dates can arrive as ``datetime`` / ``pd.Timestamp``,
+    # neither of which compares against a plain ``date``.
+    if isinstance(event_date, datetime):
+        event_date = event_date.date()
     if event_date is None or event_date <= animal.termination_date:
         return None
     return (

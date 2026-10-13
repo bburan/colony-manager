@@ -1149,6 +1149,11 @@ def delete_unmatched_data() -> Response | str:
     return redirect(request.referrer or url_for('animals.list_unmatched_data'))
 
 
+def _unresolved_tags_message(names):
+    return ('Suggested tag(s) not applied — no matching tag exists: '
+            + ', '.join(names) + '.')
+
+
 @animals_bp.route('/unmatched-data/auto-create', methods=['POST'])
 def auto_create_unmatched_data() -> Response | str:
     """Bulk-trigger ``auto_create_animal_event`` for selected files.
@@ -1179,6 +1184,7 @@ def auto_create_unmatched_data() -> Response | str:
         'no_candidate': 0,
         'errored': 0,
     }
+    unresolved_tags = set()
     for row in rows:
         totals['considered'] += 1
         if not isinstance(row, AnimalEventData):
@@ -1194,6 +1200,7 @@ def auto_create_unmatched_data() -> Response | str:
         totals['events_created'] += result.created
         totals['events_reused'] += result.reused
         totals['files_linked'] += result.linked
+        unresolved_tags.update(result.unresolved_tags)
 
     # Build a single readable summary message.
     parts = []
@@ -1217,6 +1224,8 @@ def auto_create_unmatched_data() -> Response | str:
         flash(', '.join(parts).capitalize() + '.', 'success')
     else:
         flash('No files were processed.', 'warning')
+    if unresolved_tags:
+        flash(_unresolved_tags_message(sorted(unresolved_tags)), 'warning')
     return redirect(request.referrer or url_for('animals.list_unmatched_data'))
 
 
@@ -1290,6 +1299,8 @@ def auto_create_event(animal_id, data_id) -> Response | str:
         parts.append(f'{result.reused} reused')
     parts.append(f'{result.linked} file(s) linked')
     flash(', '.join(parts).capitalize() + '.', 'success')
+    if result.unresolved_tags:
+        flash(_unresolved_tags_message(result.unresolved_tags), 'warning')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
 def _resolve_callback(data_id, callback_name):

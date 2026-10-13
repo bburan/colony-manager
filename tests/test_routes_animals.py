@@ -1536,3 +1536,68 @@ def test_bulk_auto_create_counts_termination_refusal_as_errored(
     assert len(db_session.get(AnimalEventData, good_id).events) == 1
     events = db_session.scalars(select(AnimalEvent)).all()
     assert [e.animal_id for e in events] == [alive.id]
+
+
+# ---------------------------------------------------------------------------
+# Auto-create applies parser-suggested tags
+# ---------------------------------------------------------------------------
+
+def _tagged_row(db_session, animal, tags):
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 3, 1))
+    row.parsed_metadata = {**row.parsed_metadata, 'tags': tags}
+    db_session.commit()
+    return row
+
+
+def test_auto_create_applies_suggested_tags(db_session):
+    from colony_manager.models import AnimalEventTag
+    from colony_manager_gui.services.data_linking import auto_create_animal_event
+
+    parent = AnimalEventTag(name='Exposure')
+    child = AnimalEventTag(name='Post', parent=parent)
+    baseline = AnimalEventTag(name='baseline')
+    db_session.add_all([parent, child, baseline])
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='TAG-1')
+    row = _tagged_row(db_session, animal, ['Baseline', 'exposure > post', 'nope'])
+
+    result = auto_create_animal_event(animal, row)
+
+    assert result.error is None
+    assert result.unresolved_tags == ['nope']
+    (event,) = animal.events
+    assert {t.name for t in event.tags} == {'baseline', 'Post'}
+
+
+def test_auto_create_skips_ambiguous_bare_tag_name(db_session):
+    from colony_manager.models import AnimalEventTag
+    from colony_manager_gui.services.data_linking import auto_create_animal_event
+
+    a, b = AnimalEventTag(name='A'), AnimalEventTag(name='B')
+    db_session.add_all([a, b, AnimalEventTag(name='day1', parent=a),
+                        AnimalEventTag(name='day1', parent=b)])
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='TAG-2')
+    row = _tagged_row(db_session, animal, 'day1')
+
+    result = auto_create_animal_event(animal, row)
+
+    assert result.unresolved_tags == ['day1']
+    assert animal.events[0].tags == []
+
+
+def test_auto_create_adds_suggested_tags_to_reused_event(db_session):
+    from colony_manager.models import AnimalEventTag
+    from colony_manager_gui.services.data_linking import auto_create_animal_event
+
+    keep, new = AnimalEventTag(name='keep'), AnimalEventTag(name='new')
+    db_session.add_all([keep, new])
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='TAG-3')
+    row = _tagged_row(db_session, animal, [])
+    auto_create_animal_event(animal, row)
+    animal.events[0].tags = [keep]
+    row.parsed_metadata = {**row.parsed_metadata, 'tags': ['new']}
+    db_session.commit()
+
+    result = auto_create_animal_event(animal, row)
+
+    assert result.reused == 1
+    assert {t.name for t in animal.events[0].tags} == {'keep', 'new'}

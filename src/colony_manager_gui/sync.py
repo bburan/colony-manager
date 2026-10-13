@@ -24,7 +24,10 @@ from colony_manager.models import (
 )
 
 from . import db
-from .services.data_linking import event_after_termination, to_json_safe
+from .services.data_linking import (
+    event_after_termination, resolve_tag_names, tag_names_from_metadata,
+    to_json_safe,
+)
 
 
 log = logging.getLogger(__name__)
@@ -252,6 +255,10 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
         target_date = target_date.date()
 
     target_id = getattr(datatype, 'default_procedure_target_id', None)
+    tags, unresolved = resolve_tag_names(tag_names_from_metadata(parsed), session)
+    if unresolved:
+        log.warning('[%s] Suggested tag(s) match no existing tag: %s',
+                    datatype.name, ', '.join(unresolved))
     events = []
     for animal in candidate_animals:
         too_late = event_after_termination(animal, target_date)
@@ -266,6 +273,7 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
             scheduled_date=target_date,
             completion_date=target_date,
         )
+        event.tags = list(tags)
         session.add(event)
         events.append(event)
     session.flush()

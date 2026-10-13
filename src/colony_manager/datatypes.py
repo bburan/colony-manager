@@ -244,7 +244,9 @@ class DataTypeDescription(ABC):
             ``None`` if the path cannot be parsed by this description.
             Expected keys depend on the DataType's ``target_type``:
 
-            - ``animal_event``: ``{'animal_id', 'date', 'side'?}``
+            - ``animal_event``: ``{'animal_id', 'date', 'side'?, 'tags'?}``
+              — ``tags`` (a name or list of names) is applied to events
+              auto-created from the file; names must match existing tags.
             - ``confocal_image``: ``{'animal_id', 'ear', 'frequency',
               'image_type'}``
             - ``animal``: ``{'animal_id', 'date'?}``

@@ -428,3 +428,20 @@ def test_event_after_termination_message_names_both_dates(db_session):
     assert animal.display_id in message
     # No event date to compare against is not a violation.
     assert event_after_termination(animal, None) is None
+
+
+def test_auto_create_applies_suggested_tags(db_session):
+    from colony_manager.models import AnimalEventTag
+
+    tag = AnimalEventTag(name='baseline')
+    db_session.add(tag)
+    procedure = make_procedure(db_session)
+    target = make_procedure_target(db_session)
+    animal = make_animal(db_session)
+    dtype = _aedtype_with(db_session, procedure=procedure, target=target)
+
+    events = _maybe_auto_create_events(
+        db_session, dtype,
+        {'date': date.today(), 'tags': ['Baseline', 'unknown']}, [animal],
+    )
+    assert [e.tags for e in events] == [[tag]]

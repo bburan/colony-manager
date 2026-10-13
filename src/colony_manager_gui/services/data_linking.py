@@ -11,7 +11,7 @@ should reuse a ``desc_cache`` dict.
 """
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from typing import Any
 
@@ -19,7 +19,7 @@ from sqlalchemy import or_, select
 
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
-    Animal, AnimalEvent, AnimalEventData, AnimalEventDataType,
+    Animal, AnimalEvent, AnimalEventData, AnimalEventDataType, AnimalEventTag,
     ConfocalImage, Data, Ear,
     _canonical_side, _expand_sides,
 )
@@ -71,6 +71,60 @@ def parsed_animal_sides(f: Data, animal_custom_id: str) -> list[str] | None:
     if sides is None:
         return []
     return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
+
+
+def parsed_tag_names(f: Data) -> list[str]:
+    """Tag names the parser suggests for file ``f`` (its ``'tags'`` key).
+
+    Accepts a single string or a list. Reads ``f.parsed_metadata`` when
+    available; falls back to a live parse for legacy rows.
+    """
+    parsed = f.parsed_metadata
+    if parsed is None:
+        try:
+            parsed = f.get_description().parse() or {}
+        except Exception:
+            return []
+    return tag_names_from_metadata(parsed)
+
+
+def tag_names_from_metadata(parsed: dict[str, Any]) -> list[str]:
+    """Normalize a parse dict's ``'tags'`` (a name or list) to a name list."""
+    raw = parsed.get('tags')
+    if not raw:
+        return []
+    names = [raw] if isinstance(raw, str) else list(raw)
+    return [n.strip() for n in names if isinstance(n, str) and n.strip()]
+
+
+def resolve_tag_names(names: list[str], session=None) -> tuple[list[AnimalEventTag], list[str]]:
+    """Match suggested tag names against existing ``AnimalEventTag`` rows.
+
+    A name matches a tag's full ``display_name`` (``'Parent > Child'``) or,
+    failing that, the bare ``name`` of exactly one tag. Matching is
+    case-insensitive. Unknown or ambiguous names are never created — the
+    tag vocabulary is admin-curated — and come back in the second list.
+    """
+    if not names:
+        return [], []
+    session = session or db.session
+    all_tags = session.scalars(select(AnimalEventTag)).all()
+    by_display = {t.display_name.lower(): t for t in all_tags}
+    by_name: dict[str, list[AnimalEventTag]] = {}
+    for t in all_tags:
+        by_name.setdefault(t.name.lower(), []).append(t)
+
+    tags, unresolved = [], []
+    for name in names:
+        key = name.lower()
+        tag = by_display.get(key)
+        if tag is None and len(by_name.get(key, [])) == 1:
+            tag = by_name[key][0]
+        if tag is None:
+            unresolved.append(name)
+        elif tag not in tags:
+            tags.append(tag)
+    return tags, unresolved
 
 
 def parse_confocal_file(f: Data, desc_cache: dict[str, Any] | None = None) -> dict[str, Any] | None:
@@ -317,11 +371,14 @@ class AutoCreateResult:
     ``error`` is set when the operation could not proceed (no default
     procedure, no parsed date, side required but unresolved, …); the
     counts describe what actually happened on the success path.
+    ``unresolved_tags`` lists parser-suggested tag names that matched no
+    existing tag and were therefore not applied.
     """
     error: str | None = None
     created: int = 0
     reused: int = 0
     linked: int = 0
+    unresolved_tags: list[str] = field(default_factory=list)
 
 
 def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> AutoCreateResult:
@@ -330,6 +387,9 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
     Reuses an existing matching event if one is already on the animal —
     avoids duplicates when the user wand-clicks a second sibling file or
     re-clicks the same file after the event already exists.
+
+    Tags the parser suggests (``'tags'`` in its metadata) are added to the
+    created or reused events; they never replace tags already there.
 
     Commits the session before returning. Returns an :class:`AutoCreateResult`.
     """
@@ -353,6 +413,8 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
                 'did not resolve one for this animal.'))
     else:
         sides = [None]
+
+    suggested_tags, unresolved_tags = resolve_tag_names(parsed_tag_names(data_file))
 
     target_events = []
     created_count = 0
@@ -385,6 +447,10 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
             db.session.add(event)
             target_events.append(event)
             created_count += 1
+    for event in target_events:
+        for tag in suggested_tags:
+            if tag not in event.tags:
+                event.tags.append(tag)
     db.session.flush()
 
     # Link any AnimalEventData on this date whose datatype shares the
@@ -429,4 +495,5 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
         created=created_count,
         reused=len(target_events) - created_count,
         linked=linked_count,
+        unresolved_tags=unresolved_tags,
     )

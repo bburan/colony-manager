@@ -17,6 +17,27 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-10-13
+
+**Filter an animal's events.** The Events panel on an animal's page has
+two new dropdowns: *Event type* shows only events of one procedure
+(choosing a parent procedure includes its subtypes), and *File type*
+shows only events with a file of that type, listing just those files.
+Use *Clear* to see everything again. See
+[Animal detail](/help/animal-detail).
+
+**Write text notes on an animal.** *New Text Note* under an animal's
+Files opens an editor for a note saved as a file attached to the animal.
+Formatted text pasted from Word or Outlook keeps its headings, bold,
+lists and tables. Notes, and any other `.md` or `.txt` file, open with
+a read button, and notes written here can be edited later. See
+[Animal detail](/help/animal-detail).
+
+**Event side is cleared when it no longer applies.** Editing an event
+and switching it to a target with no side (left/right) used to keep the
+old side anyway. It is now dropped. Events saved that way still show the
+stale side; edit and re-save them to clear it.
+
 ## 2026-09-30
 
 **Filter animals by data type.** The Animal Overview has a new *Data

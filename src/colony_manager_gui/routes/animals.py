@@ -116,9 +116,6 @@ def view_animal(animal_id) -> Response | str:
     event_sort_dir = session.get('event_sort_dir', 'desc')
     if event_sort_dir not in ('asc', 'desc'):
         event_sort_dir = 'desc'
-    events_by_date = animal.events_by_date
-    if event_sort_dir == 'desc':
-        events_by_date = dict(reversed(events_by_date.items()))
 
     # Unassigned candidate event files (events accordion). Pre-filter to the
     # animal_event subset and eager-load each file's events so the
@@ -136,6 +133,18 @@ def view_animal(animal_id) -> Response | str:
         if not any(ev.animal_id == animal_id for ev in f.events)
     ]
 
+    event_filters, event_filter_options = _event_filter_options(
+        animal, unassigned_files)
+    events = _filter_events(animal.events, event_filters)
+    if event_filters['event_datatype'] != 'all':
+        unassigned_files = [
+            f for f in unassigned_files
+            if str(f.datatype_id) == event_filters['event_datatype']
+        ]
+    events_by_date = Animal.group_events_by_date(events)
+    if event_sort_dir == 'desc':
+        events_by_date = dict(reversed(events_by_date.items()))
+
     return render_template(
         'view_animal.html',
         animal=animal,
@@ -144,7 +153,60 @@ def view_animal(animal_id) -> Response | str:
         unassigned_files=unassigned_files,
         events_by_date=events_by_date,
         event_sort_dir=event_sort_dir,
+        event_filters=event_filters,
+        event_count=len(events),
+        **event_filter_options,
     )
+
+
+def _event_filter_options(animal, unassigned_files):
+    """Read the Events accordion's filters and build their dropdown choices.
+
+    Choices come from what this animal actually has rather than every
+    procedure / DataType in the colony, so no option filters the list down
+    to nothing. A procedure contributes its whole ancestor path, so picking
+    a parent (``Noise Exposure``) is on offer even when every event was
+    recorded against a child, and the filter itself is inclusive of
+    descendants to match. A value naming nothing on offer (a stale
+    bookmark) falls back to ``'all'`` rather than emptying the list.
+    """
+    procedures = {}
+    datatypes = {}
+    for event in animal.events:
+        for node in event.procedure.path:
+            procedures[node.id] = node
+        for f in event.data_files:
+            datatypes[f.datatype_id] = f.datatype
+    for f in unassigned_files:
+        datatypes[f.datatype_id] = f.datatype
+    procedures = sorted(procedures.values(), key=lambda p: p.display_name.lower())
+    datatypes = sorted(datatypes.values(), key=lambda d: d.name.lower())
+
+    filters = {}
+    for name, items in (('event_procedure', procedures),
+                        ('event_datatype', datatypes)):
+        value = request.args.get(name, 'all')
+        if value not in {str(i.id) for i in items}:
+            value = 'all'
+        filters[name] = value
+    return filters, {
+        'event_procedure_options': procedures,
+        'event_datatype_options': datatypes,
+    }
+
+
+def _filter_events(events, filters):
+    """Apply the Events accordion's procedure / file-type filters."""
+    events = list(events)
+    if filters['event_procedure'] != 'all':
+        procedure_ids = AnimalProcedure.descendant_ids(
+            db.session, int(filters['event_procedure']))
+        events = [e for e in events if e.procedure_id in procedure_ids]
+    if filters['event_datatype'] != 'all':
+        datatype_id = int(filters['event_datatype'])
+        events = [e for e in events
+                  if any(f.datatype_id == datatype_id for f in e.data_files)]
+    return events
 
 @animals_bp.route('/create', methods=['POST'])
 def create_animal() -> Response | str:

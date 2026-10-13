@@ -338,7 +338,9 @@
 {%- endfor -%}
 {% endmacro %}
 
-{% macro render_event_list(events_by_date) %}
+{# ``datatype_id`` (optional) narrows each event's file list to one
+   DataType, for the animal page's Events "File type" filter. #}
+{% macro render_event_list(events_by_date, datatype_id=None) %}
 <div class="small">
     {% for date, events in events_by_date.items() %}
         <div class="mb-2">
@@ -369,6 +371,7 @@
                             <div class="text-muted fst-italic" style="font-size: 0.85em; white-space: pre-line;">{{ event.notes }}</div>
                         {% endif %}
                         {% set event_files = event.sorted_data_files %}
+                        {% if datatype_id %}{% set event_files = event_files|selectattr('datatype_id', 'equalto', datatype_id|int)|list %}{% endif %}
                         {% if event_files %}
 						<div class="mt-1">
 							{% for f in event_files %}

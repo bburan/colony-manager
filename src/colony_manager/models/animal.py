@@ -237,8 +237,17 @@ class Animal(VersionedModel):
 
     @property
     def events_by_date(self):
+        return self.group_events_by_date(self.events)
+
+    @staticmethod
+    def group_events_by_date(events):
+        """``{date: [events]}``, oldest date first, by procedure within a day.
+
+        Split out of :attr:`events_by_date` so a caller showing a filtered
+        subset (the animal page's Events filters) groups it the same way.
+        """
         groups = {}
-        for e in self.events:
+        for e in events:
             groups.setdefault(e.date, []).append(e)
         return {d: sorted(groups[d], key=lambda x: x.procedure.name)
                 for d in sorted(groups.keys())}

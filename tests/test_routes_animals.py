@@ -240,6 +240,8 @@ def test_view_animal_events_default_to_most_recent_first(logged_in_client, db_se
     response = logged_in_client.get(f'/animals/{animal.id}')
     assert response.status_code == 200
     body = response.data.decode()
+    # Past the Events filter dropdown, which lists procedures alphabetically.
+    body = body[body.index('id="animal-event-list"'):]
     assert body.index('Newer Procedure') < body.index('Older Procedure')
 
 
@@ -260,6 +262,7 @@ def test_view_animal_events_respect_ascending_session_pref(logged_in_client, db_
     response = logged_in_client.get(f'/animals/{animal.id}')
     assert response.status_code == 200
     body = response.data.decode()
+    body = body[body.index('id="animal-event-list"'):]
     assert body.index('Older Procedure') < body.index('Newer Procedure')
 
 

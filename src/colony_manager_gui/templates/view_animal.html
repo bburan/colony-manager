@@ -156,7 +156,38 @@
                 <div id="collapseEvents" class="accordion-collapse collapse show"
                      aria-labelledby="headingEvents">
                     <div class="accordion-body">
-                        <div class="d-flex justify-content-end mb-2 gap-2">
+                        {% set events_filtered = event_filters.event_procedure != 'all' or event_filters.event_datatype != 'all' %}
+                        <div class="d-flex flex-wrap justify-content-end align-items-center mb-2 gap-2">
+                            {# Plain GET form: the filters ride in the query
+                               string, so a filtered view can be bookmarked
+                               and survives the sort toggle (which redirects
+                               back to the referrer). #}
+                            <form method="get" id="event-filter-form"
+                                  class="d-flex flex-wrap align-items-center gap-2 me-auto m-0"
+                                  action="{{ url_for('animals.view_animal', animal_id=animal.id) }}">
+                                <select name="event_procedure" aria-label="Filter by event type"
+                                        class="form-select form-select-sm w-auto"
+                                        onchange="this.form.submit()">
+                                    <option value="all">All event types</option>
+                                    {% for p in event_procedure_options %}
+                                    <option value="{{ p.id }}" {% if event_filters.event_procedure == p.id|string %}selected{% endif %}>{{ p.display_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select name="event_datatype" aria-label="Filter by data file type"
+                                        class="form-select form-select-sm w-auto"
+                                        onchange="this.form.submit()">
+                                    <option value="all">All file types</option>
+                                    {% for dt in event_datatype_options %}
+                                    <option value="{{ dt.id }}" {% if event_filters.event_datatype == dt.id|string %}selected{% endif %}>{{ dt.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if events_filtered %}
+                                <a href="{{ url_for('animals.view_animal', animal_id=animal.id) }}"
+                                   class="btn btn-sm btn-link text-secondary text-decoration-none px-1"
+                                   title="Clear event filters"><i class="fas fa-xmark"></i> Clear</a>
+                                {% endif %}
+                                <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button></noscript>
+                            </form>
                             <form method="post" class="m-0"
                                   action="{{ url_for('main.set_event_sort_dir', direction='asc' if event_sort_dir == 'desc' else 'desc') }}">
                                 {{ csrf_only_form.hidden_tag() }}
@@ -182,13 +213,21 @@
                                 <i class="fas fa-calendar"></i> Add Event
                             </button>
                         </div>
-                        {{ macros.render_event_list(events_by_date) }}
+                        {% if events_filtered %}
+                        <p class="text-muted small mb-2" id="event-filter-summary">
+                            Showing {{ event_count }} of {{ animal.events|length }} event{{ '' if animal.events|length == 1 else 's' }}.
+                        </p>
+                        {% endif %}
+                        <div id="animal-event-list">
+                        {{ macros.render_event_list(events_by_date,
+                                                    datatype_id=(event_filters.event_datatype if event_filters.event_datatype != 'all' else None)) }}
+                        </div>
 
                         {% if unassigned_files %}
                             {{ macros.render_data_files(animal, unassigned_files) }}
                         {% else %}
                         <div class="p-3">
-                            <p class="text-muted small mb-0">No unassigned files associated with this animal.</p>
+                            <p class="text-muted small mb-0">No unassigned {% if event_filters.event_datatype != 'all' %}files of this type{% else %}files{% endif %} associated with this animal.</p>
                         </div>
                         {% endif %}
                     </div>

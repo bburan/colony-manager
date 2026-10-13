@@ -282,6 +282,8 @@ def terminate_animal(animal_id) -> Response | str:
 def create_animal_event(animal_id) -> Response | str:
     form = AnimalEventForm()
     if form.validate_on_submit():
+        if not form.procedure_target.data.requires_side:
+            form.side.data = None
         sides = ['Left', 'Right'] if form.side.data == 'Both' else [form.side.data]
         for side in sides:
             event = AnimalEvent(animal_id=animal_id)
@@ -308,6 +310,10 @@ def update_animal_event(event_id) -> Response | str:
     event = get_or_404(AnimalEvent, event_id)
     form = AnimalEventEditForm()
     if form.validate_on_submit():
+        # The side select is only hidden client-side, so a stale value
+        # survives a switch to a side-less target.
+        if not form.procedure_target.data.requires_side:
+            form.side.data = None
         form.populate_obj(event)
         db.session.commit()
         resync_event_files(event)

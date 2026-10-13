@@ -67,6 +67,39 @@ def test_nested_bullets_nest():
     assert '<li>outer<ul><li>inner</li></ul></li>' in html
 
 
+def test_backslash_escapes_render_literally():
+    # Turndown escapes Markdown punctuation in pasted text.
+    html = str(helpdocs.render_markdown(r'Not \*em\*, 1\. and a\_b and \<b\>'))
+    assert html == '<p>Not *em*, 1. and a_b and &lt;b&gt;</p>'
+
+
+def test_escaped_number_does_not_start_a_list():
+    html = str(helpdocs.render_markdown(r'2019\. was a year'))
+    assert '<ol>' not in html
+    assert '2019. was a year' in html
+
+
+def test_backslash_inside_code_span_stays():
+    html = str(helpdocs.render_markdown(r'`a\*b`'))
+    assert r'<code>a\*b</code>' in html
+
+
+def test_hard_line_breaks():
+    # Two trailing spaces, or a trailing backslash, break the line.
+    html = str(helpdocs.render_markdown('one  \n' 'two\\\n' 'three\n' 'four'))
+    assert html == '<p>one<br>two<br>three four</p>'
+
+
+def test_emphasis_may_span_lines():
+    html = str(helpdocs.render_markdown('a **bold\nspan** b'))
+    assert '<strong>bold span</strong>' in html
+
+
+def test_escaped_pipe_stays_in_its_cell():
+    html = str(helpdocs.render_markdown('| a | b |\n|---|---|\n' r'| x \| y | z |'))
+    assert '<td>x | y</td><td>z</td>' in html
+
+
 def test_pipe_table_renders_a_scrollable_table():
     html = str(helpdocs.render_markdown('| A | B |\n|---|---|\n| 1 | 2 |\n'))
     assert 'table-responsive' in html

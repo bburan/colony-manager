@@ -1,0 +1,112 @@
+{# Text-note editor — loaded into ``#modalBody`` via hx-get.
+
+   Two modes, one template:
+     * create (``data_file`` is None) — TextNoteForm: Type / Location /
+       Date / Name cascade like the upload modal, plus the text.
+       Args: form, target, target_type, target_label, has_choices, locations.
+     * edit — TextNoteEditForm: the text only; the file keeps its name.
+       Args: form, data_file, has_choices.
+
+   The textarea's ``@paste`` hands rich text (Word / Outlook / web pages)
+   to ``colonyTextNoteEditor`` in static/js/markdown-paste.js, which
+   converts it to Markdown. ``data-modal-size`` widens the shared dialog
+   (see app.js). #}
+{% if data_file %}
+{% set action = url_for('data_files.update_text_note', data_id=data_file.id) %}
+{% else %}
+{% set action = url_for('data_files.create_text_note', target_type=target_type, target_id=target.id) %}
+{% endif %}
+<form action="{{ action }}" method="POST" data-modal-size="lg"
+      x-data="colonyTextNoteEditor()">
+    <header class="modal-header">
+        <h3 class="modal-title h6 fw-bold text-uppercase text-secondary text-truncate">
+            <i class="fas fa-file-pen me-1"></i>
+            {% if data_file %}Edit {{ data_file.name }}{% else %}New Text Note{% endif %}
+        </h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </header>
+    <main class="modal-body">
+        {{ form.hidden_tag() }}
+
+        {% if not has_choices %}
+        <div class="alert alert-warning small mb-0">
+            No DataType for <strong>{{ target_type }}</strong> files can hold
+            text notes. Ask an administrator to register a DataType whose
+            description class sets <code>text_note_suffix</code> and has at
+            least one DataLocation.
+        </div>
+        {% else %}
+
+        {% if not data_file %}
+        <p class="small text-muted mb-2">Attached to <strong>{{ target_label }}</strong>.</p>
+        <div class="row g-2 mb-2">
+            <div class="col-sm-6">
+                <label for="datatype" class="form-label small fw-bold text-muted">{{ form.datatype.label.text }}</label>
+                {{ form.datatype(
+                    class="form-select form-select-sm",
+                    **{
+                        'hx-get': url_for('data_files.upload_locations',
+                                          target_type=target_type, target_id=target.id),
+                        'hx-target': '#noteLocationContainer',
+                        'hx-swap': 'innerHTML',
+                        'hx-trigger': 'change',
+                    }
+                ) }}
+            </div>
+            <div class="col-sm-6" id="noteLocationContainer">
+                {% include 'partials/upload_locations_select.html' %}
+            </div>
+            <div class="col-sm-4">
+                <label for="date" class="form-label small fw-bold text-muted">{{ form.date.label.text }}</label>
+                {{ form.date(class="form-control form-control-sm") }}
+            </div>
+            <div class="col-sm-8">
+                <label for="name" class="form-label small fw-bold text-muted">{{ form.name.label.text }}</label>
+                {{ form.name(class="form-control form-control-sm",
+                             placeholder="e.g. surgery notes (blank → note 1, note 2, …)") }}
+            </div>
+        </div>
+        {% endif %}
+
+        <ul class="nav nav-tabs small mb-0">
+            <li class="nav-item">
+                <button type="button" class="nav-link py-1" :class="{ active: tab === 'write' }"
+                        @click="tab = 'write'">Write</button>
+            </li>
+            <li class="nav-item">
+                <button type="button" class="nav-link py-1" :class="{ active: tab === 'preview' }"
+                        @click="tab = 'preview'"
+                        hx-post="{{ url_for('data_files.preview_text_note') }}"
+                        hx-include="#noteContent"
+                        hx-target="#notePreview"
+                        hx-swap="innerHTML">Preview</button>
+            </li>
+        </ul>
+        <div x-show="tab === 'write'">
+            {{ form.content(id="noteContent",
+                            class="form-control form-control-sm font-monospace border-top-0 rounded-top-0",
+                            rows=16,
+                            spellcheck="true",
+                            placeholder="Type Markdown, or paste from Word or Outlook — formatting is converted to Markdown.",
+                            **{'@paste': 'onPaste($event)'}) }}
+            <div class="form-text small">
+                Markdown: <code># Heading</code>, <code>**bold**</code>, <code>*italic*</code>,
+                <code>- list item</code>, <code>1. numbered</code>, <code>| table | row |</code>.
+                Pasted rich text (lists, tables, bold, headings, links) is converted;
+                images and colours are dropped.
+            </div>
+        </div>
+        <div x-show="tab === 'preview'" x-cloak
+             class="border border-top-0 rounded-bottom p-3 help-body overflow-auto"
+             style="min-height: 12rem; max-height: 60vh;"
+             id="notePreview"></div>
+
+        {% endif %}
+    </main>
+    <footer class="modal-footer border-top-0 pb-4 px-4">
+        <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm px-3" {% if not has_choices %}disabled{% endif %}>
+            Save
+        </button>
+    </footer>
+</form>

@@ -14,9 +14,15 @@ rather than a third-party library. The Docker entrypoint reinstalls the
 package with ``--no-deps`` at container start, so a new runtime dependency
 would need an image rebuild to land — not a trade worth making for help
 text. The subset covers headings, paragraphs, nested lists, fenced code,
-blockquotes, pipe tables, horizontal rules, and inline emphasis / code /
-links. Everything is HTML-escaped first, so Markdown source can never
-inject markup.
+blockquotes, pipe tables, horizontal rules, inline emphasis / code /
+links, backslash escapes, and hard line breaks (two trailing spaces or a
+trailing backslash). Everything is HTML-escaped first, so Markdown source
+can never inject markup.
+
+:func:`render_markdown` also renders the text notes users write on an
+animal's Files list (``services/text_notes.py``). Those are mostly pasted
+from Word/Outlook and converted by Turndown in the browser, which is where
+the backslash escapes and hard breaks come from.
 """
 import re
 from dataclasses import dataclass, field
@@ -260,6 +266,17 @@ def render_inline(text):
 
     out = re.sub(r'`([^`]+)`', stash, str(out))
 
+    # Backslash escapes (``\*``, ``1\.``, ``\|``), after code spans so a
+    # backslash inside code stays literal. ``escape`` has already turned
+    # ``<`` / ``&`` / quotes into entities, so those are matched whole.
+    escaped = []
+
+    def stash_escape(match):
+        escaped.append(match.group(1))
+        return f'\x01{len(escaped) - 1}\x01'
+
+    out = re.sub(r'\\(&(?:lt|gt|amp|#34|#39);|[!-/:-@\[-`{-~])', stash_escape, out)
+
     def link(match):
         label, url = match.group(1), match.group(2)
         if not _SAFE_LINK.match(url):
@@ -272,6 +289,7 @@ def render_inline(text):
     out = re.sub(r'(?<![\w_])_([^_\n]+)_(?![\w_])', r'<em>\1</em>', out)
 
     out = re.sub(r'\x00(\d+)\x00', lambda m: f'<code>{spans[int(m.group(1))]}</code>', out)
+    out = re.sub(r'\x01(\d+)\x01', lambda m: escaped[int(m.group(1))], out)
     return out
 
 
@@ -281,7 +299,12 @@ _TABLE_RULE = re.compile(r'^\s*\|?[\s:|-]+\|[\s:|-]*$')
 
 
 def _split_row(line):
-    return [c.strip() for c in line.strip().strip('|').split('|')]
+    # ``\|`` is a literal pipe inside a cell, not a column break.
+    return [c.strip() for c in re.split(r'(?<!\\)\|', line.strip().strip('|'))]
+
+
+# A paragraph line ending in two spaces or a backslash forces a line break.
+_HARD_BREAK = re.compile(r'(?: {2,}|\\)$')
 
 
 def render_markdown(text):
@@ -376,10 +399,21 @@ def render_markdown(text):
             if (nxt.strip().startswith(('```', '>', '#'))
                     or _BULLET.match(nxt) or _NUMBER.match(nxt)):
                 break
-            para.append(nxt.strip())
+            para.append(nxt)
             i += 1
         if para:
-            out.append('<p>' + render_inline(' '.join(para)) + '</p>')
+            # Rendered as one string so emphasis may span lines; a hard
+            # break rides through as \x02 and becomes <br> afterwards.
+            joined = ''
+            for j, raw in enumerate(para):
+                text = raw.strip()
+                if j == len(para) - 1:
+                    joined += text
+                elif _HARD_BREAK.search(raw):
+                    joined += text.removesuffix('\\').rstrip() + '\x02'
+                else:
+                    joined += text + ' '
+            out.append('<p>' + render_inline(joined).replace('\x02', '<br>') + '</p>')
         else:
             i += 1
 

@@ -25,7 +25,9 @@ from sqlalchemy.orm import Session
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import safe_join
 
-from colony_manager.datatypes import is_upload_capable, load_description_class
+from colony_manager.datatypes import (
+    is_text_note_capable, is_upload_capable, load_description_class,
+)
 from colony_manager.enums import DataStatus
 from colony_manager.models import (
     Animal, DATA_SUBCLASSES, Data, DataLocation, DataType, Ear,
@@ -95,7 +97,8 @@ class UploadError(Exception):
 # Candidate filtering (drives the modal's Type / Location dropdowns)
 # ---------------------------------------------------------------------------
 
-def candidate_datatypes(session: Session, target_type: str) -> list[DataType]:
+def candidate_datatypes(session: Session, target_type: str, *,
+                        text_notes: bool = False) -> list[DataType]:
     """DataTypes that can receive a user upload for ``target_type``.
 
     A DataType qualifies when all three hold:
@@ -104,8 +107,13 @@ def candidate_datatypes(session: Session, target_type: str) -> list[DataType]:
       * the loaded class :func:`is_upload_capable` (defines ``upload_filename``);
       * at least one ``DataLocation`` exists (nowhere to write otherwise).
 
+    With ``text_notes=True`` the class must also be
+    :func:`is_text_note_capable` — the choices for the "New text note"
+    editor rather than the file-upload modal.
+
     Returns DataTypes ordered by name.
     """
+    capable = is_text_note_capable if text_notes else is_upload_capable
     rows = session.scalars(
         select(DataType)
         .where(DataType.target_type == target_type)
@@ -120,7 +128,7 @@ def candidate_datatypes(session: Session, target_type: str) -> list[DataType]:
             cls = load_description_class(dt.description_class)
         except Exception:
             continue
-        if not is_upload_capable(cls):
+        if not capable(cls):
             continue
         out.append(dt)
     return out
@@ -292,8 +300,9 @@ def _sanitize_label(raw: str | None) -> str:
     return ' '.join(cleaned.split()).strip('.')
 
 
-def _auto_numbered_path(location_dir: str, compose) -> str:
-    """Return the composed path for the first free ``image N`` label.
+def _auto_numbered_path(location_dir: str, compose,
+                        prefix: str = _AUTO_LABEL_PREFIX) -> str:
+    """Return the composed path for the first free ``<prefix> N`` label.
 
     Counting up until the composed path is free is what keeps
     auto-named uploads from overwriting anything: a batch of three
@@ -309,7 +318,7 @@ def _auto_numbered_path(location_dir: str, compose) -> str:
     cache: dict = {}
     first = None
     for n in range(1, _AUTO_LABEL_MAX + 1):
-        rel = compose(f'{_AUTO_LABEL_PREFIX} {n}')
+        rel = compose(f'{prefix} {n}')
         if not _stem_is_taken(location_dir, rel, cache):
             return rel
         if first is None:
@@ -421,6 +430,7 @@ def handle_upload(
     label: str | None,
     notes: str | None,
     file_storage: FileStorage,
+    auto_label_prefix: str = _AUTO_LABEL_PREFIX,
 ) -> UploadResult:
     """Persist one uploaded ``FileStorage`` as a polymorphic ``Data`` row.
 
@@ -447,6 +457,9 @@ def handle_upload(
         ``upload_filename`` to be folded into the filename. Blank falls
         back to auto-numbering (``image 1``, ``image 2``, ...) that
         counts past whatever already exists, so nothing is overwritten.
+    auto_label_prefix : str
+        The word that auto-numbering counts with — ``image`` for file
+        uploads, ``note`` for text notes.
     notes : str | None
         User-supplied notes written to ``Data.notes``. Deliberately NOT
         passed to ``upload_filename`` — the note is commentary about the
@@ -556,7 +569,7 @@ def handle_upload(
     if label:
         relative_path = _resolve_relative_path(base_real, compose(label))
     else:
-        relative_path = _auto_numbered_path(base_real, compose)
+        relative_path = _auto_numbered_path(base_real, compose, auto_label_prefix)
     candidate = safe_join(base_real, relative_path)
     if candidate is None:
         raise UploadError(f'Unsafe filename: {relative_path!r}.')

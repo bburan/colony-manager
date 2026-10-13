@@ -1,0 +1,35 @@
+{# A text file (.md / .txt) rendered as Markdown — loaded into
+   ``#modalBody`` via hx-get from a file row's eye button.
+
+   Args: data_file, html (Markup or None), error (str or None),
+         editable (bool — a note the editor may overwrite). #}
+<div data-modal-size="lg">
+    <header class="modal-header">
+        <h3 class="modal-title h6 fw-bold text-uppercase text-secondary text-truncate"
+            title="{{ data_file.full_path }}">
+            <i class="fas fa-file-lines me-1"></i> {{ data_file.name }}
+        </h3>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </header>
+    <main class="modal-body">
+        {% if error %}
+        <div class="alert alert-danger small mb-0">{{ error }}</div>
+        {% else %}
+        <div class="help-body overflow-auto" style="max-height: 70vh;">{{ html }}</div>
+        {% endif %}
+    </main>
+    <footer class="modal-footer border-top-0 pb-4 px-4">
+        <a class="btn btn-link btn-sm text-secondary text-decoration-none me-auto"
+           href="{{ url_for('data_files.view_raw', data_id=data_file.id) }}" target="_blank">
+            <i class="fas fa-download me-1"></i> Raw file
+        </a>
+        <button type="button" class="btn btn-link btn-sm text-secondary text-decoration-none" data-bs-dismiss="modal">Close</button>
+        {% if editable and not error %}
+        <button type="button" class="btn btn-primary btn-sm px-3"
+                hx-get="{{ url_for('data_files.edit_text_note_modal', data_id=data_file.id) }}"
+                hx-target="#modalBody">
+            <i class="fas fa-pencil me-1"></i> Edit
+        </button>
+        {% endif %}
+    </footer>
+</div>

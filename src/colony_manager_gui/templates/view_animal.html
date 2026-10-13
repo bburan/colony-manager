@@ -124,7 +124,16 @@
                 <div id="collapseFiles" class="accordion-collapse collapse"
                      aria-labelledby="headingFiles">
                     <div class="accordion-body">
-                        <div class="d-flex justify-content-end mb-2">
+                        <div class="d-flex justify-content-end mb-2 gap-2">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    title="Write a text note (Markdown; paste from Word or Outlook) and attach it to this animal"
+                                    hx-get="{{ url_for('data_files.text_note_modal',
+                                                       target_type='animal',
+                                                       target_id=animal.id) }}"
+                                    hx-target="#modalBody">
+                                <i class="fas fa-file-pen me-1"></i> New Text Note
+                            </button>
                             <button type="button"
                                     class="btn btn-sm btn-outline-primary"
                                     title="Upload files to this animal"

@@ -309,6 +309,52 @@ Uploaded rows land as:
   ids of the wrong polymorphic type (e.g. an `ear` id POSTed to the
   `/animal/...` route). The user gets a flash; nothing is written.
 
+## Text notes
+
+"New Text Note" on the animal page is a second on-ramp into the same
+pipeline: instead of a picked file, the user writes Markdown in an editor
+and `services/text_notes.py:create_text_note` wraps the text in a
+`FileStorage` named `note<suffix>` and calls `handle_upload`. Naming,
+collision handling, linking and status are therefore exactly those of an
+upload; the only differences are that a blank name auto-numbers as
+`note 1`, `note 2`, … (`handle_upload(auto_label_prefix=...)`) and that
+the text is normalized to LF line endings and capped at 1 MiB.
+
+A description class opts in by setting a class attribute on top of
+`upload_filename`:
+
+```python
+class AnimalTextNote(AnimalPhoto):
+    suffixes = ('.md', '.txt')   # what parse() accepts
+    text_note_suffix = '.md'     # what the editor writes
+```
+
+`colony_manager.datatypes.is_text_note_capable` checks both halves, and
+`candidate_datatypes(..., text_notes=True)` fills the editor's Type
+dropdown with it. As with uploads, `parse()` must accept the suffix, or
+a later sync cannot re-identify the file. In `mmm_db` this is
+`photos.AnimalTextNote`, registered as `Notes: Animal`; a deployment
+needs a DataType row using that key, with a location, before the editor
+offers anything.
+
+**Reading and editing.** Any data file named `.md` / `.markdown` / `.txt`
+gets a read button (`render_callback_buttons`), which renders it with
+`helpdocs.render_markdown` — the same escaped, hand-rolled subset as the
+help pages. Only a file that the editor could have written (a
+text-note-capable DataType, carrying its suffix) is editable; saving
+overwrites the file in place and refreshes `file_hash` / `mtime`, so the
+next sync sees it as unchanged. A `.txt` produced by an instrument is
+readable but never editable.
+
+**Paste from Word / Outlook.** `static/js/markdown-paste.js` handles the
+textarea's `paste` event when the clipboard carries `text/html`. It cleans
+Office's HTML dialect first (conditional comments, `<o:p>`, paragraph-per-
+item lists tagged `mso-list:lN levelM`, bold/italic as inline styles,
+header-less tables) and then converts with Turndown (CDN, `base.html`).
+Tables become pipe tables with the first row promoted to the header and
+each cell flattened to one line; images are dropped. A plain-text paste is
+left to the browser.
+
 ## Source map
 
 | Concern | File |
@@ -322,3 +368,8 @@ Uploaded rows land as:
 | Typeahead | `src/colony_manager_gui/templates/partials/upload_target_results.html` |
 | Buttons | `view_animal.html` (Files accordion), `view_ear.html` (Files card) |
 | Tests | `tests/test_uploads.py`, `tests/_description_fakes.py` |
+| Text notes: service | `src/colony_manager_gui/services/text_notes.py` |
+| Text notes: routes | `src/colony_manager_gui/routes/data_files.py` (`text_note_modal`, `create_text_note`, `view_text_note`, `edit_text_note_modal`, `update_text_note`, `preview_text_note`) |
+| Text notes: templates | `partials/text_note_modal.html`, `partials/text_note_view_modal.html` |
+| Text notes: paste conversion | `src/colony_manager_gui/static/js/markdown-paste.js` |
+| Text notes: tests | `tests/test_text_notes.py` |

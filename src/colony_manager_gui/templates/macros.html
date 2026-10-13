@@ -243,6 +243,13 @@
     {% if data_file.datatype.description_class %}
     {% set callbacks = data_file.datatype.get_description_callbacks() %}
     <div class="btn-group">
+    {% if text_note_viewable(data_file) %}
+        <button type="button" class="btn btn-{{ size }}" data-bs-toggle="tooltip"
+            title="Read note"
+            hx-get="{{ url_for('data_files.view_text_note', data_id=data_file.id) }}" hx-target="#modalBody">
+            <i class="fas fa-file-lines"></i>
+        </button>
+    {% endif %}
     {% for cb_name, cb_info in callbacks.items() %}
         {% if cb_info.type == 'plot' %}
         {% set icon = cb_info.icon or 'fa-chart-line' %}

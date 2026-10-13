@@ -22,7 +22,9 @@ from werkzeug.utils import safe_join
 from colony_manager.models import Data
 
 from .. import db
-from ..forms.common import UploadFilesForm
+from ..forms.common import TextNoteEditForm, TextNoteForm, UploadFilesForm
+from ..helpdocs import render_markdown
+from ..services import text_notes
 from ..services import uploads as upload_service
 from .util import flash_form_errors, get_or_404
 
@@ -371,3 +373,146 @@ def _cleanup_paths(paths):
             os.remove(p)
         except OSError as exc:
             log.warning('Could not remove partial upload %s: %s', p, exc)
+
+
+# ---------------------------------------------------------------------------
+# Text notes — Markdown written in the app (services/text_notes.py)
+# ---------------------------------------------------------------------------
+
+def _text_note_choices(form, target_type, datatype_id=None):
+    datatypes = upload_service.candidate_datatypes(
+        db.session, target_type, text_notes=True)
+    return _populate_form_choices(
+        form, target_type, datatype_id=datatype_id, datatypes=datatypes)
+
+
+@data_files_bp.route('/data/note/<target_type>/<int:target_id>/modal')
+def text_note_modal(target_type, target_id) -> Response | str:
+    """The "New text note" editor, loaded into ``#modalBody``."""
+    target = _resolve_target_or_404(target_type, target_id)
+    form = TextNoteForm()
+    datatypes, locations = _text_note_choices(form, target_type)
+    if datatypes:
+        form.datatype.data = datatypes[0].id
+    return render_template(
+        'partials/text_note_modal.html',
+        form=form,
+        target=target,
+        target_type=target_type,
+        target_label=upload_service.target_label(target_type, target),
+        has_choices=bool(datatypes),
+        locations=locations,
+        data_file=None,
+    )
+
+
+@data_files_bp.route('/data/note/<target_type>/<int:target_id>',
+                     methods=['POST'])
+def create_text_note(target_type, target_id):
+    """Write a new note, attached to the launching target only."""
+    target = _resolve_target_or_404(target_type, target_id)
+    detail_url = _detail_url(target_type, target_id)
+
+    form = TextNoteForm()
+    _text_note_choices(
+        form, target_type, datatype_id=request.form.get('datatype', type=int))
+    if not form.validate_on_submit():
+        flash_form_errors(form)
+        return redirect(detail_url)
+
+    written = []
+    try:
+        result = text_notes.create_text_note(
+            db.session,
+            target_type=target_type,
+            targets=[target],
+            datatype_id=form.datatype.data,
+            location_id=form.location.data,
+            date=form.date.data,
+            label=form.name.data or None,
+            text=form.content.data,
+        )
+        written.append(result.full_path)
+        db.session.commit()
+    except upload_service.UploadError as exc:
+        db.session.rollback()
+        _cleanup_paths(written)
+        flash(str(exc), 'danger')
+        return redirect(detail_url)
+    except Exception:
+        db.session.rollback()
+        _cleanup_paths(written)
+        log.exception('Text note failed for %s %s', target_type, target_id)
+        flash('Saving the note failed unexpectedly; see server logs.', 'danger')
+        return redirect(detail_url)
+
+    flash(f'Saved note {result.row.name}.', 'success')
+    return redirect(detail_url)
+
+
+@data_files_bp.route('/data/<int:data_id>/note')
+def view_text_note(data_id) -> Response | str:
+    """A text file rendered as Markdown, loaded into ``#modalBody``."""
+    data_file = get_or_404(Data, data_id)
+    if not text_notes.is_viewable(data_file):
+        abort(404)
+    html, error = None, None
+    try:
+        html = render_markdown(text_notes.read_text_note(data_file))
+    except upload_service.UploadError as exc:
+        error = str(exc)
+    return render_template(
+        'partials/text_note_view_modal.html',
+        data_file=data_file,
+        html=html,
+        error=error,
+        editable=text_notes.is_editable(data_file),
+    )
+
+
+@data_files_bp.route('/data/<int:data_id>/note/edit_modal')
+def edit_text_note_modal(data_id) -> Response | str:
+    data_file = get_or_404(Data, data_id)
+    if not text_notes.is_editable(data_file):
+        abort(404)
+    form = TextNoteEditForm()
+    try:
+        form.content.data = text_notes.read_text_note(data_file)
+    except upload_service.UploadError as exc:
+        return render_template('partials/error_alert.html', message=str(exc))
+    return render_template(
+        'partials/text_note_modal.html',
+        form=form,
+        data_file=data_file,
+        has_choices=True,
+    )
+
+
+@data_files_bp.route('/data/<int:data_id>/note', methods=['POST'])
+def update_text_note(data_id):
+    data_file = get_or_404(Data, data_id)
+    if not text_notes.is_editable(data_file):
+        abort(404)
+    back = request.referrer or url_for('main.view_dashboard')
+    form = TextNoteEditForm()
+    if not form.validate_on_submit():
+        flash_form_errors(form)
+        return redirect(back)
+    try:
+        text_notes.update_text_note(data_file, form.content.data)
+        db.session.commit()
+    except upload_service.UploadError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+        return redirect(back)
+    flash(f'Saved note {data_file.name}.', 'success')
+    return redirect(back)
+
+
+@data_files_bp.route('/data/note/preview', methods=['POST'])
+def preview_text_note() -> Response | str:
+    """Render the editor's current text for its Preview tab."""
+    text = request.form.get('content', '')
+    if not text.strip():
+        return '<p class="text-muted fst-italic mb-0">Nothing to preview.</p>'
+    return str(render_markdown(text))

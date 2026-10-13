@@ -33,6 +33,15 @@ document.body.addEventListener('htmx:beforeRequest', function (evt) {
 // triggered swaps).
 document.body.addEventListener('htmx:afterOnLoad', function(evt) {
     if (evt.detail.target.id === 'modalBody') {
+        // A modal body may ask for a wider dialog with
+        // ``data-modal-size="lg"`` / ``"xl"`` on its root element (the
+        // text-note editor does). Reset on every load so the next,
+        // ordinary form modal is back to the default width.
+        const dialog = evt.detail.target.closest('.modal-dialog');
+        const root = evt.detail.target.firstElementChild;
+        const size = root && root.dataset ? root.dataset.modalSize : null;
+        dialog.classList.remove('modal-lg', 'modal-xl');
+        if (size === 'lg' || size === 'xl') dialog.classList.add('modal-' + size);
         const editModalElement = document.getElementById('editModal');
         const modalInstance = bootstrap.Modal.getOrCreateInstance(editModalElement);
         if (!editModalElement.classList.contains('show')) {

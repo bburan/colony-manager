@@ -273,6 +273,10 @@ def create_app():
     from colony_manager_gui.helpdocs import topic_for_description_class
     app.jinja_env.globals['help_topic_for'] = topic_for_description_class
 
+    # Puts a "read" button on .md / .txt file rows (render_callback_buttons).
+    from colony_manager_gui.services.text_notes import is_viewable
+    app.jinja_env.globals['text_note_viewable'] = is_viewable
+
     # Return the scoped session to the registry at the end of each
     # request. Mirrors what Flask-SQLAlchemy used to do for us, but
     # against the unified ``colony_manager.db`` session.

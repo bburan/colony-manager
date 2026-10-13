@@ -113,6 +113,25 @@ class UploadFilesForm(FlaskForm):
     files = MultipleFileField('Files')
 
 
+class TextNoteForm(FlaskForm):
+    """A new Markdown note written in the app (see ``services/text_notes.py``).
+
+    Same Type / Location / Date cascade as :class:`UploadFilesForm`; the
+    ``targets`` are likewise plain ``<input name="targets">`` rows.
+    ``name`` is the label folded into the filename (blank auto-numbers).
+    """
+    datatype = SelectField('Type', coerce=int, validators=[DataRequired()])
+    location = SelectField('Location', coerce=int, validators=[DataRequired()])
+    date = DateField('Date', default=date.today, validators=[DataRequired()])
+    name = StringField('Name', validators=[Optional()])
+    content = TextAreaField('Note', validators=[DataRequired()])
+
+
+class TextNoteEditForm(FlaskForm):
+    """Edit the text of an existing note; the file keeps its name."""
+    content = TextAreaField('Note', validators=[DataRequired()])
+
+
 class QuickAddToStudyForm(FlaskForm):
     study = QuerySelectField(
         'Study', query_factory=study_factory, get_label='name', allow_blank=False,

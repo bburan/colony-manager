@@ -111,6 +111,18 @@ class _LabelledUploadableAnimalDescription(_FilenameAnimalDescription):
         return f'{ids}_{date:%Y-%m-%d} - {label}{ext}'
 
 
+class _TextNoteAnimalDescription(_LabelledUploadableAnimalDescription):
+    """Upload-capable class that also opts in to the text-note editor.
+
+    Hashes its file so the edit path's re-hash is observable.
+    """
+
+    text_note_suffix = '.md'
+
+    def hash_files(self):
+        return [self.path]
+
+
 class _StaleSignatureUploadDescription(_FilenameAnimalDescription):
     """Upload-capable description still on the pre-split ``notes=`` keyword.
 
@@ -260,6 +272,7 @@ DESCRIPTION_CLASSES = {
     'fake_animal_hashed': _HashingAnimalDescription,
     'fake_animal_upload': _UploadableAnimalDescription,
     'fake_animal_upload_labelled': _LabelledUploadableAnimalDescription,
+    'fake_animal_text_note': _TextNoteAnimalDescription,
     'fake_animal_upload_stale': _StaleSignatureUploadDescription,
     'fake_animal_upload_subclass': _UploadableAnimalDescriptionSubclass,
     'fake_animal_upload_hashed': _HashingUploadableAnimalDescription,

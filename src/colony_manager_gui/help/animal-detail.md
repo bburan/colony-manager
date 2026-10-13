@@ -48,11 +48,40 @@ each with a thumbnail, name, note and status; everything else is a
 compact list. The **Upload** button adds a file by hand. See [Working with data files](/help/data-files) for what the
 status icons and the buttons on each row mean.
 
+**New Text Note** writes a note as a file of its own, rather than in the
+Notes box: a surgery report, an observation, an email worth keeping. Pick
+the type, location and date, give it a name (or leave it blank for *note
+1*, *note 2*, …), and write. Notes are Markdown — `# Heading`, `**bold**`,
+`*italic*`, `- list item`, `1. numbered`, pipe tables — and **Preview**
+shows how it will look. Text pasted from **Word or Outlook** (or a web
+page) is converted to Markdown as it is pasted, keeping headings, bulleted
+and numbered lists, tables, bold, italics and links; images, fonts and
+colours are dropped. To paste without any conversion, paste into a plain
+text editor first.
+
+A note gets a **read** button on its row (the page icon) that shows it
+formatted, with an **Edit** button for changing the text later. The same
+read button appears on any `.md` or `.txt` data file. The button only
+appears once an administrator has set up a data type that can hold text
+notes.
+
 ## Events
 
 The animal's history, grouped by date. The arrow button at the top
 flips between newest-first and oldest-first, and that choice is remembered
 for every animal page you visit afterwards.
+
+The two dropdowns at the top narrow the list:
+
+- **Event type** shows only events of one procedure. The list offers only
+  procedures this animal actually has, plus their parents — choosing a
+  parent such as *Noise Exposure* includes every subtype under it.
+- **File type** shows only events with at least one data file of that
+  type, and within them only those files. The unassigned files at the
+  bottom are narrowed the same way.
+
+The two combine, and **Clear** resets both. The filter lives in the page
+address, so a filtered view can be bookmarked or shared.
 
 **Add Event** records a procedure. The form asks for:
 

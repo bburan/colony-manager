@@ -373,6 +373,14 @@ class DataTypeDescription(ABC):
     #       extension so the UI's image bucket-sort can render
     #       thumbnails.
     #       '''
+    #
+    # An upload-capable class can further opt in to *text notes* — files
+    # written in the app's Markdown editor rather than picked from disk —
+    # by setting ``text_note_suffix`` (e.g. ``'.md'``). The service then
+    # calls ``upload_filename`` with ``original_filename`` ending in that
+    # suffix, so ``parse()`` must accept it. See
+    # :func:`is_text_note_capable` and ``docs/uploads.md``.
+    text_note_suffix = None
 
     # -- Callback introspection & invocation ---------------------------------
 
@@ -627,6 +635,17 @@ def is_upload_capable(description_cls):
         if 'upload_filename' in cls.__dict__:
             return True
     return False
+
+
+def is_text_note_capable(description_cls):
+    """True if *description_cls* can hold notes written in the app's editor.
+
+    Needs both halves: :func:`is_upload_capable` (something has to name
+    the file) and a ``text_note_suffix`` (so the name carries an extension
+    the class's own ``parse()`` will read back on a later sync).
+    """
+    return (is_upload_capable(description_cls)
+            and bool(getattr(description_cls, 'text_note_suffix', None)))
 
 
 # ---------------------------------------------------------------------------

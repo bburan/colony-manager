@@ -244,9 +244,14 @@ class DataTypeDescription(ABC):
             ``None`` if the path cannot be parsed by this description.
             Expected keys depend on the DataType's ``target_type``:
 
-            - ``animal_event``: ``{'animal_id', 'date', 'side'?, 'tags'?}``
-              — ``tags`` (a name or list of names) is applied to events
-              auto-created from the file; names must match existing tags.
+            - ``animal_event``: ``{'animal_id', 'date', 'side'?,
+              'procedure'?, 'tags'?}`` — ``procedure`` (a name or
+              ``'Parent > Child'`` path) replaces the DataType's default
+              procedure for events auto-created from, and matched to, the
+              file; it must name the default or one of its subprocedures,
+              else the default is used. ``tags`` (a name or list of names)
+              is applied to auto-created events. Names must match existing
+              procedures/tags; none are created.
             - ``confocal_image``: ``{'animal_id', 'ear', 'frequency',
               'image_type'}``
             - ``animal``: ``{'animal_id', 'date'?}``

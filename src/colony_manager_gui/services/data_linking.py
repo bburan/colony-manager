@@ -20,6 +20,7 @@ from sqlalchemy import or_, select
 from colony_manager.datatypes import load_description_class
 from colony_manager.models import (
     Animal, AnimalEvent, AnimalEventData, AnimalEventDataType, AnimalEventTag,
+    AnimalProcedure,
     ConfocalImage, Data, Ear,
     _canonical_side, _expand_sides,
 )
@@ -73,19 +74,15 @@ def parsed_animal_sides(f: Data, animal_custom_id: str) -> list[str] | None:
     return [s for aid, s in zip(ids, sides) if aid == animal_custom_id and s]
 
 
-def parsed_tag_names(f: Data) -> list[str]:
-    """Tag names the parser suggests for file ``f`` (its ``'tags'`` key).
-
-    Accepts a single string or a list. Reads ``f.parsed_metadata`` when
-    available; falls back to a live parse for legacy rows.
-    """
-    parsed = f.parsed_metadata
-    if parsed is None:
-        try:
-            parsed = f.get_description().parse() or {}
-        except Exception:
-            return []
-    return tag_names_from_metadata(parsed)
+def parsed_metadata_of(f: Data) -> dict[str, Any]:
+    """Return ``f.parsed_metadata``, falling back to a live parse for
+    legacy rows; ``{}`` when neither is available."""
+    if f.parsed_metadata is not None:
+        return f.parsed_metadata
+    try:
+        return f.get_description().parse() or {}
+    except Exception:
+        return {}
 
 
 def tag_names_from_metadata(parsed: dict[str, Any]) -> list[str]:
@@ -100,31 +97,10 @@ def tag_names_from_metadata(parsed: dict[str, Any]) -> list[str]:
 def resolve_tag_names(names: list[str], session=None) -> tuple[list[AnimalEventTag], list[str]]:
     """Match suggested tag names against existing ``AnimalEventTag`` rows.
 
-    A name matches a tag's full ``display_name`` (``'Parent > Child'``) or,
-    failing that, the bare ``name`` of exactly one tag. Matching is
-    case-insensitive. Unknown or ambiguous names are never created — the
-    tag vocabulary is admin-curated — and come back in the second list.
+    See ``NestedMixin.resolve_names`` for the matching rules; unknown or
+    ambiguous names come back in the second list.
     """
-    if not names:
-        return [], []
-    session = session or db.session
-    all_tags = session.scalars(select(AnimalEventTag)).all()
-    by_display = {t.display_name.lower(): t for t in all_tags}
-    by_name: dict[str, list[AnimalEventTag]] = {}
-    for t in all_tags:
-        by_name.setdefault(t.name.lower(), []).append(t)
-
-    tags, unresolved = [], []
-    for name in names:
-        key = name.lower()
-        tag = by_display.get(key)
-        if tag is None and len(by_name.get(key, [])) == 1:
-            tag = by_name[key][0]
-        if tag is None:
-            unresolved.append(name)
-        elif tag not in tags:
-            tags.append(tag)
-    return tags, unresolved
+    return AnimalEventTag.resolve_names(session or db.session, names)
 
 
 def parse_confocal_file(f: Data, desc_cache: dict[str, Any] | None = None) -> dict[str, Any] | None:
@@ -303,15 +279,23 @@ def resync_event_files(event: AnimalEvent) -> None:
                 f.events.remove(event)
                 touched.add(f)
 
-    # Link AnimalEventData files matching date, animal candidacy, and the
-    # DataType's default procedure. Side must match when both the event
-    # and the file's parser specify one.
+    # Link AnimalEventData files matching date, animal candidacy, and
+    # procedure — the file's procedure (parser-suggested or the DataType's
+    # default) or any of its subprocedures, as in ``match_targets``. Side
+    # must match when both the event and the file's parser specify one.
     candidate_files = db.session.scalars(
         select(AnimalEventData).where(AnimalEventData.date == new_date)
     ).all()
+    subtrees: dict[int, set[int]] = {}
     for f in candidate_files:
-        dt = f.datatype
-        if getattr(dt, 'default_procedure_id', None) != event.procedure_id:
+        procedure_id, _ = f.datatype.resolve_procedure_id(
+            db.session, parsed_metadata_of(f))
+        if procedure_id is None:
+            continue
+        if procedure_id not in subtrees:
+            subtrees[procedure_id] = AnimalProcedure.descendant_ids(
+                db.session, procedure_id)
+        if event.procedure_id not in subtrees[procedure_id]:
             continue
         if event in f.events:
             continue
@@ -372,13 +356,15 @@ class AutoCreateResult:
     procedure, no parsed date, side required but unresolved, …); the
     counts describe what actually happened on the success path.
     ``unresolved_tags`` lists parser-suggested tag names that matched no
-    existing tag and were therefore not applied.
+    existing tag and were therefore not applied; ``procedure_warning``
+    explains why a parser-suggested procedure was not used.
     """
     error: str | None = None
     created: int = 0
     reused: int = 0
     linked: int = 0
     unresolved_tags: list[str] = field(default_factory=list)
+    procedure_warning: str | None = None
 
 
 def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> AutoCreateResult:
@@ -388,8 +374,12 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
     avoids duplicates when the user wand-clicks a second sibling file or
     re-clicks the same file after the event already exists.
 
-    Tags the parser suggests (``'tags'`` in its metadata) are added to the
-    created or reused events; they never replace tags already there.
+    The event's procedure is the one the parser suggests (``'procedure'``
+    in its metadata) when that is the DataType's default or one of its
+    subprocedures, else the default — see
+    ``AnimalEventDataType.resolve_procedure_id``. Tags the parser suggests
+    (``'tags'``) are added to the created or reused events; they never
+    replace tags already there.
 
     Commits the session before returning. Returns an :class:`AutoCreateResult`.
     """
@@ -414,14 +404,16 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
     else:
         sides = [None]
 
-    suggested_tags, unresolved_tags = resolve_tag_names(parsed_tag_names(data_file))
+    parsed = parsed_metadata_of(data_file)
+    procedure_id, procedure_warning = datatype.resolve_procedure_id(db.session, parsed)
+    suggested_tags, unresolved_tags = resolve_tag_names(tag_names_from_metadata(parsed))
 
     target_events = []
     created_count = 0
     for side in sides:
         stmt = select(AnimalEvent).where(
             AnimalEvent.animal_id == animal.id,
-            AnimalEvent.procedure_id == datatype.default_procedure_id,
+            AnimalEvent.procedure_id == procedure_id,
             AnimalEvent.procedure_target_id == datatype.default_procedure_target_id,
             or_(
                 AnimalEvent.scheduled_date == data_file.date,
@@ -438,7 +430,7 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
         else:
             event = AnimalEvent(
                 animal_id=animal.id,
-                procedure_id=datatype.default_procedure_id,
+                procedure_id=procedure_id,
                 procedure_target_id=datatype.default_procedure_target_id,
                 side=side,
                 scheduled_date=data_file.date,
@@ -496,4 +488,5 @@ def auto_create_animal_event(animal: Animal, data_file: AnimalEventData) -> Auto
         reused=len(target_events) - created_count,
         linked=linked_count,
         unresolved_tags=unresolved_tags,
+        procedure_warning=procedure_warning,
     )

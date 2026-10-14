@@ -177,6 +177,42 @@ def test_animal_event_does_not_match_unrelated_procedure(db_session):
     assert matches == []
 
 
+def test_suggested_procedure_narrows_match_to_its_subtree(db_session):
+    """A parser-suggested subprocedure matches its own events, not a
+    sibling subprocedure's on the same date."""
+    parent = make_procedure(db_session, name='Exposure (suggest)')
+    low = make_procedure(db_session, name='Low', parent=parent)
+    high = make_procedure(db_session, name='High', parent=parent)
+    animal = make_animal(db_session, custom_id='SUG-1')
+    dtype = make_animal_event_data_type(db_session, default_procedure=parent)
+    make_event(db_session, animal=animal, procedure=low,
+               scheduled_date=date(2025, 6, 1))
+    high_event = make_event(db_session, animal=animal, procedure=high,
+                            scheduled_date=date(2025, 6, 1))
+
+    matches = dtype.match_targets(db_session, {
+        'animal_id': 'SUG-1', 'date': date(2025, 6, 1),
+        'procedure': 'exposure (suggest) > high',
+    })
+    assert matches == [high_event]
+
+
+def test_resolve_procedure_id_falls_back_to_default(db_session):
+    parent = make_procedure(db_session, name='Exposure (fallback)')
+    child = make_procedure(db_session, name='Child (fallback)', parent=parent)
+    make_procedure(db_session, name='Outside (fallback)')
+    dtype = make_animal_event_data_type(db_session, default_procedure=parent)
+
+    assert dtype.resolve_procedure_id(db_session, {}) == (parent.id, None)
+    assert dtype.resolve_procedure_id(
+        db_session, {'procedure': 'child (fallback)'}) == (child.id, None)
+    for name in ('Outside (fallback)', 'no such procedure'):
+        procedure_id, warning = dtype.resolve_procedure_id(
+            db_session, {'procedure': name})
+        assert procedure_id == parent.id
+        assert warning and 'using the default' in warning
+
+
 # ---------------------------------------------------------------------------
 # ConfocalImageDataType
 # ---------------------------------------------------------------------------

@@ -111,6 +111,39 @@ class AnimalEventDataType(DataType):
     __mapper_args__ = {'polymorphic_identity': 'animal_event'}
     TARGET_LABEL = 'Animal Event'
 
+    def resolve_procedure_id(self, session, parsed):
+        """Return ``(procedure_id, warning)`` for a file's parse dict.
+
+        A parser may suggest a more specific procedure than the default via
+        a ``'procedure'`` key, matched like a suggested tag (full
+        ``'Parent > Child'`` path or an unambiguous bare name,
+        case-insensitively). The suggestion must be the default procedure
+        or one of its subprocedures: ``match_targets`` and sibling-file
+        linking both search the default's subtree, so an event created
+        outside it could never be found again by a rematch. An unknown,
+        ambiguous, or out-of-subtree suggestion falls back to the default,
+        and ``warning`` says why. With no default configured, returns
+        ``(None, None)`` — such a DataType never matches or auto-creates.
+        """
+        from .animal import AnimalProcedure
+
+        default_id = self.default_procedure_id
+        name = parsed.get('procedure')
+        if not default_id or not isinstance(name, str) or not name.strip():
+            return default_id, None
+        name = name.strip()
+        matches, _ = AnimalProcedure.resolve_names(session, [name])
+        if not matches:
+            return default_id, (
+                f'Suggested procedure "{name}" matches no existing procedure '
+                f'(or more than one); using the default.')
+        procedure = matches[0]
+        if procedure.id not in AnimalProcedure.descendant_ids(session, default_id):
+            return default_id, (
+                f'Suggested procedure "{procedure.display_name}" is not the '
+                f'default procedure or one of its subprocedures; using the default.')
+        return procedure.id, None
+
     def match_targets(self, session, parsed):
         from sqlalchemy import select, or_
         from .animal import Animal, AnimalEvent, AnimalProcedure
@@ -119,15 +152,14 @@ class AnimalEventDataType(DataType):
         if isinstance(animal_ids, str):
             animal_ids = [animal_ids]
         target_date = parsed.get('date')
-        if not animal_ids or not target_date or not self.default_procedure_id:
+        procedure_id, _ = self.resolve_procedure_id(session, parsed)
+        if not animal_ids or not target_date or not procedure_id:
             return []
-        # Match the configured procedure *or any of its subprocedures*: an
-        # event recorded against a more specific child (e.g. a subtype of
-        # "Noise Exposure") should still link to a DataType whose default is
-        # the parent procedure.
-        procedure_ids = AnimalProcedure.descendant_ids(
-            session, self.default_procedure_id,
-        )
+        # Match the configured (or parser-suggested) procedure *or any of
+        # its subprocedures*: an event recorded against a more specific
+        # child (e.g. a subtype of "Noise Exposure") should still link to a
+        # DataType whose default is the parent procedure.
+        procedure_ids = AnimalProcedure.descendant_ids(session, procedure_id)
         side = _canonical_side(parsed.get('side'))
         events = []
         for aid in animal_ids:

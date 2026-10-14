@@ -1247,6 +1247,7 @@ def auto_create_unmatched_data() -> Response | str:
         'errored': 0,
     }
     unresolved_tags = set()
+    procedure_warnings = set()
     for row in rows:
         totals['considered'] += 1
         if not isinstance(row, AnimalEventData):
@@ -1263,6 +1264,8 @@ def auto_create_unmatched_data() -> Response | str:
         totals['events_reused'] += result.reused
         totals['files_linked'] += result.linked
         unresolved_tags.update(result.unresolved_tags)
+        if result.procedure_warning:
+            procedure_warnings.add(result.procedure_warning)
 
     # Build a single readable summary message.
     parts = []
@@ -1288,6 +1291,8 @@ def auto_create_unmatched_data() -> Response | str:
         flash('No files were processed.', 'warning')
     if unresolved_tags:
         flash(_unresolved_tags_message(sorted(unresolved_tags)), 'warning')
+    for warning in sorted(procedure_warnings):
+        flash(warning, 'warning')
     return redirect(request.referrer or url_for('animals.list_unmatched_data'))
 
 
@@ -1363,6 +1368,8 @@ def auto_create_event(animal_id, data_id) -> Response | str:
     flash(', '.join(parts).capitalize() + '.', 'success')
     if result.unresolved_tags:
         flash(_unresolved_tags_message(result.unresolved_tags), 'warning')
+    if result.procedure_warning:
+        flash(result.procedure_warning, 'warning')
     return redirect(url_for('animals.view_animal', animal_id=animal_id))
 
 def _resolve_callback(data_id, callback_name):

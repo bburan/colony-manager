@@ -445,3 +445,18 @@ def test_auto_create_applies_suggested_tags(db_session):
         {'date': date.today(), 'tags': ['Baseline', 'unknown']}, [animal],
     )
     assert [e.tags for e in events] == [[tag]]
+
+
+def test_auto_create_uses_suggested_subprocedure(db_session):
+    parent = make_procedure(db_session, name='Exposure (sync)')
+    child = make_procedure(db_session, name='Child (sync)', parent=parent)
+    target = make_procedure_target(db_session)
+    animal = make_animal(db_session)
+    dtype = _aedtype_with(db_session, procedure=parent, target=target)
+
+    events = _maybe_auto_create_events(
+        db_session, dtype,
+        {'date': date.today(), 'procedure': 'Exposure (sync) > Child (sync)'},
+        [animal],
+    )
+    assert [e.procedure_id for e in events] == [child.id]

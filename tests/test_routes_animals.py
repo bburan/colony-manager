@@ -1604,3 +1604,74 @@ def test_auto_create_adds_suggested_tags_to_reused_event(db_session):
 
     assert result.reused == 1
     assert {t.name for t in animal.events[0].tags} == {'keep', 'new'}
+
+
+def test_auto_create_uses_suggested_subprocedure(db_session):
+    from colony_manager_gui.services.data_linking import auto_create_animal_event
+
+    parent = make_procedure(db_session, name='Exposure (wand)')
+    child = make_procedure(db_session, name='8-16 kHz', parent=parent)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=parent,
+        default_procedure_target=make_procedure_target(db_session),
+    )
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='PROC-1')
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 3, 1), dtype=dtype)
+    row.parsed_metadata = {**row.parsed_metadata, 'procedure': '8-16 kHz'}
+    db_session.commit()
+
+    result = auto_create_animal_event(animal, row)
+    assert result.error is None and result.procedure_warning is None
+    (event,) = animal.events
+    assert event.procedure_id == child.id
+    assert row.events == [event]
+
+    # A second wand click reuses the subprocedure event rather than
+    # creating one under the default.
+    assert auto_create_animal_event(animal, row).reused == 1
+
+
+def test_auto_create_ignores_suggested_procedure_outside_default(db_session):
+    from colony_manager_gui.services.data_linking import auto_create_animal_event
+
+    parent = make_procedure(db_session, name='Exposure (outside)')
+    make_procedure(db_session, name='Dissection (outside)')
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=parent,
+        default_procedure_target=make_procedure_target(db_session),
+    )
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='PROC-2')
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 3, 1), dtype=dtype)
+    row.parsed_metadata = {**row.parsed_metadata, 'procedure': 'Dissection (outside)'}
+    db_session.commit()
+
+    result = auto_create_animal_event(animal, row)
+    assert result.procedure_warning
+    assert animal.events[0].procedure_id == parent.id
+
+
+def test_resync_links_file_to_event_under_suggested_subprocedure(db_session):
+    """Moving an event onto a file's date links the file when the event's
+    procedure is the file's suggested subprocedure, not just the default."""
+    from colony_manager_gui.services.data_linking import resync_event_files
+
+    parent = make_procedure(db_session, name='Exposure (resync)')
+    child = make_procedure(db_session, name='Child (resync)', parent=parent)
+    dtype = make_animal_event_data_type(
+        db_session, default_procedure=parent,
+        default_procedure_target=make_procedure_target(db_session),
+    )
+    animal = make_animal(db_session, species=make_species(db_session), custom_id='PROC-3')
+    row = _unmatched_row(db_session, animal, file_date=date(2025, 3, 1), dtype=dtype)
+    row.parsed_metadata = {**row.parsed_metadata, 'procedure': 'Child (resync)'}
+    event = make_event(db_session, animal=animal, procedure=child,
+                       scheduled_date=date(2025, 3, 1))
+
+    # Through the app's session, as ``update_animal_event`` calls it.
+    from colony_manager.models import AnimalEvent
+    from colony_manager_gui import db
+    resync_event_files(db.session.get(AnimalEvent, event.id))
+    db.session.commit()
+
+    db_session.expire_all()
+    assert row.events == [event]

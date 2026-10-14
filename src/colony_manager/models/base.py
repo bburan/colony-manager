@@ -122,8 +122,9 @@ class VersionedModel(Base):
 # ---------------------------------------------------------------------------
 
 class NestedMixin:
-    """Adds ``display_name``, ``get_ordered``, and ``descendant_ids`` to any
-    self-referential model that has a ``parent_id`` and ``name``."""
+    """Adds ``display_name``, ``get_ordered``, ``resolve_names``, and
+    ``descendant_ids`` to any self-referential model that has a
+    ``parent_id`` and ``name``."""
 
     @property
     def display_name(self):
@@ -164,6 +165,36 @@ class NestedMixin:
 
         walk(None)
         return ordered
+
+    @classmethod
+    def resolve_names(cls, session, names):
+        """Match names against existing rows; return ``(rows, unresolved)``.
+
+        A name matches a row's full ``display_name`` (``'Parent > Child'``)
+        or, failing that, the bare ``name`` of exactly one row. Matching is
+        case-insensitive. Unknown or ambiguous names are never created —
+        these vocabularies are admin-curated — and come back unresolved.
+        """
+        from sqlalchemy import select
+        if not names:
+            return [], []
+        rows = session.scalars(select(cls)).all()
+        by_display = {r.display_name.lower(): r for r in rows}
+        by_name = {}
+        for r in rows:
+            by_name.setdefault(r.name.lower(), []).append(r)
+
+        matches, unresolved = [], []
+        for name in names:
+            key = name.lower()
+            row = by_display.get(key)
+            if row is None and len(by_name.get(key, [])) == 1:
+                row = by_name[key][0]
+            if row is None:
+                unresolved.append(name)
+            elif row not in matches:
+                matches.append(row)
+        return matches, unresolved
 
     @classmethod
     def descendant_ids(cls, session, root_id):

@@ -226,8 +226,11 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
 
     Only fires for ``animal_event`` DataTypes that have ``auto_create=True``,
     a ``default_procedure``, a parsed ``date``, and at least one candidate
-    animal. Returns the list of created (or, in dry-run mode, hypothetical)
-    events so the caller can attach them to the new ``Data`` row.
+    animal. The events get the parser-suggested procedure when there is a
+    usable one (see ``AnimalEventDataType.resolve_procedure_id``) and any
+    parser-suggested tags that match existing ones. Returns the list of
+    created (or, in dry-run mode, hypothetical) events so the caller can
+    attach them to the new ``Data`` row.
 
     An animal whose termination date precedes the file's date is skipped
     with a warning, on the same reasoning as the UI's wand button (see
@@ -243,8 +246,7 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
         return []
     if datatype.target_type != 'animal_event':
         return []
-    procedure_id = getattr(datatype, 'default_procedure_id', None)
-    if not procedure_id:
+    if not getattr(datatype, 'default_procedure_id', None):
         return []
     target_date = parsed.get('date')
     if not target_date or not candidate_animals:
@@ -255,6 +257,9 @@ def _maybe_auto_create_events(session, datatype, parsed, candidate_animals, dry_
         target_date = target_date.date()
 
     target_id = getattr(datatype, 'default_procedure_target_id', None)
+    procedure_id, procedure_warning = datatype.resolve_procedure_id(session, parsed)
+    if procedure_warning:
+        log.warning('[%s] %s', datatype.name, procedure_warning)
     tags, unresolved = resolve_tag_names(tag_names_from_metadata(parsed), session)
     if unresolved:
         log.warning('[%s] Suggested tag(s) match no existing tag: %s',

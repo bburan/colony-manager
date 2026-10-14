@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urljoin
 import sqlalchemy
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, abort, Response
+from flask import Blueprint, make_response, render_template, request, redirect, url_for, flash, session, jsonify, abort, Response
 from flask_login import current_user, login_user
 from datetime import date, timedelta
 
@@ -81,23 +81,41 @@ def global_search_results() -> Response | str:
     return render_template('partials/global_search_results.html', results=results, q=q)
 
 
-@main_bp.route('/')
-def view_dashboard() -> Response | str:
-    today = date.today()
+DEFAULT_RECENT_EVENT_DAYS = 7
+MAX_RECENT_EVENT_DAYS = 3650
+RECENT_EVENTS_PANE_ID = 'recent-events-pane'
 
-    # 1. Metrics for Top Cards
-    active_cages_count = queries.count_active_cages(db.session)
-    active_animals_count = queries.count_active_animals(db.session)
-    ears_for_processing_count = queries.count_unprocessed_ears(db.session)
-    active_breeding_pairs_count = queries.count_active_breeding_pairs(db.session)
 
-    # Recently completed events (last 7 days), most recent first. The
-    # template walks each event's animal/procedure/target. ``data_files``
-    # is now a lazy='select' collection; per-row iteration in the
-    # template stays gated behind an Alpine accordion so it only loads
-    # on click.
-    recent_events_threshold = today - timedelta(days=7)
-    recent_events = db.session.scalars(
+def _recent_event_filters(procedures):
+    """Read the Recently Completed Events pane's filters from the query string.
+
+    ``event_procedure`` is a procedure id or ``'all'``; one naming no
+    procedure (a stale bookmark) falls back to ``'all'``. ``event_days`` is
+    the look-back window, defaulting to a week and clamped to
+    ``1..MAX_RECENT_EVENT_DAYS``; anything unparseable gets the default.
+    """
+    procedure = request.args.get('event_procedure', 'all')
+    if procedure not in {str(p.id) for p in procedures}:
+        procedure = 'all'
+    days = request.args.get('event_days', type=int)
+    if days is None:
+        days = DEFAULT_RECENT_EVENT_DAYS
+    days = max(1, min(days, MAX_RECENT_EVENT_DAYS))
+    return {'event_procedure': procedure, 'event_days': days}
+
+
+def _recent_events_context(today):
+    """Template context for the Recently Completed Events pane.
+
+    Recently completed events, most recent first, narrowed by the pane's
+    own event-type and look-back filters. The template walks each event's
+    animal/procedure/target. ``data_files`` is a lazy='select'
+    collection; per-row iteration in the template stays gated behind an
+    Alpine accordion so it only loads on click.
+    """
+    procedure_options = models.AnimalProcedure.get_ordered(db.session)
+    event_filters = _recent_event_filters(procedure_options)
+    recent_events_stmt = (
         select(models.AnimalEvent)
         .options(
             joinedload(models.AnimalEvent.animal),
@@ -106,13 +124,62 @@ def view_dashboard() -> Response | str:
         )
         .where(
             models.AnimalEvent.completion_date != None,  # noqa: E711
-            models.AnimalEvent.completion_date >= recent_events_threshold,
+            models.AnimalEvent.completion_date
+                >= today - timedelta(days=event_filters['event_days']),
         )
         .order_by(
             models.AnimalEvent.completion_date.desc(),
             models.AnimalEvent.id.desc(),
         )
-    ).all()
+    )
+    if event_filters['event_procedure'] != 'all':
+        # Inclusive of subprocedures: "Behavior" covers "Behavior > Gap
+        # detection", as on the animal page's Events filter.
+        recent_events_stmt = recent_events_stmt.where(
+            models.AnimalEvent.procedure_id.in_(models.AnimalProcedure.descendant_ids(
+                db.session, int(event_filters['event_procedure']))))
+    recent_events = db.session.scalars(recent_events_stmt).all()
+
+    # Group events by animal, preserving most-recent-first order (events is sorted by
+    # completion_date desc, so first appearance per animal_id = most recent event)
+    _animal_map: dict = {}
+    for event in recent_events:
+        if event.animal_id not in _animal_map:
+            _animal_map[event.animal_id] = {'animal': event.animal, 'events': []}
+        _animal_map[event.animal_id]['events'].append(event)
+    recent_events_by_animal = sorted(_animal_map.values(), key=lambda g: g['animal'].custom_id or '')
+    return {
+        'recent_events_by_animal': recent_events_by_animal,
+        'event_filters': event_filters,
+        'event_procedure_options': procedure_options,
+        'default_event_days': DEFAULT_RECENT_EVENT_DAYS,
+        'max_event_days': MAX_RECENT_EVENT_DAYS,
+    }
+
+
+@main_bp.route('/')
+def view_dashboard() -> Response | str:
+    today = date.today()
+
+    # The pane's filter form re-requests this page via htmx and swaps only
+    # the pane, so answer that request with the pane alone rather than
+    # computing the whole dashboard. Keyed on HX-Target, not HX-Request:
+    # htmx's history-restore request also sends HX-Request and wants the
+    # full page.
+    if request.headers.get('HX-Target') == RECENT_EVENTS_PANE_ID:
+        response = make_response(render_template(
+            'partials/recent_events_pane.html', **_recent_events_context(today)))
+        response.vary.add('HX-Target')
+        return response
+
+    # 1. Metrics for Top Cards
+    active_cages_count = queries.count_active_cages(db.session)
+    active_animals_count = queries.count_active_animals(db.session)
+    ears_for_processing_count = queries.count_unprocessed_ears(db.session)
+    active_breeding_pairs_count = queries.count_active_breeding_pairs(db.session)
+
+
+    recent_events_threshold = today - timedelta(days=7)
 
     # Confocal image files acquired in the last 7 days (by file mtime),
     # grouped by ConfocalImage. Insertion order = most-recently-modified first.
@@ -197,16 +264,8 @@ def view_dashboard() -> Response | str:
     else:
         species = None
 
-    # Group events by animal, preserving most-recent-first order (events is sorted by
-    # completion_date desc, so first appearance per animal_id = most recent event)
-    _animal_map: dict = {}
-    for event in recent_events:
-        if event.animal_id not in _animal_map:
-            _animal_map[event.animal_id] = {'animal': event.animal, 'events': []}
-        _animal_map[event.animal_id]['events'].append(event)
-    recent_events_by_animal = sorted(_animal_map.values(), key=lambda g: g['animal'].custom_id or '')
 
-    return render_template(
+    response = make_response(render_template(
         'view_dashboard.html',
         # Card Metrics
         active_cages=active_cages_count,
@@ -215,8 +274,7 @@ def view_dashboard() -> Response | str:
         ears_to_process=ears_for_processing_count,
 
         # Schedule & Alerts
-        recent_events=recent_events,
-        recent_events_by_animal=recent_events_by_animal,
+        **_recent_events_context(today),
         recent_confocal_groups=recent_confocal_groups,
         recent_confocal_by_ear=recent_confocal_by_ear,
         unmatched_recent_confocal=unmatched_recent_confocal,
@@ -229,7 +287,9 @@ def view_dashboard() -> Response | str:
 
         # Table of weights for past week
         weights=models.Animal.get_daily_logs(db.session, before=14, after=4, species=species),
-    )
+    ))
+    response.vary.add('HX-Target')
+    return response
 
 
 @main_bp.route('/calendar')

@@ -5,6 +5,10 @@
    Args:
      events_by_animal (list of dicts: {'animal': Animal, 'events': [AnimalEvent]})
        Events within each group are sorted completion_date desc.
+     expandAll (Alpine, from an enclosing scope): opens or closes every
+       animal row when it changes; rows can still be toggled one by one.
+     event_filters (dict): the pane's filters; ``event_days`` words the
+       empty-state message.
 #}
 {% import 'macros.html' as macros %}
 {% if events_by_animal %}
@@ -12,7 +16,7 @@
     {% for group in events_by_animal %}
     {% set animal = group.animal %}
     {% set animal_events = group.events %}
-    <li class="list-group-item px-0 py-2" x-data="{ open: false }">
+    <li class="list-group-item px-0 py-2" x-data="{ open: false }" x-effect="open = expandAll">
         <button type="button"
                 class="btn btn-link text-decoration-none text-reset p-0 d-flex align-items-center gap-2 w-100 text-start"
                 @click="open = !open"
@@ -75,5 +79,5 @@
     {% endfor %}
 </ul>
 {% else %}
-<p class="text-muted small fst-italic mb-0">No events completed in the last 7 days.</p>
+<p class="text-muted small fst-italic mb-0">No {{ 'matching ' if event_filters.event_procedure != 'all' }}events completed in the last {{ event_filters.event_days }} day{{ 's' if event_filters.event_days != 1 }}.</p>
 {% endif %}

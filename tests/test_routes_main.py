@@ -362,6 +362,87 @@ def test_dashboard_events_sorted_by_animal_custom_id(logged_in_client, db_sessio
     assert pos_a < pos_b, 'DashEvt-A must appear before DashEvt-B (sorted by custom_id)'
 
 
+def test_dashboard_events_filter_by_procedure_includes_subprocedures(
+        logged_in_client, db_session):
+    today = date.today()
+    behavior = make_procedure(db_session, name='DashFilt-Behavior')
+    gap = make_procedure(db_session, name='DashFilt-Gap', parent=behavior)
+    other = make_procedure(db_session, name='DashFilt-Other')
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashFilt-Parent'),
+               procedure=behavior, completion_date=today)
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashFilt-Child'),
+               procedure=gap, completion_date=today)
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashFilt-Out'),
+               procedure=other, completion_date=today)
+
+    html = logged_in_client.get(f'/?event_procedure={behavior.id}').data.decode()
+    assert 'DashFilt-Parent' in html and 'DashFilt-Child' in html
+    assert 'DashFilt-Out' not in html
+
+    html = logged_in_client.get(f'/?event_procedure={gap.id}').data.decode()
+    assert 'DashFilt-Child' in html
+    assert 'DashFilt-Parent' not in html
+
+
+def test_dashboard_events_days_window(logged_in_client, db_session):
+    today = date.today()
+    proc = make_procedure(db_session)
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashDays-Recent'),
+               procedure=proc, completion_date=today - timedelta(days=3))
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashDays-Old'),
+               procedure=proc, completion_date=today - timedelta(days=20))
+
+    html = logged_in_client.get('/').data.decode()
+    assert 'DashDays-Recent' in html and 'DashDays-Old' not in html
+    assert 'last 7 days' in html
+
+    html = logged_in_client.get('/?event_days=30').data.decode()
+    assert 'DashDays-Recent' in html and 'DashDays-Old' in html
+    assert 'last 30 days' in html
+
+    html = logged_in_client.get('/?event_days=2').data.decode()
+    assert 'DashDays-Recent' not in html
+
+
+def test_dashboard_events_bad_filters_fall_back_to_defaults(logged_in_client, db_session):
+    proc = make_procedure(db_session)
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashBad-1'),
+               procedure=proc, completion_date=date.today())
+
+    response = logged_in_client.get('/?event_procedure=999999&event_days=abc')
+    assert response.status_code == 200
+    html = response.data.decode()
+    assert 'DashBad-1' in html and 'last 7 days' in html
+    assert 'last 1 day)' in logged_in_client.get('/?event_days=-5').data.decode()
+
+
+def test_dashboard_events_htmx_returns_only_the_pane(logged_in_client, db_session):
+    """The filter form's htmx request gets the pane alone, filtered."""
+    proc = make_procedure(db_session, name='DashHx-Proc')
+    other = make_procedure(db_session, name='DashHx-Other')
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashHx-In'),
+               procedure=proc, completion_date=date.today())
+    make_event(db_session, animal=make_animal(db_session, custom_id='DashHx-Out'),
+               procedure=other, completion_date=date.today())
+
+    response = logged_in_client.get(
+        f'/?event_procedure={proc.id}&event_days=3',
+        headers={'HX-Request': 'true', 'HX-Target': 'recent-events-pane'},
+    )
+    assert response.status_code == 200
+    assert 'HX-Target' in response.headers['Vary']
+    html = response.data.decode()
+    assert html.lstrip().startswith('<div class="card shadow-sm" id="recent-events-pane">')
+    assert '<html' not in html and 'Weights' not in html
+    assert 'DashHx-In' in html and 'DashHx-Out' not in html
+    assert 'last 3 days' in html
+
+    # Any other htmx request to the dashboard (e.g. history restore)
+    # still gets the whole page.
+    response = logged_in_client.get('/', headers={'HX-Request': 'true'})
+    assert 'Weights' in response.data.decode()
+
+
 # ---------------------------------------------------------------------------
 # Dashboard — confocal grouping & sorting
 # ---------------------------------------------------------------------------

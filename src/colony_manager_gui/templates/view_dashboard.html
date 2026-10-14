@@ -58,18 +58,10 @@ Dashboard
 </div>
 
 <div class="row mb-4">
-    <div class="col-12 col-lg-6 mb-4 mb-lg-0">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last 7 days)</h2>
-                <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events_by_animal|length }}</span>
-            </div>
-            <div class="card-body">
-                {% with events_by_animal=recent_events_by_animal %}
-                    {% include "partials/recent_events.html" %}
-                {% endwith %}
-            </div>
-        </div>
+    {# expandAll lives outside the pane so it survives the pane's htmx
+       swaps when a filter changes. #}
+    <div class="col-12 col-lg-6 mb-4 mb-lg-0" x-data="{ expandAll: false }">
+        {% include "partials/recent_events_pane.html" %}
     </div>
     <div class="col-12 col-lg-6">
         <div class="card shadow-sm">

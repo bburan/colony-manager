@@ -48,6 +48,18 @@ Weight & Feed panel.
 Events completed in the last 7 days, grouped by animal, most recent first.
 Expanding a row shows the files attached to each event.
 
+Two controls above the list narrow it:
+
+- **Event type** shows only events of that procedure. Picking a parent
+  (e.g. *Behavior*) includes all of its subprocedures (*Behavior > Gap
+  detection*, …).
+- **Last _N_ days** changes how far back to look (default 7).
+- **Expand all** opens every animal's row to show its events (each
+  event's files still open with a click); untick it to collapse them.
+
+The choices are kept in the page address, so a filtered view can be
+bookmarked. **Clear** returns to all event types over the last 7 days.
+
 ## Recent Confocal Images
 
 Confocal image files whose *file modification time on disk* falls in the

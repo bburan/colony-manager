@@ -1,0 +1,68 @@
+{# Recently Completed Events card, filters included. Rendered inside the
+   dashboard and on its own when the filter form's htmx request targets
+   it; the id must match RECENT_EVENTS_PANE_ID in routes/main.py.
+   Expects an enclosing Alpine scope providing ``expandAll``. #}
+<div class="card shadow-sm" id="recent-events-pane">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-0"><i class="fas fa-clipboard-check me-2"></i>Recently Completed Events (last {{ event_filters.event_days }} day{{ 's' if event_filters.event_days != 1 }})</h2>
+        <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{ recent_events_by_animal|length }}</span>
+    </div>
+    <div class="card-body">
+        {% set events_filtered = event_filters.event_procedure != 'all' or event_filters.event_days != default_event_days %}
+        {# A GET form that htmx submits in place: the dashboard route
+           answers a request targeting this pane with the pane alone, and
+           hx-push-url keeps the filters in the address bar so a filtered
+           view can still be bookmarked. Without JS it submits normally.
+           "submit" must be a trigger too, or Enter in the day box does a
+           native submit and reloads the page. The delay debounces the
+           spinner arrows; hx-sync aborts a superseded request (Enter can
+           also fire "change"). #}
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <form method="get" id="recent-events-filter-form"
+              class="d-flex flex-wrap align-items-center gap-2 m-0"
+              action="{{ url_for('main.view_dashboard') }}"
+              hx-get="{{ url_for('main.view_dashboard') }}"
+              hx-target="#recent-events-pane" hx-swap="outerHTML"
+              hx-push-url="true" hx-trigger="submit, change delay:300ms"
+              hx-sync="this:replace">
+            <select name="event_procedure" aria-label="Filter by event type"
+                    class="form-select form-select-sm w-auto">
+                <option value="all">All event types</option>
+                {% for p in event_procedure_options %}
+                <option value="{{ p.id }}" {% if event_filters.event_procedure == p.id|string %}selected{% endif %}>{{ p.display_name }}</option>
+                {% endfor %}
+            </select>
+            <div class="input-group input-group-sm w-auto">
+                <span class="input-group-text">Last</span>
+                <input type="number" name="event_days" min="1" max="{{ max_event_days }}"
+                       value="{{ event_filters.event_days }}"
+                       aria-label="Number of days to search"
+                       class="form-control" style="width: 5em;">
+                <span class="input-group-text">days</span>
+            </div>
+            {% if events_filtered %}
+            <a href="{{ url_for('main.view_dashboard') }}"
+               hx-get="{{ url_for('main.view_dashboard') }}"
+               hx-target="#recent-events-pane" hx-swap="outerHTML"
+               hx-push-url="true"
+               class="btn btn-sm btn-link text-secondary text-decoration-none px-1"
+               title="Clear event filters"><i class="fas fa-xmark"></i> Clear</a>
+            {% endif %}
+            <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button></noscript>
+        </form>
+        {# Outside the form, so toggling it doesn't fire the form's
+           htmx "change" trigger. Expands the animal rows only; each
+           event's files stay a click away. #}
+        {% if recent_events_by_animal %}
+        <div class="form-check ms-auto mb-0 small">
+            <input class="form-check-input" type="checkbox" id="recent-events-expand-all"
+                   x-model="expandAll">
+            <label class="form-check-label" for="recent-events-expand-all">Expand all</label>
+        </div>
+        {% endif %}
+        </div>
+        {% with events_by_animal=recent_events_by_animal %}
+            {% include "partials/recent_events.html" %}
+        {% endwith %}
+    </div>
+</div>

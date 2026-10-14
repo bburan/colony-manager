@@ -17,6 +17,23 @@ no visible effect is left out.
 If something on a page does not match what the rest of this help says,
 check here first: the behaviour probably changed.
 
+## 2026-10-14
+
+**Filter the dashboard's recently completed events.** The *Recently
+Completed Events* panel has an *Event type* dropdown (choosing a parent
+procedure includes its subtypes) and a *Last N days* box for how far
+back to look, still 7 by default. The panel updates in place without
+reloading the page, and *Expand all* opens every animal's row at once.
+See [Dashboard](/help/dashboard).
+
+**CFTS sessions tag their events.** When an event is created
+automatically from a CFTS recording (ABR, DPOAE, EFR, MEMR and so on)
+whose folder name says *pre-histology*, *1d post-exposure* or *2w
+post-exposure* (or *2 week post-exposure*), the event now gets the
+matching tag. Events created before today are not tagged
+retroactively; add the tag by editing the event if you need it. See
+[CFTS data](/help/mmm-db-cfts).
+
 ## 2026-10-13
 
 **Filter an animal's events.** The Events panel on an animal's page has
